@@ -1,4 +1,4 @@
-// 功能面板：顶部两级菜单（一级：任务 / 板块 / 计划 / 检查 / 收集，二级：各具体功能），内容区直接嵌入对应功能面板。
+// 功能面板：顶部两级菜单（一级：任务 / 板块 / 检查 / 收集，二级：各具体功能），内容区直接嵌入对应功能面板。
 // 无二级菜单的一级组（如「检查」）用 directItem 指定直接嵌入的面板，二级行整体隐藏。
 // 嵌入模式复用各面板实例（FloatingPanel.embed），切换菜单时关闭并退回原浮层容器；「任务详情」默认打开第一个根任务。
 import { setIcon } from 'obsidian';
@@ -8,7 +8,7 @@ import { t } from '../../../i18n';
 import { FloatingPanel, type FloatingPanelOptions } from '../basic/floating-panel';
 
 /** 一级菜单标识 */
-export type FunctionGroupId = 'task' | 'section' | 'plan' | 'check' | 'collect';
+export type FunctionGroupId = 'task' | 'section' | 'check' | 'collect';
 
 /** 二级菜单（功能）标识 */
 export type FunctionItemId =
@@ -72,12 +72,6 @@ export class FunctionPanel extends FloatingPanel {
                 items: [
                     { id: 'task', label: t('interface.task'), icon: 'list-todo' },
                     { id: 'taskDetail', label: t('panel.taskDetailTitle'), icon: 'file-text' },
-                ],
-            },
-            {
-                id: 'plan',
-                label: t('interface.functionGroupPlan'),
-                items: [
                     { id: 'planAnnual', label: t('interface.planAnnual'), icon: 'calendar-range' },
                     { id: 'planWeek', label: t('interface.planWeek'), icon: 'calendar-check' },
                     { id: 'timeBox', label: t('interface.timeBox'), icon: 'calendar-clock' },
@@ -218,6 +212,19 @@ export class FunctionPanel extends FloatingPanel {
         panel.embed(host);
         panel.open();
         this.embeddedPanel = panel;
+    }
+
+    /** 外部切换二级菜单（如任务面板点击任务后跳到「任务详情」） */
+    showItem(itemId: FunctionItemId): void {
+        const group = this.groups.find(
+            (entry) => entry.directItem === itemId || entry.items.some((item) => item.id === itemId),
+        );
+        if (!group || !this.isOpen) return;
+        this.activeGroupId = group.id;
+        this.activeItemId = itemId;
+        this.detailTask = undefined;
+        this.renderMenu();
+        this.renderContent();
     }
 
     /** 外部要把当前嵌入的面板作为浮层打开时调用：退出嵌入并清空内容区 */

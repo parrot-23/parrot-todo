@@ -8,6 +8,12 @@ import { t } from '../../../i18n';
 import type { PlanCategoryData } from '../../../shared/plan-category-manager';
 import { UNCATEGORIZED_CATEGORY_ID } from '../../../shared/plan-category-manager';
 import { getTaskGoals } from '../../../shared/task-sections';
+import {
+    findRootTaskId,
+    getTreeSelectedTaskId,
+    onTreeSelectionChange,
+    setTreeSelectedTaskId,
+} from '../../../shared/task-tree-selection';
 import { applyThemeColors, getCurrentThemeColors } from '../../../themestory/theme-colors';
 import { SectionHost } from '../../section/section-host';
 import { FloatingPanel, type FloatingPanelOptions } from '../basic/floating-panel';
@@ -91,6 +97,10 @@ export class TaskDetailPanel extends FloatingPanel {
     private activeInlineEditAbort: (() => void) | null = null;
     /** 拖动结束后抑制一次点击，避免误选中 */
     private suppressTreeClick = false;
+    /** 共享选中状态的应用中标记（避免把同步结果再写回） */
+    private applyingSharedSelection = false;
+    /** 取消任务树共享选中订阅 */
+    private readonly unsubscribeTreeSelection: () => void;
 
     constructor(options: TaskDetailPanelOptions) {
         super({
@@ -105,6 +115,16 @@ export class TaskDetailPanel extends FloatingPanel {
         this.tasks = options.tasks ?? [];
         this.selectedTaskId = options.task.id;
         this.rootTaskId = options.task.id;
+        // 其他面板已选中的任务若属于当前任务树，创建时直接沿用（右侧同步展示该任务）
+        const sharedTaskId = getTreeSelectedTaskId();
+        if (sharedTaskId && sharedTaskId !== this.rootTaskId && findRootTaskId(this.tasks, sharedTaskId) === this.rootTaskId) {
+            const sharedTask = this.tasks.find((item) => item.id === sharedTaskId);
+            if (sharedTask) {
+                this.selectedTaskId = sharedTaskId;
+                this.task = sharedTask;
+            }
+        }
+        this.unsubscribeTreeSelection = onTreeSelectionChange((taskId) => this.applySharedTaskSelection(taskId));
         this.sectionHost = new SectionHost({
             app: options.app,
             getTask: () => this.task,
@@ -132,6 +152,7 @@ export class TaskDetailPanel extends FloatingPanel {
 
     /** 销毁面板时一并清理浮层 */
     override destroy(): void {
+        this.unsubscribeTreeSelection();
         this.closeDeleteConfirm();
         this.closeCategoryMenu();
         this.sectionHost?.destroy();
@@ -844,9 +865,20 @@ export class TaskDetailPanel extends FloatingPanel {
         return ids;
     }
 
+    /** 浮层打开指定任务：任务树的根切回该任务，并把它设为共享选中 */
+    setRootTask(task: PrototypeTask): void {
+        if (task.id !== this.rootTaskId) {
+            this.rootTaskId = task.id;
+            this.refreshRootSelect();
+            this.renderTree();
+        }
+        this.selectTask(task.id);
+    }
+
     /** 选中某个任务条目（决定 + 新增子任务挂到哪个任务下） */
     private selectTask(taskId: string): void {
         this.selectedTaskId = taskId;
+        this.publishSelection();
         this.treeEl.querySelectorAll('.task-detail-tree-row').forEach((el) => {
             const row = el as HTMLElement;
             row.toggleClass('is-selected', row.dataset.taskId === taskId);
@@ -866,6 +898,7 @@ export class TaskDetailPanel extends FloatingPanel {
     /** 取消任务条目选中：清除高亮，右侧回到任务树根任务（面板打开时的任务） */
     private clearTaskSelection(): void {
         this.selectedTaskId = undefined;
+        this.publishSelection();
         this.treeEl.querySelectorAll('.task-detail-tree-row').forEach((el) => {
             (el as HTMLElement).removeClass('is-selected');
         });
@@ -879,6 +912,36 @@ export class TaskDetailPanel extends FloatingPanel {
             return;
         }
         this.renderSettingPanel();
+    }
+
+    /** 把当前选中任务写入共享状态（应用外部同步期间不回写，避免循环） */
+    private publishSelection(): void {
+        if (this.applyingSharedSelection) return;
+        setTreeSelectedTaskId(this.selectedTaskId);
+    }
+
+    /** 应用其他面板同步过来的选中任务：同步根任务下拉、任务树高亮与右侧内容 */
+    private applySharedTaskSelection(taskId: string | undefined): void {
+        if (taskId === this.selectedTaskId) return;
+        this.applyingSharedSelection = true;
+        try {
+            if (!taskId) {
+                this.clearTaskSelection();
+                return;
+            }
+            if (!this.tasks.some((task) => task.id === taskId)) return;
+            const rootId = findRootTaskId(this.tasks, taskId);
+            if (rootId && rootId !== this.rootTaskId) {
+                this.rootTaskId = rootId;
+                this.refreshRootSelect();
+                this.renderTree();
+            }
+            // 根任务不在左侧任务树中：只切换右侧内容，树中无高亮
+            if (taskId === this.rootTaskId) this.clearTaskSelection();
+            else this.selectTask(taskId);
+        } finally {
+            this.applyingSharedSelection = false;
+        }
     }
 
     /** 展开 / 收起新增子任务小面板 */

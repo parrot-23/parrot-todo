@@ -21,6 +21,12 @@ import {
 } from '../../../shared/plan-data';
 import { applyThemeColors, getCurrentThemeColors } from '../../../themestory/theme-colors';
 import { getWeekNote, setWeekNote } from '../../../shared/task-sections';
+import {
+    findRootTaskId,
+    getTreeSelectedTaskId,
+    onTreeSelectionChange,
+    setTreeSelectedTaskId,
+} from '../../../shared/task-tree-selection';
 import { FloatingPanel, type FloatingPanelOptions } from '../basic/floating-panel';
 
 /** 计划年度面板配置 */
@@ -166,6 +172,10 @@ export class PlanAnnualPanel extends FloatingPanel {
     private drag: DragState | null = null;
     /** 状态下拉列表（挂在 body 上） */
     private statusMenuEl: HTMLElement | null = null;
+    /** 共享选中状态的应用中标记（避免把同步结果再写回） */
+    private applyingSharedSelection = false;
+    /** 取消任务树共享选中订阅 */
+    private readonly unsubscribeTreeSelection: () => void;
 
     /** 本周描述悬浮面板（挂在面板根节点内） */
     private weekGoalTipEl: HTMLElement | null = null;
@@ -211,6 +221,7 @@ export class PlanAnnualPanel extends FloatingPanel {
             );
             this.updateDetailButton();
         }
+        this.unsubscribeTreeSelection = onTreeSelectionChange((taskId) => this.applySharedTaskSelection(taskId));
         this.renderLayout();
     }
 
@@ -237,6 +248,7 @@ export class PlanAnnualPanel extends FloatingPanel {
 
     /** 销毁面板时清理拖拽残留 */
     override destroy(): void {
+        this.unsubscribeTreeSelection();
         this.cancelDrag();
         this.closeStatusMenu();
         this.closeWeekGoalTip();
@@ -258,6 +270,7 @@ export class PlanAnnualPanel extends FloatingPanel {
         this.rootSelectEl.addEventListener('change', () => {
             this.rootTaskId = this.rootSelectEl.value || undefined;
             this.selectedTaskId = undefined;
+            this.publishSelection();
             this.renderTree();
             this.renderLanes();
             this.updateDetailButton();
@@ -297,8 +310,15 @@ export class PlanAnnualPanel extends FloatingPanel {
 
     /** 重建根任务下拉（顶层任务 = 无父任务的主线/支线） */
     private refreshRootSelect(): void {
-        const roots = this.panelOptions.getTasks().filter((task) => !task.parentId);
-        if (!roots.some((task) => task.id === this.rootTaskId)) {
+        const tasks = this.panelOptions.getTasks();
+        const roots = tasks.filter((task) => !task.parentId);
+        // 沿用其他面板的选中任务：选中项所在根任务决定任务树的根
+        const sharedTask = tasks.find((task) => task.id === getTreeSelectedTaskId());
+        this.selectedTaskId = sharedTask?.id;
+        const sharedRootId = sharedTask ? findRootTaskId(tasks, sharedTask.id) : undefined;
+        if (sharedRootId && roots.some((task) => task.id === sharedRootId)) {
+            this.rootTaskId = sharedRootId;
+        } else if (!roots.some((task) => task.id === this.rootTaskId)) {
             this.rootTaskId = roots[0]?.id;
         }
         this.rootSelectEl.empty();
@@ -417,13 +437,44 @@ export class PlanAnnualPanel extends FloatingPanel {
     /** 选中任务条目（高亮任务树行与对应泳道行） */
     private selectTask(taskId: string): void {
         this.selectedTaskId = taskId;
+        this.publishSelection();
         this.refreshSelection();
     }
 
     /** 取消选中任务条目 */
     private clearTaskSelection(): void {
         this.selectedTaskId = undefined;
+        this.publishSelection();
         this.refreshSelection();
+    }
+
+    /** 把当前选中任务写入共享状态（应用外部同步期间不回写，避免循环） */
+    private publishSelection(): void {
+        if (this.applyingSharedSelection) return;
+        setTreeSelectedTaskId(this.selectedTaskId);
+    }
+
+    /** 应用其他面板同步过来的选中任务：必要时切换任务树的根，再同步选中态 */
+    private applySharedTaskSelection(taskId: string | undefined): void {
+        if (taskId === this.selectedTaskId) return;
+        this.applyingSharedSelection = true;
+        try {
+            if (!taskId) {
+                this.clearTaskSelection();
+                return;
+            }
+            const tasks = this.panelOptions.getTasks();
+            if (!tasks.some((task) => task.id === taskId)) return;
+            const rootId = findRootTaskId(tasks, taskId);
+            if (rootId && rootId !== this.rootTaskId) {
+                this.rootTaskId = rootId;
+                this.refreshRootSelect();
+            }
+            this.selectedTaskId = taskId;
+            this.refreshSelection();
+        } finally {
+            this.applyingSharedSelection = false;
+        }
     }
 
     /** 同步任务树行与泳道行的选中态 */

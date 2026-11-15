@@ -43,6 +43,7 @@ import type { PlanCategoryData } from '../../shared/plan-category-manager';
 import { getCurrentWeekKey, getISOWeek, makeDayKey, makeWeekKey } from '../../shared/plan-data';
 import { renameTaskDir, sanitizeFolderName } from '../../shared/task-library';
 import { getTaskFileDir } from '../../shared/task-sections';
+import { findRootTaskId, getTreeSelectedTaskId, setTreeSelectedTaskId } from '../../shared/task-tree-selection';
 
 /** 界面视图配置 */
 export interface InterfaceViewOptions {
@@ -242,7 +243,15 @@ export class InterfaceView {
                 container: this.panelContainer,
                 tasks: this.rootPrototypeTasks(),
                 onSubmit: (payload) => this.addPrototypeTask(payload.name, payload.type),
-                onTaskClick: (task) => this.openTaskDetail(task),
+                onTaskClick: (task) => {
+                    // 功能面板内点击任务：切到「任务详情」二级菜单，不打开独立浮层
+                    if (this.taskPanel?.isEmbedded && this.functionPanel) {
+                        setTreeSelectedTaskId(task.id);
+                        this.functionPanel.showItem('taskDetail');
+                        return;
+                    }
+                    this.openTaskDetail(task);
+                },
                 getAllTasks: () => this.prototypeTaskRepo.tasks,
                 getExecutions: () => this.taskExecutionRepo.records,
                 getArchivedTasks: () => this.prototypeTaskRepo.archivedRootTasks,
@@ -482,6 +491,8 @@ export class InterfaceView {
     /** 打开任务详情面板（同一任务复用实例，已打开时置顶） */
     private openTaskDetail(task: PrototypeTask): TaskDetailPanel {
         const panel = this.ensureTaskDetailPanel(task);
+        // 面板可能已随共享选中切换到别的根任务，打开时切回目标任务
+        panel.setRootTask(task);
         this.prepareForFloating(panel);
         panel.open();
         return panel;
@@ -805,8 +816,15 @@ export class InterfaceView {
         switch (item) {
             case 'task':
                 return this.ensureTaskPanel();
-            case 'taskDetail':
-                return task ? this.ensureTaskDetailPanel(task) : null;
+            case 'taskDetail': {
+                if (!task) return null;
+                // 与计划年度共享选中：优先打开共享选中任务所在的根任务，创建面板后沿用该选中
+                const tasks = this.prototypeTaskRepo.tasks;
+                const selectedId = getTreeSelectedTaskId();
+                const rootId = selectedId ? findRootTaskId(tasks, selectedId) : undefined;
+                const rootTask = rootId ? tasks.find((item) => item.id === rootId) : undefined;
+                return this.ensureTaskDetailPanel(rootTask ?? task);
+            }
             case 'habit':
                 return this.ensureHabitPanel();
             case 'goalBoard':
