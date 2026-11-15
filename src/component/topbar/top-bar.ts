@@ -23,10 +23,8 @@ export interface TopBarOptions {
     onDateChange?: (date: Date) => void;
     /** 点击周历按钮（传入当前选中日期） */
     onOpenCalendar?: (date: Date) => void;
-    /** 点击功能面板按钮（位于任务目标按钮左侧） */
+    /** 点击功能面板按钮（位于周历按钮左侧） */
     onOpenFunctionPanel?: () => void;
-    /** 点击任务目标按钮（位于周历按钮左侧） */
-    onOpenGoalPanel?: () => void;
     /** 点击设置按钮 */
     onOpenSettings?: () => void;
     /** 点击帮助按钮（位于设置按钮紧贴右侧） */
@@ -65,21 +63,13 @@ export class TopBar {
         bar.createDiv({ cls: 'parrot-plan-topbar-spacer' });
         const dateBar = bar.createDiv({ cls: 'parrot-plan-topbar-date' });
 
-        // 功能面板按钮：位于任务目标按钮左侧
+        // 功能面板按钮：位于周历按钮左侧
         const functionBtn = dateBar.createEl('button', {
             cls: 'parrot-plan-topbar-calendar-btn',
             attr: { 'aria-label': t('interface.functionPanel') },
         });
         setIcon(functionBtn, 'layout-grid');
         functionBtn.onclick = () => this.options.onOpenFunctionPanel?.();
-
-        // 任务目标按钮：位于周历按钮左侧
-        const goalBtn = dateBar.createEl('button', {
-            cls: 'parrot-plan-topbar-calendar-btn',
-            attr: { 'aria-label': t('nav.openGoalPanel') },
-        });
-        setIcon(goalBtn, 'target');
-        goalBtn.onclick = () => this.options.onOpenGoalPanel?.();
 
         // 周历按钮：位于日期切换左侧
         const calendarBtn = dateBar.createEl('button', {

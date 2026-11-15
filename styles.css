@@ -12788,20 +12788,19 @@ button.task-record-dropdown-item.is-selected {
     border-right: 1px solid var(--sdt-card-border, var(--background-modifier-border));
 }
 
-/* 顶部占位：与右侧季度导航行等高，使下拉列表与右侧周列表头起始位置一致；内含「目标」「任务」按钮 */
-.plan-annual-left-placeholder {
-    flex: 0 0 auto;
-    height: 28px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
+/* 顶部占位由第二行类型行替代，汇总高度对齐右侧季度导航行 + 周列表头 */
 /* 根任务下拉：与右侧周列表头等高，保证任务树行与泳道行对齐 */
 .plan-annual-root-select {
     flex: 0 0 auto;
     width: 100%;
     height: 34px;
+    box-sizing: border-box;
+}
+
+/* 第二行：类型徽标 + 新增按钮，高度补齐下拉与导航行的高差，使任务树与泳道行对齐 */
+.plan-annual-type-row {
+    flex: 0 0 auto;
+    height: 28px;
     box-sizing: border-box;
 }
 

@@ -651,39 +651,48 @@ export class TaskDetailPanel extends FloatingPanel {
     }
 
 
-    /** 渲染后代任务树 */
+    /** 渲染任务树（从根任务开始，含根任务自身） */
     private renderTree(): void {
         this.treeEl.empty();
-        const hasChild = this.tasks.some((task) => task.parentId === this.rootTaskId);
-        if (!hasChild) {
+        const rootTask = this.tasks.find((task) => task.id === this.rootTaskId);
+        if (!rootTask) {
             this.treeEl.createDiv({ cls: 'task-detail-tree-empty', text: t('panel.noSubTask') });
             return;
         }
-        this.renderTreeNodes(this.treeEl, this.rootTaskId, 0);
+        this.renderTreeRow(this.treeEl, rootTask, 0);
+        this.renderTreeNodes(this.treeEl, this.rootTaskId, 1);
     }
 
     /** 递归渲染某一层的子任务 */
     private renderTreeNodes(parentEl: HTMLElement, parentId: string, depth: number): void {
         const children = this.tasks.filter((task) => task.parentId === parentId);
         for (const child of children) {
-            const row = parentEl.createDiv({ cls: 'task-detail-tree-row' });
-            row.style.marginLeft = `${depth * TREE_DEPTH_INDENT}px`;
-            row.dataset.taskId = child.id;
-            row.dataset.depth = String(depth);
-            const iconEl = row.createSpan({ cls: 'task-detail-tree-icon' });
-            setIcon(iconEl, 'git-branch');
-            row.createSpan({ cls: 'task-detail-tree-label', text: child.name });
-            // 条目末尾始终显示目标图标 + 该任务自身目标数量（为 0 不显示）
-            const goalCount = getTaskGoals(child).length;
-            if (goalCount > 0) {
-                const goalEl = row.createSpan({ cls: 'task-detail-tree-goal' });
-                const goalIconEl = goalEl.createSpan({ cls: 'task-detail-tree-goal-icon' });
-                setIcon(goalIconEl, 'target');
-                goalEl.createSpan({ cls: 'task-detail-tree-goal-count', text: String(goalCount) });
-            }
-            row.toggleClass('is-selected', child.id === this.selectedTaskId);
-            row.addEventListener('mousedown', (evt) => this.startTreeLongPress(evt, child, row));
+            this.renderTreeRow(parentEl, child, depth);
             this.renderTreeNodes(parentEl, child.id, depth + 1);
+        }
+    }
+
+    /** 渲染单条任务行（根任务与后代共用） */
+    private renderTreeRow(parentEl: HTMLElement, child: PrototypeTask, depth: number): void {
+        const row = parentEl.createDiv({ cls: 'task-detail-tree-row' });
+        row.style.marginLeft = `${depth * TREE_DEPTH_INDENT}px`;
+        row.dataset.taskId = child.id;
+        row.dataset.depth = String(depth);
+        const iconEl = row.createSpan({ cls: 'task-detail-tree-icon' });
+        setIcon(iconEl, 'git-branch');
+        row.createSpan({ cls: 'task-detail-tree-label', text: child.name });
+        // 条目末尾始终显示目标图标 + 该任务自身目标数量（为 0 不显示）
+        const goalCount = getTaskGoals(child).length;
+        if (goalCount > 0) {
+            const goalEl = row.createSpan({ cls: 'task-detail-tree-goal' });
+            const goalIconEl = goalEl.createSpan({ cls: 'task-detail-tree-goal-icon' });
+            setIcon(goalIconEl, 'target');
+            goalEl.createSpan({ cls: 'task-detail-tree-goal-count', text: String(goalCount) });
+        }
+        row.toggleClass('is-selected', child.id === this.selectedTaskId);
+        // 根任务不可拖动（任务树始终以它为根）
+        if (child.id !== this.rootTaskId) {
+            row.addEventListener('mousedown', (evt) => this.startTreeLongPress(evt, child, row));
         }
     }
 

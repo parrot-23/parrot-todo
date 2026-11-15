@@ -45,6 +45,10 @@ export interface PlanAnnualPanelOptions extends Omit<FloatingPanelOptions, 'titl
     onChanged?: () => void;
     /** 点击标题栏跳转图标：在任务详情面板中打开左侧选中的任务 */
     onOpenTaskDetail?: (taskId: string) => void;
+    /** 打开任务配置面板回调（左侧第一行配置按钮，作用于下拉选中的根任务） */
+    onOpenConfig?: (task: PrototypeTask) => void;
+    /** 新增子任务回调（左侧第二行 + 按钮，parentId 为当前选中任务或根任务） */
+    onAddChild?: (name: string, parentId: string) => void;
 }
 
 /** 任务状态对应的图标（与习惯面板任务树保持一致） */
@@ -176,6 +180,11 @@ export class PlanAnnualPanel extends FloatingPanel {
     private applyingSharedSelection = false;
     /** 取消任务树共享选中订阅 */
     private readonly unsubscribeTreeSelection: () => void;
+    /** 第二行类型徽标（主线任务 / 支线任务） */
+    private typeEl!: HTMLElement;
+    /** 第二行「+」按钮的内联新增表单 */
+    private addFormEl!: HTMLElement;
+    private addInputEl!: HTMLInputElement;
 
     /** 本周描述悬浮面板（挂在面板根节点内） */
     private weekGoalTipEl: HTMLElement | null = null;
@@ -262,11 +271,13 @@ export class PlanAnnualPanel extends FloatingPanel {
     }
 
     private renderLayout(): void {
-        // 左侧：顶部占位（与右侧季度导航行等高）+ 根任务下拉（与右侧周列表头等高）+ 任务树
+        // 左侧：根任务下拉 + 类型行 + 任务树（类型行同时充当顶部占位，使任务树与右侧泳道行对齐）
         const left = this.body.createDiv({ cls: 'plan-annual-left' });
-        // 左侧顶部占位：仅用于与右侧季度导航行保持等高
-        left.createDiv({ cls: 'plan-annual-left-placeholder' });
-        this.rootSelectEl = left.createEl('select', { cls: 'dropdown plan-annual-root-select' });
+        // 第一行：根任务下拉 + 配置按钮（与任务详情面板一致，与右侧周列表头等高）
+        const rootRow = left.createDiv({ cls: 'task-detail-root-row' });
+        this.rootSelectEl = rootRow.createEl('select', {
+            cls: 'dropdown plan-annual-root-select task-detail-root-select',
+        });
         this.rootSelectEl.addEventListener('change', () => {
             this.rootTaskId = this.rootSelectEl.value || undefined;
             this.selectedTaskId = undefined;
@@ -274,7 +285,49 @@ export class PlanAnnualPanel extends FloatingPanel {
             this.renderTree();
             this.renderLanes();
             this.updateDetailButton();
+            this.updateTypeBadge();
         });
+        if (this.panelOptions.onOpenConfig) {
+            const configBtn = rootRow.createDiv({
+                cls: 'task-detail-config-btn',
+                attr: { 'aria-label': t('panel.taskConfigTitle'), role: 'button' },
+            });
+            configBtn.title = t('panel.taskConfigTitle');
+            setIcon(configBtn, 'settings');
+            configBtn.addEventListener('click', () => {
+                if (!this.rootTaskId) return;
+                const rootTask = this.panelOptions.getTasks().find((task) => task.id === this.rootTaskId);
+                if (rootTask) this.panelOptions.onOpenConfig?.(rootTask);
+            });
+        }
+        // 第二行：类型徽标 + 新增子任务按钮（与任务详情面板一致）
+        const header = left.createDiv({ cls: 'task-detail-header plan-annual-type-row' });
+        this.typeEl = header.createSpan({ cls: 'task-detail-type' });
+        const addWrap = header.createDiv({ cls: 'task-detail-add-wrap' });
+        const addBtn = addWrap.createDiv({ cls: 'task-detail-add-btn', attr: { 'aria-label': 'Add' } });
+        setIcon(addBtn, 'plus');
+        addBtn.addEventListener('click', () => this.toggleAddForm());
+        this.addFormEl = addWrap.createDiv({ cls: 'task-detail-add-form' });
+        this.addFormEl.style.display = 'none';
+        this.addInputEl = this.addFormEl.createEl('input', { cls: 'task-detail-add-input' });
+        this.addInputEl.type = 'text';
+        this.addInputEl.placeholder = t('panel.subTaskName');
+        this.addInputEl.addEventListener('keydown', (evt) => {
+            if (evt.key === 'Enter') this.submitAdd();
+            if (evt.key === 'Escape') this.hideAddForm();
+        });
+        const confirmBtn = this.addFormEl.createEl('button', {
+            cls: 'mod-cta',
+            text: t('common.confirm'),
+        });
+        confirmBtn.addEventListener('click', () => this.submitAdd());
+        // 失去焦点（焦点移出小面板）时自动收起
+        this.addFormEl.addEventListener('focusout', (evt) => {
+            const next = evt.relatedTarget as Node | null;
+            if (next && this.addFormEl.contains(next)) return;
+            this.hideAddForm();
+        });
+        // 第三行：任务树（从根任务开始）
         this.treeEl = left.createDiv({ cls: 'plan-annual-tree' });
         this.treeEl.addEventListener('click', (evt) => {
             const row = (evt.target as HTMLElement).closest('.task-detail-tree-row') as HTMLElement | null;
@@ -335,6 +388,7 @@ export class PlanAnnualPanel extends FloatingPanel {
         }
         this.renderTree();
         this.renderQuarter();
+        this.updateTypeBadge();
     }
 
     /** 渲染选中根任务（含根任务自身）的任务树 */
@@ -477,6 +531,46 @@ export class PlanAnnualPanel extends FloatingPanel {
         }
     }
 
+    /** 展开 / 收起新增子任务小面板 */
+    private toggleAddForm(): void {
+        if (this.addFormEl.style.display !== 'none') {
+            this.hideAddForm();
+            return;
+        }
+        this.addFormEl.style.display = 'flex';
+        this.addInputEl.focus();
+    }
+
+    private hideAddForm(): void {
+        this.addFormEl.style.display = 'none';
+        this.addInputEl.value = '';
+    }
+
+    /** 确认新增子任务（挂在当前选中任务下，未选中时挂根任务） */
+    private submitAdd(): void {
+        const name = this.addInputEl.value.trim();
+        if (!name) {
+            this.addInputEl.focus();
+            return;
+        }
+        const parentId = this.selectedTaskId ?? this.rootTaskId;
+        if (!parentId) return;
+        this.panelOptions.onAddChild?.(name, parentId);
+        this.hideAddForm();
+        this.refresh();
+    }
+
+    /** 刷新第二行类型徽标（跟随选中任务，未选中时取根任务） */
+    private updateTypeBadge(): void {
+        if (!this.typeEl) return;
+        const task = this.panelOptions
+            .getTasks()
+            .find((item) => item.id === (this.selectedTaskId ?? this.rootTaskId));
+        this.typeEl.setText(
+            t((task?.type ?? 'main') === 'main' ? 'panel.mainTaskBadge' : 'panel.sideTaskBadge'),
+        );
+    }
+
     /** 同步任务树行与泳道行的选中态 */
     private refreshSelection(): void {
         this.treeEl.querySelectorAll('.task-detail-tree-row').forEach((el) => {
@@ -487,6 +581,7 @@ export class PlanAnnualPanel extends FloatingPanel {
             const row = el as HTMLElement;
             row.toggleClass('is-selected', row.dataset.taskId === this.selectedTaskId);
         });
+        this.updateTypeBadge();
         this.updateDetailButton();
     }
 

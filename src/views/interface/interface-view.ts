@@ -19,7 +19,6 @@ import { CheckPanel } from '../../component/panel/check/check-panel';
 import { CollectPanel } from '../../component/panel/collect/collect-panel';
 import { DataPanel } from '../../component/panel/check/data-panel';
 import { GalleryPanel } from '../../component/panel/gallery/gallery-panel';
-import { GoalPanel } from '../../component/panel/goal/goal-panel';
 import { HabitPanel } from '../../component/panel/section/habit-panel';
 import { PlanAnnualPanel } from '../../component/panel/plan/plan-annual-panel';
 import { GoalBoardPanel } from '../../component/panel/section/goal-board-panel';
@@ -78,8 +77,6 @@ export class InterfaceView {
     private plugin: Plugin;
     /** 日期卡片对应的周历面板（懒创建，复用同一个实例） */
     private datePanel: WeekCalendarPanel | null = null;
-    /** 任务目标面板（懒创建，复用同一个实例） */
-    private goalPanel: GoalPanel | null = null;
     /** 任务卡片对应的任务面板 */
     private taskPanel: TaskPanel | null = null;
     /** 任务详情面板（按任务 id 复用） */
@@ -195,15 +192,6 @@ export class InterfaceView {
             this.datePanel.showWeek(weekKey, highlightDayKey);
         }
         this.datePanel.open();
-    }
-
-    /** 打开任务目标面板（懒创建，复用同一实例） */
-    openGoalPanel(): void {
-        this.goalPanel ??= new GoalPanel({
-            container: this.panelContainer,
-            getTasks: () => this.prototypeTaskRepo.tasks,
-        });
-        this.goalPanel.open();
     }
 
     /** 顶部工具栏切换日期：写入界面统一日期并广播（卡片未创建时由初始化参数生效） */
@@ -369,6 +357,11 @@ export class InterfaceView {
                     const task = this.prototypeTaskRepo.tasks.find((item) => item.id === taskId);
                     if (!task) return;
                     this.openTaskDetail(task);
+                },
+                onOpenConfig: (task) => this.openTaskConfig(task),
+                onAddChild: (name, parentId) => {
+                    const parent = this.prototypeTaskRepo.tasks.find((item) => item.id === parentId);
+                    this.addPrototypeTask(name, parent?.type ?? 'main', parentId);
                 },
             });
         }
