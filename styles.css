@@ -872,6 +872,7 @@ body.is-parrot-plan-active .status-bar {
 /* 顶部导航栏（顶部工具栏一行）：与卡片 / 面板共用主题底色 */
 .parrot-plan-nav {
     position: relative;
+    z-index: 30;
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
@@ -6984,24 +6985,30 @@ button.swimlane-section-card-settings {
     border-radius: 6px;
 }
 
-/* 编辑模式：整组加边框，按钮之间显示短竖线 */
-.interface-tool-group.is-editing {
-    padding: 1px 2px;
-    border-color: var(--sdt-card-border, var(--background-modifier-border));
-}
-
-/* 「添加 / 主题」容器：绝对定位在布局按钮右侧，展开时向右生长，不占布局空间 */
-.interface-tool-extra {
+/* 扩展工具栏：绝对定位在顶部工具栏下方居中，浮层覆盖内容区 */
+.interface-tool-bar {
     position: absolute;
-    left: calc(100% + 2px);
-    top: 50%;
-    transform: translateY(-50%);
+    left: 50%;
+    top: 100%;
+    transform: translateX(-50%);
+    z-index: 1;
     display: none;
     align-items: center;
+    gap: 2px;
+    padding: 3px 6px;
+    border: 1px solid var(--sdt-card-border, var(--background-modifier-border));
+    border-radius: 999px;
+    background: var(--sdt-card-bg, var(--background-secondary));
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
-.interface-tool-group.is-editing .interface-tool-extra {
+.interface-tool-bar.is-visible {
     display: flex;
+}
+
+/* 胶囊内部图标取消自身边框，仅保留外层胶囊边框 */
+.interface-tool-bar .interface-tool-btn {
+    border: none;
 }
 
 /* 与顶部工具栏配置按钮（.parrot-plan-topbar-settings-btn）保持一致的边框与背景 */
@@ -7027,10 +7034,6 @@ button.swimlane-section-card-settings {
 
 .interface-tool-btn.is-active {
     color: var(--interactive-accent);
-}
-
-.interface-tool-btn.is-hidden {
-    display: none;
 }
 
 .interface-tool-btn .svg-icon {
@@ -7220,17 +7223,13 @@ button.swimlane-section-card-settings {
     text-overflow: ellipsis;
 }
 
-/* 按钮之间的短竖线（仅编辑模式显示） */
+/* 扩展工具栏内按钮之间的短竖线 */
 .interface-tool-divider {
-    display: none;
+    display: block;
     width: 1px;
     height: 12px;
     margin: 0 2px;
     background: var(--sdt-card-border, var(--background-modifier-border));
-}
-
-.interface-tool-group.is-editing .interface-tool-divider {
-    display: block;
 }
 
 /* 编辑模式下卡片右上角的移除按钮 */

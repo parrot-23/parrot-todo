@@ -25,6 +25,8 @@ export interface TopBarOptions {
     onOpenCalendar?: (date: Date) => void;
     /** 点击功能面板按钮（位于周历按钮左侧） */
     onOpenFunctionPanel?: () => void;
+    /** 点击收集面板按钮（位于功能按钮与周历按钮之间） */
+    onOpenCollectPanel?: () => void;
     /** 点击设置按钮 */
     onOpenSettings?: () => void;
     /** 点击帮助按钮（位于设置按钮紧贴右侧） */
@@ -70,6 +72,14 @@ export class TopBar {
         });
         setIcon(functionBtn, 'layout-grid');
         functionBtn.onclick = () => this.options.onOpenFunctionPanel?.();
+
+        // 收集面板按钮：位于功能按钮与周历按钮之间
+        const collectBtn = dateBar.createEl('button', {
+            cls: 'parrot-plan-topbar-calendar-btn',
+            attr: { 'aria-label': t('nav.openCollect') },
+        });
+        setIcon(collectBtn, 'inbox');
+        collectBtn.onclick = () => this.options.onOpenCollectPanel?.();
 
         // 周历按钮：位于日期切换左侧
         const calendarBtn = dateBar.createEl('button', {

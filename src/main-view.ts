@@ -50,12 +50,14 @@ export class MainView extends ItemView implements ThemeColorsConsumer {
     private runningCardTimer?: number;
     /** 顶部工具栏（日期切换 + 周历按钮，右侧操作区） */
     private topBar: TopBar;
-    /** 顶部工具栏左侧：界面功能按钮组（添加 / 主题 / 布局） */
-    private interfaceToolGroupEl?: HTMLElement;
+    /** 顶部工具栏下方居中的扩展工具栏（编辑布局时显示：添加 / 主题 / 退出） */
+    private interfaceToolBarEl?: HTMLElement;
     /** 「添加卡片」按钮（仅编辑模式显示） */
     private addCardToolBtn?: HTMLButtonElement;
     /** 「主题」按钮（仅编辑模式显示） */
     private themeToolBtn?: HTMLButtonElement;
+    /** 「退出」按钮（仅编辑模式显示，结束编辑布局） */
+    private exitToolBtn?: HTMLButtonElement;
     /** 「布局」按钮（切换编辑模式） */
     private layoutToolBtn?: HTMLButtonElement;
     /** 设置面板（顶部工具栏「设置」按钮打开，复用同一实例） */
@@ -89,6 +91,7 @@ export class MainView extends ItemView implements ThemeColorsConsumer {
             onDateChange: (date) => this.interfaceView.setSelectedDate(date),
             onOpenCalendar: (date) => this.interfaceView.openDatePanel(date),
             onOpenFunctionPanel: () => this.interfaceView.openFunctionPanel(),
+            onOpenCollectPanel: () => this.interfaceView.openCollectHubPanel(),
             onOpenSettings: () => this.openSettingsPanel(),
             onOpenHelp: () => this.openHelpModal(),
         });
@@ -182,12 +185,11 @@ export class MainView extends ItemView implements ThemeColorsConsumer {
         }).open();
     }
 
-    /** 渲染顶部工具栏左侧的界面功能按钮组：添加 / 主题 / 布局（编辑模式下整组加边框并显示竖线分隔） */
-    private renderInterfaceTools(container: HTMLElement): void {
+    /** 渲染顶部工具栏左侧的「布局」按钮，以及位于顶部工具栏下方居中的扩展工具栏（添加 / 主题 / 退出） */
+    private renderInterfaceTools(container: HTMLElement, nav: HTMLElement): void {
         const group = container.createDiv({ cls: 'interface-tool-group' });
 
-        // 布局按钮固定在原位；「添加 / 主题」放在它左侧的绝对定位容器里，
-        // 展开时向左生长，不参与工具栏布局，因此不会挤动日期居中与布局按钮位置
+        // 布局按钮：点击切换编辑模式，激活态时在工具栏下方展开扩展工具栏
         const layoutBtn = group.createEl('button', { cls: 'interface-tool-btn interface-layout-btn', attr: { type: 'button' } });
         setIcon(layoutBtn, 'layout-panel-top');
         layoutBtn.onclick = () => {
@@ -195,33 +197,40 @@ export class MainView extends ItemView implements ThemeColorsConsumer {
             this.updateInterfaceTools();
         };
 
-        const extra = group.createDiv({ cls: 'interface-tool-extra' });
+        // 扩展工具栏：绝对定位在顶部工具栏下方居中，作为浮层覆盖内容区，不挤压页面布局
+        const toolbar = nav.createDiv({ cls: 'interface-tool-bar' });
 
-        const addBtn = extra.createEl('button', { cls: 'interface-tool-btn', attr: { type: 'button' } });
+        const addBtn = toolbar.createEl('button', { cls: 'interface-tool-btn', attr: { type: 'button' } });
         setIcon(addBtn, 'plus');
         addBtn.onclick = () => this.interfaceView.openCardPicker();
 
-        extra.createDiv({ cls: 'interface-tool-divider' });
+        toolbar.createDiv({ cls: 'interface-tool-divider' });
 
-        const themeBtn = extra.createEl('button', { cls: 'interface-tool-btn', attr: { type: 'button' } });
+        const themeBtn = toolbar.createEl('button', { cls: 'interface-tool-btn', attr: { type: 'button' } });
         setIcon(themeBtn, 'palette');
         themeBtn.onclick = () => this.interfaceView.openThemePanel();
 
-        extra.createDiv({ cls: 'interface-tool-divider' });
+        toolbar.createDiv({ cls: 'interface-tool-divider' });
 
-        this.interfaceToolGroupEl = group;
+        const exitBtn = toolbar.createEl('button', { cls: 'interface-tool-btn', attr: { type: 'button' } });
+        setIcon(exitBtn, 'x');
+        exitBtn.onclick = () => {
+            this.interfaceView.toggleEditMode();
+            this.updateInterfaceTools();
+        };
+
+        this.interfaceToolBarEl = toolbar;
         this.addCardToolBtn = addBtn;
         this.themeToolBtn = themeBtn;
+        this.exitToolBtn = exitBtn;
         this.layoutToolBtn = layoutBtn;
         this.updateInterfaceTools();
     }
 
-    /** 同步界面功能按钮组的显隐与激活态（非编辑模式只显示布局按钮且无边框） */
+    /** 同步布局按钮的激活态、扩展工具栏显隐与各按钮提示文案 */
     private updateInterfaceTools(): void {
         const editMode = this.interfaceView.isEditMode;
-        this.interfaceToolGroupEl?.toggleClass('is-editing', editMode);
-        this.addCardToolBtn?.toggleClass('is-hidden', !editMode);
-        this.themeToolBtn?.toggleClass('is-hidden', !editMode);
+        this.interfaceToolBarEl?.toggleClass('is-visible', editMode);
         this.layoutToolBtn?.toggleClass('is-active', editMode);
 
         const addLabel = t('interface.addCard');
@@ -233,6 +242,11 @@ export class MainView extends ItemView implements ThemeColorsConsumer {
         if (this.themeToolBtn) {
             this.themeToolBtn.title = themeLabel;
             this.themeToolBtn.setAttribute('aria-label', themeLabel);
+        }
+        const exitLabel = t('interface.exitEditMode');
+        if (this.exitToolBtn) {
+            this.exitToolBtn.title = exitLabel;
+            this.exitToolBtn.setAttribute('aria-label', exitLabel);
         }
         const layoutLabel = editMode ? t('interface.editModeDone') : t('interface.editMode');
         if (this.layoutToolBtn) {
@@ -253,8 +267,8 @@ export class MainView extends ItemView implements ThemeColorsConsumer {
         const nav = root.createDiv({ cls: 'parrot-plan-nav' });
         const { left, actions } = this.topBar.render(nav);
 
-        // 左侧：界面功能按钮组（添加 / 主题 / 布局）
-        this.renderInterfaceTools(left);
+        // 左侧：布局按钮；扩展工具栏（添加 / 主题 / 退出）浮在工具栏下方居中
+        this.renderInterfaceTools(left, nav);
 
         // 进行中任务卡片（右侧操作区，无进行中任务时隐藏）
         this.runningCardEl = actions.createDiv({ cls: 'parrot-plan-running-card-wrap' });

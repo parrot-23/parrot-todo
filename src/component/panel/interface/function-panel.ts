@@ -1,4 +1,5 @@
-// 功能面板：顶部两级菜单（一级：任务 / 板块 / 检查 / 收集，二级：各具体功能），内容区直接嵌入对应功能面板。
+// 功能面板：顶部两级菜单（一级：任务 / 板块 / 检查，二级：各具体功能），内容区直接嵌入对应功能面板。
+// 「收集」一级菜单已移到独立的收集面板（CollectHubPanel），本面板通过 groups 选项复用同一套菜单逻辑。
 // 无二级菜单的一级组（如「检查」）用 directItem 指定直接嵌入的面板，二级行整体隐藏。
 // 嵌入模式复用各面板实例（FloatingPanel.embed），切换菜单时关闭并退回原浮层容器；「任务详情」默认打开第一个根任务。
 import { setIcon } from 'obsidian';
@@ -42,18 +43,23 @@ interface FunctionGroup {
 export interface FunctionPanelOptions extends Omit<FloatingPanelOptions, 'title'> {
     /** 面板标题，默认「功能」 */
     title?: string;
+    /** 要渲染的一级菜单（默认「任务 / 板块 / 检查」）；传入后按此过滤 */
+    groups?: FunctionGroupId[];
     /** 根任务列表（「任务详情」入口使用） */
-    getTasks: () => PrototypeTask[];
+    getTasks?: () => PrototypeTask[];
     /** 按功能项解析（必要时创建）对应面板实例；任务详情需要传入选中任务 */
     resolvePanel: (item: FunctionItemId, task?: PrototypeTask) => FloatingPanel | null;
 }
+
+/** 默认一级菜单（「收集」已拆到独立的收集面板） */
+const DEFAULT_GROUPS: FunctionGroupId[] = ['task', 'section', 'check'];
 
 /** 功能面板 */
 export class FunctionPanel extends FloatingPanel {
     private readonly panelOptions: FunctionPanelOptions;
     private readonly groups: FunctionGroup[];
-    private activeGroupId: FunctionGroupId = 'task';
-    private activeItemId: FunctionItemId = 'task';
+    private activeGroupId: FunctionGroupId;
+    private activeItemId: FunctionItemId;
     private groupTabsEl!: HTMLElement;
     private itemTabsEl!: HTMLElement;
     private contentEl!: HTMLElement;
@@ -65,7 +71,7 @@ export class FunctionPanel extends FloatingPanel {
     constructor(options: FunctionPanelOptions) {
         super({ ...options, title: options.title ?? t('interface.functionPanel'), width: 980 });
         this.panelOptions = options;
-        this.groups = [
+        const allGroups: FunctionGroup[] = [
             {
                 id: 'task',
                 label: t('interface.task'),
@@ -100,6 +106,11 @@ export class FunctionPanel extends FloatingPanel {
                 ],
             },
         ];
+        const allowedGroups = options.groups ?? DEFAULT_GROUPS;
+        this.groups = allGroups.filter((group) => allowedGroups.includes(group.id));
+        const firstGroup = this.groups[0];
+        this.activeGroupId = firstGroup.id;
+        this.activeItemId = firstGroup.directItem ?? firstGroup.items[0].id;
         this.setContent((body) => this.renderBody(body));
     }
 
@@ -191,7 +202,7 @@ export class FunctionPanel extends FloatingPanel {
         this.contentEl.empty();
         const item = this.activeItem();
         if (item.id === 'taskDetail') {
-            const tasks = this.panelOptions.getTasks();
+            const tasks = this.panelOptions.getTasks?.() ?? [];
             if (tasks.length === 0) {
                 this.contentEl.createDiv({ cls: 'interface-function-hint', text: t('interface.functionNoTask') });
                 return;

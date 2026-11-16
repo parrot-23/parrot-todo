@@ -17,6 +17,7 @@ import { FunctionPanel, type FunctionItemId } from '../../component/panel/interf
 import type { FloatingPanel } from '../../component/panel/basic/floating-panel';
 import { CheckPanel } from '../../component/panel/check/check-panel';
 import { CollectPanel } from '../../component/panel/collect/collect-panel';
+import { CollectHubPanel } from '../../component/panel/collect/collect-hub-panel';
 import { DataPanel } from '../../component/panel/check/data-panel';
 import { GalleryPanel } from '../../component/panel/gallery/gallery-panel';
 import { HabitPanel } from '../../component/panel/section/habit-panel';
@@ -119,6 +120,8 @@ export class InterfaceView {
     private checkPanel: CheckPanel | null = null;
     /** 收集卡片对应的面板 */
     private collectPanel: CollectPanel | null = null;
+    /** 收集面板（顶部工具栏「收集」图标入口，一级菜单收集 + 二级菜单收集 / 画廊） */
+    private collectHubPanel: CollectHubPanel | null = null;
     /** 画廊卡片对应的面板 */
     private galleryPanel: GalleryPanel | null = null;
     /** 成就榜单卡片对应的面板 */
@@ -450,6 +453,15 @@ export class InterfaceView {
         return this.collectPanel;
     }
 
+    /** 打开收集面板（顶部工具栏「收集」图标入口）：一级菜单收集，二级菜单收集 / 画廊 */
+    openCollectHubPanel(): void {
+        this.collectHubPanel ??= new CollectHubPanel({
+            container: this.panelContainer,
+            resolvePanel: (item) => this.resolveFunctionPanel(item),
+        });
+        this.collectHubPanel.open();
+    }
+
     /** 点击画廊卡片：打开画廊面板 */
     private openGalleryPanel(): void {
         const panel = this.ensureGalleryPanel();
@@ -463,10 +475,11 @@ export class InterfaceView {
         return this.galleryPanel;
     }
 
-    /** 面板若正嵌入在功能面板中，先从功能面板退出嵌入以便以浮层打开 */
+    /** 面板若正嵌入在功能面板 / 收集面板中，先从对应面板退出嵌入以便以浮层打开 */
     private prepareForFloating(panel: FloatingPanel): void {
         if (!panel.isEmbedded) return;
         this.functionPanel?.releasePanel(panel);
+        this.collectHubPanel?.releasePanel(panel);
     }
 
     /** 点击成就榜单卡片：打开成就榜单面板 */
