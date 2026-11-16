@@ -12486,9 +12486,45 @@ button.task-record-dropdown-item.is-selected {
     overflow-y: auto;
 }
 
-.plan-week-daygoal-editor-empty {
+/* 预估时长行：日期行下方，数字输入 + 分钟单位 */
+.plan-week-daygoal-estimate {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.plan-week-daygoal-estimate-label {
     font-size: 12px;
     color: var(--text-faint);
+}
+
+.plan-week-daygoal-estimate-input {
+    width: 72px;
+    height: 26px;
+    padding: 0 6px;
+    font-size: 12px;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    background: var(--background-primary);
+    color: var(--sdt-text-primary, var(--text-normal));
+}
+
+.plan-week-daygoal-estimate-unit {
+    font-size: 11px;
+    color: var(--text-faint);
+}
+
+/* 卡片本体：某天预估时长标识（该天所在列右上角，颜色跟随主题，不另加底色） */
+.plan-week-daygoal-estimate-badge {
+    position: absolute;
+    top: 2px;
+    display: flex;
+    align-items: center;
+    padding: 0 2px;
+    font-size: 10px;
+    line-height: 1.4;
+    color: var(--sdt-text-secondary, var(--text-muted));
+    pointer-events: none;
 }
 
 /* 习惯模式：周日历里的习惯卡片（时间 + 任务名，无删除按钮；连续星期跨列合并） */
@@ -12563,8 +12599,10 @@ button.task-record-dropdown-item.is-selected {
     border-right: none;
 }
 
+/* 每天分类条目：圆点 / 总时长 / 分隔符 / 已分配时长 按列对齐 */
 .plan-week-daily-row {
-    display: flex;
+    display: grid;
+    grid-template-columns: auto 5.4ch auto 5.4ch;
     align-items: center;
     gap: 4px;
     min-width: 0;
@@ -12573,25 +12611,26 @@ button.task-record-dropdown-item.is-selected {
 }
 
 .plan-week-daily-dot {
-    flex: 0 0 auto;
     width: 6px;
     height: 6px;
     border-radius: 50%;
 }
 
-.plan-week-daily-label {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    color: var(--text-muted);
+.plan-week-daily-sep {
+    color: var(--text-faint);
+    text-align: center;
+}
+
+.plan-week-daily-estimate {
+    color: var(--sdt-text-secondary, var(--text-muted));
+    font-variant-numeric: tabular-nums;
+    text-align: right;
 }
 
 .plan-week-daily-value {
-    flex: 0 0 auto;
     color: var(--sdt-text-primary, var(--text-normal));
     font-variant-numeric: tabular-nums;
+    text-align: right;
 }
 
 .plan-week-summary {

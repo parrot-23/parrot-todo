@@ -54,10 +54,18 @@ function parseChecklistPayload(raw: unknown): TaskSectionPayloadMap['checklist']
 
 /** 解析日目标（键为日期 YYYY-MM-DD） */
 function parseDayGoalsPayload(raw: unknown): TaskSectionPayloadMap['dayGoals'] | null {
-    raw = unwrapPayload(raw, 'entries');
-    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+    let entriesRaw: unknown = raw;
+    let estimatesRaw: unknown;
+    if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+        const record = raw as Record<string, unknown>;
+        if ('entries' in record) {
+            entriesRaw = record.entries;
+            estimatesRaw = record.estimates;
+        }
+    }
+    if (!entriesRaw || typeof entriesRaw !== 'object' || Array.isArray(entriesRaw)) return null;
     const entries: Record<string, TaskDayGoalEntry[]> = {};
-    for (const [dayKey, value] of Object.entries(raw as Record<string, unknown>)) {
+    for (const [dayKey, value] of Object.entries(entriesRaw as Record<string, unknown>)) {
         if (!/^\d{4}-\d{2}-\d{2}$/.test(dayKey) || !Array.isArray(value)) continue;
         const list: TaskDayGoalEntry[] = [];
         for (const entry of value) {
@@ -73,7 +81,15 @@ function parseDayGoalsPayload(raw: unknown): TaskSectionPayloadMap['dayGoals'] |
         }
         if (list.length > 0) entries[dayKey] = list;
     }
-    return { entries };
+    const estimates: Record<string, number> = {};
+    if (estimatesRaw && typeof estimatesRaw === 'object' && !Array.isArray(estimatesRaw)) {
+        for (const [dayKey, value] of Object.entries(estimatesRaw as Record<string, unknown>)) {
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(dayKey)) continue;
+            if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) continue;
+            estimates[dayKey] = Math.round(value);
+        }
+    }
+    return Object.keys(estimates).length > 0 ? { entries, estimates } : { entries };
 }
 
 /** 解析本周描述（键为周键 YYYY-Www） */
@@ -177,7 +193,12 @@ export const SECTION_REGISTRY: Record<SectionType, SectionDefinition> = {
         labelKey: 'panel.weekGoalTab',
         icon: 'calendar-days',
         singleton: true,
-        isEmpty: (payload) => !payload || Object.keys((payload as TaskSectionPayloadMap['dayGoals']).entries).length === 0,
+        isEmpty: (payload) => {
+            const data = payload as TaskSectionPayloadMap['dayGoals'] | undefined;
+            if (!data) return true;
+            return Object.keys(data.entries).length === 0
+                && Object.keys(data.estimates ?? {}).length === 0;
+        },
         parsePayload: (raw) => parseDayGoalsPayload(raw),
     },
     weekNote: {

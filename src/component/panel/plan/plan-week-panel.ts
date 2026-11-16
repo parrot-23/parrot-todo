@@ -20,7 +20,7 @@ import {
     parseWeekKey,
     shiftWeekKey,
 } from '../../../shared/plan-data';
-import { getDayGoalEntries, getWeekNote, setDayGoalEntries, setWeekNote } from '../../../shared/task-sections';
+import { getDayEstimate, getDayGoalEntries, getWeekNote, setDayEstimate, setDayGoalEntries, setWeekNote } from '../../../shared/task-sections';
 import { FloatingPanel, type FloatingPanelOptions } from '../basic/floating-panel';
 
 /** 计划一周面板配置 */
@@ -375,6 +375,8 @@ export class PlanWeekPanel extends FloatingPanel {
             );
             minutesByDay.set(weekday, byCat);
         }
+        // 汇总每天已排布任务的预估时长（按任务分类归属）
+        const estimateByDay = this.buildDayEstimateByCategory(knownIds);
         // 按分类表顺序排列，未分类统一放在最后
         const ordered = [
             ...cats.filter((cat) => cat.id !== UNCATEGORIZED_CATEGORY_ID),
@@ -384,24 +386,54 @@ export class PlanWeekPanel extends FloatingPanel {
             const colEl = wrap.createDiv({ cls: 'plan-week-daily-col' });
             const byCat = minutesByDay.get(weekday);
             if (!byCat) continue;
+            const estimateByCat = estimateByDay.get(weekday);
             const rows = ordered
-                .map((cat) => ({ label: cat.label, color: cat.color, minutes: byCat.get(cat.id) ?? 0 }))
-                .filter((row) => row.minutes > 0);
+                .map((cat) => ({
+                    label: cat.label,
+                    color: cat.color,
+                    minutes: byCat.get(cat.id) ?? 0,
+                    estimate: estimateByCat?.get(cat.id) ?? 0,
+                }))
+                .filter((row) => row.minutes > 0 || row.estimate > 0);
             // 分类表缺少内置未分类时补一行，避免时长丢失
             if (!knownIds.has(UNCATEGORIZED_CATEGORY_ID)) {
                 const minutes = byCat.get(UNCATEGORIZED_CATEGORY_ID) ?? 0;
-                if (minutes > 0) {
-                    rows.push({ label: t('defaultCategory.uncategorized'), color: '#888888', minutes });
+                const estimate = estimateByCat?.get(UNCATEGORIZED_CATEGORY_ID) ?? 0;
+                if (minutes > 0 || estimate > 0) {
+                    rows.push({ label: t('defaultCategory.uncategorized'), color: '#888888', minutes, estimate });
                 }
             }
             for (const row of rows) {
                 const rowEl = colEl.createDiv({ cls: 'plan-week-daily-row' });
-                rowEl.title = `${row.label} ${this.formatMinutesLong(row.minutes)}`;
+                rowEl.title = `${row.label} ${this.formatMinutesLong(row.minutes)} | ${this.formatMinutesLong(row.estimate)}`;
                 rowEl.createSpan({ cls: 'plan-week-daily-dot' }).style.background = row.color ?? '#888888';
-                rowEl.createSpan({ cls: 'plan-week-daily-label', text: row.label });
                 rowEl.createSpan({ cls: 'plan-week-daily-value', text: this.formatMinutesLong(row.minutes) });
+                rowEl.createSpan({ cls: 'plan-week-daily-sep', text: '|' });
+                rowEl.createSpan({ cls: 'plan-week-daily-estimate', text: this.formatMinutesLong(row.estimate) });
             }
         }
+    }
+
+    /** 汇总每天各分类已排布任务的预估时长（分钟），无效分类归入未分类 */
+    private buildDayEstimateByCategory(knownIds: Set<string>): Map<number, Map<string, number>> {
+        const tasks = new Map(this.panelOptions.getTasks().map((task) => [task.id, task]));
+        const result = new Map<number, Map<string, number>>();
+        for (let weekday = 1; weekday <= 7; weekday += 1) {
+            const dayKey = makeDayKeyFromWeek(this.weekKey, weekday);
+            for (const assignment of this.panelOptions.planAssignmentRepo.dayAssignments(this.weekKey, weekday)) {
+                const task = tasks.get(assignment.taskId);
+                if (!task) continue;
+                const minutes = getDayEstimate(task, dayKey);
+                if (!minutes) continue;
+                const catId = task.categoryId && knownIds.has(task.categoryId)
+                    ? task.categoryId
+                    : UNCATEGORIZED_CATEGORY_ID;
+                const byCat = result.get(weekday) ?? new Map<string, number>();
+                byCat.set(catId, (byCat.get(catId) ?? 0) + minutes);
+                result.set(weekday, byCat);
+            }
+        }
+        return result;
     }
 
     /** 取指定日期前一天的月份（用于判断当天是否跨入新月份） */
@@ -492,6 +524,16 @@ export class PlanWeekPanel extends FloatingPanel {
             mark.style.right = `calc(${((span - offset - 1) * 100) / span}% + 2px)`;
             setIcon(mark, entries.every((entry) => entry.done === true) ? 'check-circle' : 'circle');
         }
+        // 某天填写了预估时长时，在该天所在列的右上角显示时长
+        for (let offset = 0; offset < span; offset += 1) {
+            const estimate = this.dayEstimate(task, start + offset);
+            if (!estimate) continue;
+            const badge = chip.createSpan({
+                cls: 'plan-week-daygoal-estimate-badge',
+                text: this.formatMinutesLong(estimate),
+            });
+            badge.style.right = `calc(${((span - offset - 1) * 100) / span}% + 2px)`;
+        }
         // 鼠标位于卡片内某一列区域时，该天有日目标则展示悬浮预览（编辑浮层打开时不显示，避免叠加）
         chip.addEventListener('mousemove', (evt) => {
             if (this.dayGoalEditorEl) return;
@@ -525,6 +567,11 @@ export class PlanWeekPanel extends FloatingPanel {
     /** 选中任务在某一天已填写的日目标（星期 1=周一 … 7=周日） */
     private dayGoalEntries(task: PrototypeTask, weekday: number): TaskDayGoalEntry[] {
         return getDayGoalEntries(task, makeDayKeyFromWeek(this.weekKey, weekday));
+    }
+
+    /** 选中任务在某一天的预估时长（分钟，未填写返回 undefined） */
+    private dayEstimate(task: PrototypeTask, weekday: number): number | undefined {
+        return getDayEstimate(task, makeDayKeyFromWeek(this.weekKey, weekday));
     }
 
     /** 悬浮预览：在该天卡片区域展示该天已填写的日目标 */
@@ -637,6 +684,32 @@ export class PlanWeekPanel extends FloatingPanel {
             cls: 'plan-week-daygoal-tip-head',
             text: `${this.formatDayLabel(dayKey)} ${t(WEEKDAY_LABEL_KEYS[weekday - 1])}`,
         });
+        // 日期行下方独立一行：填写该天的预估时长（分钟）
+        const estimateRow = editor.createDiv({ cls: 'plan-week-daygoal-estimate' });
+        estimateRow.createSpan({ cls: 'plan-week-daygoal-estimate-label', text: t('panel.weekGoalEstimateLabel') });
+        const estimateInput = estimateRow.createEl('input', {
+            cls: 'plan-week-daygoal-estimate-input',
+            attr: { type: 'number', min: '0', step: '5', placeholder: '0' },
+        });
+        const estimate = getDayEstimate(task, dayKey);
+        estimateInput.value = estimate === undefined ? '' : String(estimate);
+        const commitEstimate = () => {
+            const raw = Number(estimateInput.value);
+            const minutes = Number.isFinite(raw) && raw > 0 ? Math.round(raw) : undefined;
+            if (minutes === getDayEstimate(task, dayKey)) return;
+            setDayEstimate(task, dayKey, minutes);
+            void this.panelOptions.save();
+            this.panelOptions.onChanged?.();
+            this.renderDayGrid();
+        };
+        estimateInput.addEventListener('change', commitEstimate);
+        estimateInput.addEventListener('keydown', (evt) => {
+            if (evt.key === 'Enter') {
+                evt.preventDefault();
+                estimateInput.blur();
+            }
+        });
+        estimateRow.createSpan({ cls: 'plan-week-daygoal-estimate-unit', text: t('panel.weekGoalEstimateUnit') });
         // 新增行：紧贴日期行下方，回车提交并保持输入焦点，便于连续添加
         const addRow = editor.createDiv({ cls: 'task-week-goal-add-row' });
         const addInput = addRow.createEl('input', {
@@ -652,9 +725,6 @@ export class PlanWeekPanel extends FloatingPanel {
         });
         const list = editor.createDiv({ cls: 'plan-week-daygoal-editor-list' });
         const entries = getDayGoalEntries(task, dayKey);
-        if (entries.length === 0) {
-            list.createDiv({ cls: 'plan-week-daygoal-editor-empty', text: t('panel.weekGoalEmpty') });
-        }
         for (const entry of entries) {
             const row = list.createDiv({ cls: 'task-week-goal-item' });
             row.toggleClass('is-done', entry.done === true);

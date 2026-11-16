@@ -218,6 +218,8 @@ export const en: I18nMessages = {
     'panel.weekGoalTab': 'Daily descriptions',
     'panel.weekGoalAddPlaceholder': 'Enter a daily description',
     'panel.weekGoalEmpty': 'No daily descriptions',
+    'panel.weekGoalEstimateLabel': 'Estimate',
+    'panel.weekGoalEstimateUnit': 'min',
     'panel.weekGoalUnplanned': 'Not scheduled to day plan',
     'panel.weekGoalPrevWeek': 'Previous week',
     'panel.weekGoalNextWeek': 'Next week',

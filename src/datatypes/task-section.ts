@@ -18,7 +18,11 @@ export interface TaskSectionPayloadMap {
     /** 清单 */
     checklist: { items: ChecklistItem[] };
     /** 日目标（键为日期 YYYY-MM-DD） */
-    dayGoals: { entries: Record<string, TaskDayGoalEntry[]> };
+    dayGoals: {
+        entries: Record<string, TaskDayGoalEntry[]>;
+        /** 每天预估时长（分钟，键为日期 YYYY-MM-DD） */
+        estimates?: Record<string, number>;
+    };
     /** 本周描述（键为周键 YYYY-Www） */
     weekNote: { notes: Record<string, string> };
     /** 阶段目标（键为周键 YYYY-Www，该周为截止时间点） */

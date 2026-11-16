@@ -216,6 +216,8 @@ export const zh = {
     'panel.weekGoalTab': '每日描述',
     'panel.weekGoalAddPlaceholder': '输入日描述',
     'panel.weekGoalEmpty': '暂无日描述',
+    'panel.weekGoalEstimateLabel': '预估时长',
+    'panel.weekGoalEstimateUnit': '分钟',
     'panel.weekGoalUnplanned': '未排布到日计划',
     'panel.weekGoalPrevWeek': '上一周',
     'panel.weekGoalNextWeek': '下一周',

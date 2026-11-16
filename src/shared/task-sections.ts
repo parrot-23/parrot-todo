@@ -187,6 +187,27 @@ export function setDayGoalEntries(task: PrototypeTask, dayKey: string, entries: 
     section.updatedAt = Date.now();
 }
 
+/** 读取某天的预估时长（分钟，未填写返回 undefined） */
+export function getDayEstimate(task: PrototypeTask, dayKey: string): number | undefined {
+    return getSection(task, 'dayGoals')?.payload.estimates?.[dayKey];
+}
+
+/** 写入某天的预估时长（分钟；非正数即删除该天预估） */
+export function setDayEstimate(task: PrototypeTask, dayKey: string, minutes?: number): void {
+    const existing = getSection(task, 'dayGoals');
+    const current = existing?.payload.estimates?.[dayKey];
+    if (!minutes || minutes <= 0) {
+        if (!existing || current === undefined) return;
+        delete existing.payload.estimates?.[dayKey];
+        existing.updatedAt = Date.now();
+        return;
+    }
+    const section = existing ?? ensureSection(task, 'dayGoals');
+    section.payload.estimates ??= {};
+    section.payload.estimates[dayKey] = Math.round(minutes);
+    section.updatedAt = Date.now();
+}
+
 /* ---------------- 本周描述 ---------------- */
 
 /** 读取某周的本周描述 */
