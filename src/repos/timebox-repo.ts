@@ -2,7 +2,13 @@
 // 通过 baseRepo 拿到 timeBoxData 引用，写操作后由调用方触发 baseRepo.saveAll()。
 import type { TimeBoxCell, TimeBoxData } from '../datatypes/timebox-data';
 import { timeBoxCellKey } from '../datatypes/timebox-data';
+import { UNCATEGORIZED_CATEGORY_ID } from '../shared/plan-category-manager';
 import type { BaseRepo } from './base-repo';
+
+/** 一周的小时格总数（7 天 × 24 小时） */
+const WEEK_HOURS = 7 * 24;
+/** 单个小时格代表的分钟数 */
+const MINUTES_PER_HOUR = 60;
 
 export class TimeBoxRepo {
     private baseRepo: BaseRepo;
@@ -27,6 +33,31 @@ export class TimeBoxRepo {
     /** 某一周的全部格子（用于渲染时批量上色） */
     weekCells(weekKey: string): TimeBoxCell[] {
         return this.data.cells.filter((cell) => cell.weekKey === weekKey);
+    }
+
+    /**
+     * 按分类统计某周的总分钟数。
+     * 未涂色的小时格视为未分类，无效/已删除分类同样归入未分类。
+     * @param validIds 当前分类表中的有效分类 id 集合
+     */
+    weekMinutesByCategory(weekKey: string, validIds: ReadonlySet<string>): Map<string, number> {
+        const result = new Map<string, number>();
+        const painted = new Set<string>();
+        for (const cell of this.weekCells(weekKey)) {
+            const key = `${cell.weekday}-${cell.hour}`;
+            if (painted.has(key)) continue;
+            painted.add(key);
+            const id = validIds.has(cell.categoryId) ? cell.categoryId : UNCATEGORIZED_CATEGORY_ID;
+            result.set(id, (result.get(id) ?? 0) + MINUTES_PER_HOUR);
+        }
+        const unpainted = Math.max(0, WEEK_HOURS - painted.size);
+        if (unpainted > 0) {
+            result.set(
+                UNCATEGORIZED_CATEGORY_ID,
+                (result.get(UNCATEGORIZED_CATEGORY_ID) ?? 0) + unpainted * MINUTES_PER_HOUR,
+            );
+        }
+        return result;
     }
 
     /**

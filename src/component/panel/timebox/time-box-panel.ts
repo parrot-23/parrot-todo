@@ -122,12 +122,18 @@ export class TimeBoxPanel extends FloatingPanel {
         const legend = this.legendEl.createDiv({ cls: 'range-legend' });
         legend.createDiv({ text: t('category.legend'), cls: 'legend-title' });
 
+        const minutesMap = this.weekMinutesByCategory();
         for (const cat of this.panelOptions.categoryData.categories) {
             const row = legend.createDiv({ cls: 'legend-item' });
             if (cat.id === this.selectedCategoryId) row.addClass('is-selected');
             const swatch = row.createDiv({ cls: 'legend-color' });
             swatch.setCssProps({ '--swatch-color': cat.color ?? '#888888' });
-            row.createSpan({ text: cat.label });
+            const info = row.createDiv({ cls: 'legend-info' });
+            info.createDiv({ cls: 'legend-name', text: cat.label });
+            info.createDiv({
+                cls: 'legend-duration',
+                text: formatDuration(minutesMap.get(cat.id) ?? 0),
+            });
             row.onclick = () => {
                 this.selectedCategoryId = this.selectedCategoryId === cat.id ? undefined : cat.id;
                 this.renderLegend();
@@ -137,6 +143,12 @@ export class TimeBoxPanel extends FloatingPanel {
         const gearBtn = legend.createDiv({ cls: 'category-gear-btn', text: '⚙️' });
         gearBtn.setAttribute('aria-label', t('category.config'));
         gearBtn.onclick = () => this.openCategoryPanel();
+    }
+
+    /** 统计本周各分类已分配的总时长（分钟），未涂色格子计入未分类 */
+    private weekMinutesByCategory(): Map<string, number> {
+        const ids = new Set(this.panelOptions.categoryData.categories.map((cat) => cat.id));
+        return this.panelOptions.timeBoxRepo.weekMinutesByCategory(this.weekKey, ids);
     }
 
     /** 打开分类面板（与周计划分类配置弹窗内容一致，但独立实现） */
@@ -165,17 +177,13 @@ export class TimeBoxPanel extends FloatingPanel {
         const wrap = this.body.createDiv({ cls: 'timebox-calendar' });
         const grid = wrap.createDiv({ cls: 'timebox-grid' });
 
-        // 表头：小时刻度列占位 + 周一至周日（带日期）
+        // 表头：小时刻度列占位（保持吸顶作为背景）+ 周一至周日
         grid.createDiv({ cls: 'timebox-hour-cell is-header' });
         const todayKey = getCurrentDayKey();
         for (let col = 0; col < 7; col++) {
             const dayKey = makeDayKeyFromWeek(this.weekKey, col + 1);
             const header = grid.createDiv({ cls: 'timebox-day-header' });
             header.createDiv({ cls: 'timebox-day-name', text: t(WEEKDAY_KEYS[col]) });
-            header.createDiv({
-                cls: 'timebox-day-date',
-                text: `${Number(dayKey.slice(5, 7))}/${Number(dayKey.slice(8, 10))}`,
-            });
             if (dayKey === todayKey) header.addClass('is-today');
         }
 
@@ -187,11 +195,17 @@ export class TimeBoxPanel extends FloatingPanel {
 
         // 24 行：每小时一行，每行 7 个格子
         for (let hour = 0; hour < HOURS; hour++) {
-            const hourLabel = grid.createDiv({
-                cls: 'timebox-hour-cell',
-                text: `${String(hour).padStart(2, '0')}:00`,
+            // 标签标注该行的下边线（即下一小时整点），最后一行即 24:00
+            const hourLabel = grid.createDiv({ cls: 'timebox-hour-cell' });
+            hourLabel.createSpan({
+                cls: 'timebox-hour-label',
+                text: `${String(hour + 1).padStart(2, '0')}:00`,
             });
             hourLabel.setAttribute('data-hour', String(hour));
+            // 首行上边线的 00:00 放在滚动内容里，随内容一起移出，避免吸顶常驻
+            if (hour === 0) {
+                hourLabel.createSpan({ cls: 'timebox-hour-label is-top-line', text: '00:00' });
+            }
             for (let col = 0; col < 7; col++) {
                 const weekday = col + 1;
                 const cell = grid.createDiv({ cls: 'timebox-cell' });
@@ -211,7 +225,10 @@ export class TimeBoxPanel extends FloatingPanel {
                     this.paintCell(cell, weekday, hour);
                     const finish = () => {
                         this.painting = false;
-                        if (this.dirty) void this.panelOptions.save();
+                        if (this.dirty) {
+                            this.renderLegend();
+                            void this.panelOptions.save();
+                        }
                         this.dirty = false;
                     };
                     document.addEventListener('mouseup', finish, { once: true });
@@ -245,4 +262,13 @@ export class TimeBoxPanel extends FloatingPanel {
         const category = this.panelOptions.categoryData.categories.find((item) => item.id === categoryId);
         return category?.color ?? '#888888';
     }
+}
+
+/** 分钟数格式化为 3h30m / 2h / 45m / 0m */
+function formatDuration(minutes: number): string {
+    const hours = Math.floor(minutes / 60);
+    const rest = minutes % 60;
+    if (hours > 0 && rest > 0) return `${hours}h${rest}m`;
+    if (hours > 0) return `${hours}h`;
+    return `${rest}m`;
 }

@@ -726,14 +726,10 @@ export class CheckPanel extends FloatingPanel {
         }
     }
 
-    /** 计划各分类时长：当前周时间盒格子按分类累加（每格 1 小时） */
+    /** 计划各分类时长：当前周时间盒格子按分类累加（每格 1 小时），未涂色计入未分类 */
     private planMinutesByCategory(): Map<string, number> {
-        const minutesByCat = new Map<string, number>();
-        for (const cell of this.panelOptions.timeBoxRepo.weekCells(this.weekKey)) {
-            const catId = cell.categoryId ?? UNCATEGORIZED_CATEGORY_ID;
-            minutesByCat.set(catId, (minutesByCat.get(catId) ?? 0) + 60);
-        }
-        return minutesByCat;
+        const ids = new Set(this.panelOptions.categoryData.categories.map((cat) => cat.id));
+        return this.panelOptions.timeBoxRepo.weekMinutesByCategory(this.weekKey, ids);
     }
 
     /** 执行各分类时长：当前周执行记录按任务分类累加（跨午夜裁剪到本周） */

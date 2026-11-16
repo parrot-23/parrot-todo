@@ -65,10 +65,8 @@ export class PlanWeekPanel extends FloatingPanel {
     private summaryEl!: HTMLElement;
     private taskListEl!: HTMLElement;
     private navEl!: HTMLElement;
-    /** 左侧任务列表底部区域：选中任务时为本周描述输入框，未选中时为本周分类时长柱形图 */
+    /** 左侧任务列表底部区域：本周各分类计划时长柱形图 */
     private bottomEl!: HTMLElement;
-    /** 本周描述输入框（仅选中任务时存在） */
-    private descEl: HTMLTextAreaElement | undefined;
     /** 已选任务名称（周切换行内右侧） */
     private selectedEl!: HTMLElement;
     /** 右侧七列网格：选中左侧任务后点击某天排布 */
@@ -224,10 +222,58 @@ export class PlanWeekPanel extends FloatingPanel {
             row.addEventListener('click', () => {
                 this.selectedTaskId = this.selectedTaskId === task.id ? undefined : task.id;
                 this.renderTasks();
-                this.renderBottom();
                 this.renderDayGrid();
             });
+            // 选中时在条目下方缩进展开本周描述（点击文本切换为编辑框）
+            if (task.id === this.selectedTaskId) this.renderInlineDescription(row, task);
         }
+    }
+
+    /** 条目内缩进展示本周描述：默认只读，点击后切换为输入框，失焦保存 */
+    private renderInlineDescription(row: HTMLElement, task: PrototypeTask): void {
+        this.migrateLegacyWeekNote(task);
+        const note = getWeekNote(task, this.weekKey);
+        const wrap = row.createDiv({ cls: 'plan-week-task-desc' });
+        const textEl = wrap.createDiv({
+            cls: 'plan-week-task-desc-text',
+            text: note || t('panel.planWeekDescriptionPlaceholder'),
+        });
+        textEl.toggleClass('is-placeholder', !note);
+        wrap.addEventListener('click', (evt) => {
+            evt.stopPropagation();
+            this.editInlineDescription(wrap, task);
+        });
+    }
+
+    /** 把只读描述切换为输入框；失焦保存并恢复只读显示，Esc 放弃修改 */
+    private editInlineDescription(wrap: HTMLElement, task: PrototypeTask): void {
+        if (wrap.querySelector('.plan-week-task-desc-input')) return;
+        wrap.empty();
+        const input = wrap.createEl('textarea', {
+            cls: 'plan-week-task-desc-input',
+            attr: { placeholder: t('panel.planWeekDescriptionPlaceholder') },
+        });
+        input.value = getWeekNote(task, this.weekKey);
+        // 输入框内的点击不冒泡到条目，避免取消选中
+        for (const type of ['click', 'mousedown', 'dblclick']) {
+            input.addEventListener(type, (evt) => evt.stopPropagation());
+        }
+        input.addEventListener('blur', () => {
+            const next = input.value.trim();
+            if (next !== getWeekNote(task, this.weekKey)) {
+                setWeekNote(task, this.weekKey, next);
+                void this.panelOptions.save();
+                this.panelOptions.onChanged?.();
+            }
+            // 延后重绘：避免在失焦瞬间点击其他条目时被提前移除而丢失点击
+            window.setTimeout(() => this.renderTasks(), 0);
+        });
+        input.addEventListener('keydown', (evt) => {
+            if (evt.key !== 'Escape') return;
+            evt.stopPropagation();
+            this.renderTasks();
+        });
+        input.focus();
     }
 
     /** 父级任务路径：从根到直接父级的名称，用 / 连接（无父级时返回空串） */
@@ -298,6 +344,64 @@ export class PlanWeekPanel extends FloatingPanel {
             column.addEventListener('click', () => this.assignSelectedTaskToDay(col + 1));
         }
         for (const segment of segments) this.renderDaySegment(columnsRow, segment);
+        this.renderDayCategorySummary();
+    }
+
+    /** 右侧底部：每天各分类的时间盒时长（每格 1 小时），固定在七列网格下方与列对齐 */
+    private renderDayCategorySummary(): void {
+        const wrap = this.dayGridEl.createDiv({ cls: 'plan-week-daily-summary' });
+        const cats = this.panelOptions.getCategories();
+        const knownIds = new Set(cats.map((cat) => cat.id));
+        const minutesByDay = new Map<number, Map<string, number>>();
+        const paintedCountByDay = new Map<number, number>();
+        for (const cell of this.panelOptions.timeBoxRepo.weekCells(this.weekKey)) {
+            if (cell.weekday < 1 || cell.weekday > 7) continue;
+            const catId = cell.categoryId && knownIds.has(cell.categoryId)
+                ? cell.categoryId
+                : UNCATEGORIZED_CATEGORY_ID;
+            const byCat = minutesByDay.get(cell.weekday) ?? new Map<string, number>();
+            byCat.set(catId, (byCat.get(catId) ?? 0) + 60);
+            minutesByDay.set(cell.weekday, byCat);
+            paintedCountByDay.set(cell.weekday, (paintedCountByDay.get(cell.weekday) ?? 0) + 1);
+        }
+        // 未涂色的小时格视为未分类：按天补齐 24 小时
+        for (let weekday = 1; weekday <= 7; weekday += 1) {
+            const unpainted = Math.max(0, 24 - (paintedCountByDay.get(weekday) ?? 0));
+            if (unpainted === 0) continue;
+            const byCat = minutesByDay.get(weekday) ?? new Map<string, number>();
+            byCat.set(
+                UNCATEGORIZED_CATEGORY_ID,
+                (byCat.get(UNCATEGORIZED_CATEGORY_ID) ?? 0) + unpainted * 60,
+            );
+            minutesByDay.set(weekday, byCat);
+        }
+        // 按分类表顺序排列，未分类统一放在最后
+        const ordered = [
+            ...cats.filter((cat) => cat.id !== UNCATEGORIZED_CATEGORY_ID),
+            ...cats.filter((cat) => cat.id === UNCATEGORIZED_CATEGORY_ID),
+        ];
+        for (let weekday = 1; weekday <= 7; weekday += 1) {
+            const colEl = wrap.createDiv({ cls: 'plan-week-daily-col' });
+            const byCat = minutesByDay.get(weekday);
+            if (!byCat) continue;
+            const rows = ordered
+                .map((cat) => ({ label: cat.label, color: cat.color, minutes: byCat.get(cat.id) ?? 0 }))
+                .filter((row) => row.minutes > 0);
+            // 分类表缺少内置未分类时补一行，避免时长丢失
+            if (!knownIds.has(UNCATEGORIZED_CATEGORY_ID)) {
+                const minutes = byCat.get(UNCATEGORIZED_CATEGORY_ID) ?? 0;
+                if (minutes > 0) {
+                    rows.push({ label: t('defaultCategory.uncategorized'), color: '#888888', minutes });
+                }
+            }
+            for (const row of rows) {
+                const rowEl = colEl.createDiv({ cls: 'plan-week-daily-row' });
+                rowEl.title = `${row.label} ${this.formatMinutesLong(row.minutes)}`;
+                rowEl.createSpan({ cls: 'plan-week-daily-dot' }).style.background = row.color ?? '#888888';
+                rowEl.createSpan({ cls: 'plan-week-daily-label', text: row.label });
+                rowEl.createSpan({ cls: 'plan-week-daily-value', text: this.formatMinutesLong(row.minutes) });
+            }
+        }
     }
 
     /** 取指定日期前一天的月份（用于判断当天是否跨入新月份） */
@@ -376,7 +480,6 @@ export class PlanWeekPanel extends FloatingPanel {
             const index = Math.max(0, Math.min(span - 1, Math.floor((evt.clientX - rect.left) / columnWidth)));
             this.selectedTaskId = task.id;
             this.renderTasks();
-            this.renderBottom();
             this.renderDayGrid();
             this.openDayGoalEditor(task.id, start + index, rect, index, span);
         });
@@ -416,7 +519,6 @@ export class PlanWeekPanel extends FloatingPanel {
             this.panelOptions.onChanged?.();
             this.renderDayGrid();
             this.renderTasks();
-            this.renderBottom();
         });
     }
 
@@ -616,40 +718,20 @@ export class PlanWeekPanel extends FloatingPanel {
         return result;
     }
 
-    /** 左侧底栏：选中任务时显示并允许编辑本周描述；未选中任务时显示本周各分类计划时长 */
+    /** 左侧底栏：始终显示本周各分类计划时长 */
     private renderBottom(): void {
         this.bottomEl.empty();
-        this.descEl = undefined;
-        const task = this.selectedTask();
-        if (!task) {
-            this.renderWeekCategoryBars();
-            return;
-        }
-        const box = this.bottomEl.createDiv({ cls: 'plan-week-desc' });
-        box.createDiv({ cls: 'plan-week-desc-title', text: t('panel.planWeekDescription') });
-        this.descEl = box.createEl('textarea', {
-            cls: 'plan-week-desc-input',
-            attr: { placeholder: t('panel.planWeekDescriptionPlaceholder') },
-        });
-        this.migrateLegacyWeekNote(task);
-        this.descEl.value = getWeekNote(task, this.weekKey);
-        this.descEl.addEventListener('blur', () => this.saveDescription());
+        this.renderWeekCategoryBars();
     }
 
-    /** 本周各分类计划时长：时间盒格子按分类累加（每格 1 小时），未匹配到分类的归入未分类 */
+    /** 本周各分类计划时长：时间盒格子按分类累加（每格 1 小时），未涂色/未匹配归入未分类 */
     private renderWeekCategoryBars(): void {
         const wrap = this.bottomEl.createDiv({ cls: 'plan-week-cat-bars check-cat-bars' });
         wrap.createDiv({ cls: 'check-cat-bars-title', text: t('panel.planWeekCategoryTitle') });
 
         const cats = this.panelOptions.getCategories();
         const knownIds = new Set(cats.map((cat) => cat.id));
-        const minutesByCat = new Map<string, number>();
-        for (const cell of this.panelOptions.timeBoxRepo.weekCells(this.weekKey)) {
-            const catId = cell.categoryId && knownIds.has(cell.categoryId)
-                ? cell.categoryId
-                : UNCATEGORIZED_CATEGORY_ID;
-            minutesByCat.set(catId, (minutesByCat.get(catId) ?? 0) + 60);
-        }
+        const minutesByCat = this.panelOptions.timeBoxRepo.weekMinutesByCategory(this.weekKey, knownIds);
         const rows = [
             ...cats.map((cat) => ({
                 id: cat.id,
@@ -657,10 +739,11 @@ export class PlanWeekPanel extends FloatingPanel {
                 color: cat.color,
                 minutes: minutesByCat.get(cat.id) ?? 0,
             })),
-            ...(minutesByCat.has(UNCATEGORIZED_CATEGORY_ID)
+            // 分类表中已包含内置「未分类」时不再追加，避免重复显示
+            ...(minutesByCat.has(UNCATEGORIZED_CATEGORY_ID) && !knownIds.has(UNCATEGORIZED_CATEGORY_ID)
                 ? [{
                     id: UNCATEGORIZED_CATEGORY_ID,
-                    label: t('inbox.noCategory'),
+                    label: t('defaultCategory.uncategorized'),
                     color: '#888888',
                     minutes: minutesByCat.get(UNCATEGORIZED_CATEGORY_ID) ?? 0,
                 }]
@@ -687,15 +770,13 @@ export class PlanWeekPanel extends FloatingPanel {
         return `${Math.round(minutes)}m`;
     }
 
-    /** 保存本周描述到选中任务的本周描述板块（未选中任务或内容未变化时不写入） */
-    private saveDescription(): void {
-        const task = this.selectedTask();
-        if (!task || !this.descEl) return;
-        const next = this.descEl.value.trim();
-        if (next === getWeekNote(task, this.weekKey)) return;
-        setWeekNote(task, this.weekKey, next);
-        void this.panelOptions.save();
-        this.panelOptions.onChanged?.();
+    /** 分钟数格式化为「1h30m」/「2h」/「30m」（右侧每日分类时长） */
+    private formatMinutesLong(minutes: number): string {
+        const hours = Math.floor(minutes / 60);
+        const rest = Math.round(minutes % 60);
+        if (hours > 0 && rest > 0) return `${hours}h${rest}m`;
+        if (hours > 0) return `${hours}h`;
+        return `${rest}m`;
     }
 
     /**
