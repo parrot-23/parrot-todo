@@ -12587,9 +12587,13 @@ button.task-record-dropdown-item.is-selected {
 .plan-week-daily-col {
     min-width: 0;
     max-height: 132px;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
+    display: grid;
+    /* 整列共用一个网格，各条目宽度按内容自适应，分隔符严格对齐且不浪费宽度 */
+    grid-template-columns: auto max-content auto max-content;
+    align-content: start;
+    align-items: center;
+    column-gap: 4px;
+    row-gap: 2px;
     padding: 6px 4px;
     overflow-y: auto;
     border-right: 1px solid var(--sdt-card-border, var(--background-modifier-border));
@@ -12601,11 +12605,7 @@ button.task-record-dropdown-item.is-selected {
 
 /* 每天分类条目：圆点 / 总时长 / 分隔符 / 已分配时长 按列对齐 */
 .plan-week-daily-row {
-    display: grid;
-    grid-template-columns: auto 5.4ch auto 5.4ch;
-    align-items: center;
-    gap: 4px;
-    min-width: 0;
+    display: contents;
     font-size: 10px;
     line-height: 1.4;
 }
@@ -12624,13 +12624,15 @@ button.task-record-dropdown-item.is-selected {
 .plan-week-daily-estimate {
     color: var(--sdt-text-secondary, var(--text-muted));
     font-variant-numeric: tabular-nums;
-    text-align: right;
+    text-align: left;
+    /* 条目末尾预留约 2 个字符的内边距 */
+    padding-right: 2ch;
 }
 
 .plan-week-daily-value {
     color: var(--sdt-text-primary, var(--text-normal));
     font-variant-numeric: tabular-nums;
-    text-align: right;
+    text-align: left;
 }
 
 .plan-week-summary {
