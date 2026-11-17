@@ -1,25 +1,25 @@
-import { Plugin } from 'obsidian';
+﻿import { Plugin } from 'obsidian';
 
-import { VIEW_TYPE_MAIN, MainView } from './src/main-view';
-import type { FileData } from './src/datatypes/domain';
-import { BaseRepo, type PluginData } from './src/repos/base-repo';
-import { GtdRepo } from './src/repos/gtd-repo';
-import { PdcaRepo } from './src/repos/pdca-repo';
-import { WorkbenchRepo } from './src/repos/workbench-repo';
-import { InboxRepo } from './src/repos/inbox-repo';
-import { CategoryRepo } from './src/repos/category-repo';
-import { PlanSchemeRepo } from './src/repos/plan-scheme-repo';
-import { PrototypeTaskRepo } from './src/repos/prototype-task-repo';
-import { TaskExecutionRepo } from './src/repos/task-execution-repo';
-import { TimeBoxRepo } from './src/repos/timebox-repo';
-import { PlanAssignmentRepo } from './src/repos/plan-assignment-repo';
-import { ThemeRepo } from './src/repos/theme-repo';
-import { initI18n, t, getLangDebugInfo } from './src/i18n';
-import { getCurrentWeekKey } from './src/shared/plan-data';
-import { initLogger, log } from './src/shared/logger';
-import { downloadImageToCache } from './src/helper/cache-image';
-import { ParrotPlanSettingTab } from './src/component/ob/setting-tab';
-import { RunningTaskStatusBar } from './src/component/ob/status-bar';
+import { VIEW_TYPE_MAIN, MainView } from './src/core/main-view';
+import type { FileData } from './src/core/datatypes/domain';
+import { BaseRepo, type PluginData } from './src/core/repos/base-repo';
+import { GtdRepo } from './src/core/repos/gtd-repo';
+import { PdcaRepo } from './src/core/repos/pdca-repo';
+import { WorkbenchRepo } from './src/core/repos/workbench-repo';
+import { InboxRepo } from './src/core/repos/inbox-repo';
+import { CategoryRepo } from './src/core/repos/category-repo';
+import { PlanSchemeRepo } from './src/core/repos/plan-scheme-repo';
+import { PrototypeTaskRepo } from './src/core/repos/prototype-task-repo';
+import { TaskExecutionRepo } from './src/core/repos/task-execution-repo';
+import { TimeBoxRepo } from './src/core/repos/timebox-repo';
+import { PlanAssignmentRepo } from './src/core/repos/plan-assignment-repo';
+import { ThemeRepo } from './src/core/repos/theme-repo';
+import { initI18n, t, getLangDebugInfo } from './src/core/i18n';
+import { getCurrentWeekKey } from './src/core/shared/plan-data';
+import { initLogger, log } from './src/core/shared/logger';
+import { downloadImageToCache } from './src/core/helper/cache-image';
+import { ParrotPlanSettingTab } from './src/ui/ob/setting-tab';
+import { RunningTaskStatusBar } from './src/ui/ob/status-bar';
 
 export default class ParrotPlanPlugin extends Plugin {
     /** 基础数据仓库：唯一数据源 + 唯一保存出口 */

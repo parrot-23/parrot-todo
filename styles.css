@@ -15277,3 +15277,234 @@ button.interface-today-tasks-add {
     font-weight: 600;
     color: var(--text-muted);
 }
+
+/* ======================== 剧本面板（panel/story/story-panel） ======================== */
+.floating-panel-body.story-panel {
+    flex: none;
+    height: 520px;
+    max-height: calc(100vh - 160px);
+    box-sizing: border-box;
+    padding: 0;
+    overflow: hidden;
+}
+
+/* 左右结构：左侧垂直菜单栏 + 右侧内容区 */
+.story-panel-layout {
+    display: flex;
+    height: 100%;
+}
+
+.story-panel-sidebar {
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    gap: 2px;
+    width: 140px;
+    padding: 10px 8px;
+    border-right: 1px solid var(--sdt-card-border, var(--background-modifier-border));
+}
+
+.story-panel-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    box-shadow: none;
+    font-size: 12px;
+    color: var(--sdt-text-secondary, var(--text-muted));
+    text-align: left;
+    cursor: pointer;
+}
+
+.story-panel-menu-item:hover {
+    background: var(--sdt-hover-bg, var(--background-modifier-hover));
+    color: var(--sdt-text-primary, var(--text-normal));
+}
+
+.story-panel-menu-item.is-active {
+    background: var(--sdt-hover-bg, var(--background-modifier-hover));
+    color: var(--interactive-accent);
+    font-weight: 600;
+}
+
+.story-panel-menu-icon {
+    display: flex;
+    align-items: center;
+}
+
+.story-panel-menu-icon .svg-icon {
+    width: 15px;
+    height: 15px;
+}
+
+/* 菜单与底部配置按钮之间的弹性留白 */
+.story-panel-sidebar-spacer {
+    flex: 1;
+}
+
+.story-panel-content {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+}
+
+/* 历史页：左侧垂直历史卡片 + 右侧预览窗口 */
+.story-panel-history {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+}
+
+.story-panel-history-list {
+    display: flex;
+    flex: 0 0 240px;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    overflow-y: auto;
+    border-right: 1px solid var(--sdt-card-border, var(--background-modifier-border));
+}
+
+.story-panel-history-card {
+    padding: 10px 12px;
+    border: 1px solid var(--sdt-card-border, var(--background-modifier-border));
+    border-radius: 8px;
+    background: var(--sdt-card-bg, var(--background-secondary));
+    cursor: pointer;
+}
+
+.story-panel-history-card:hover {
+    border-color: var(--interactive-accent);
+}
+
+.story-panel-history-card.is-active {
+    border-color: var(--interactive-accent);
+    box-shadow: 0 0 0 1px var(--interactive-accent) inset;
+}
+
+.story-panel-history-card-title {
+    font-size: 12px;
+    color: var(--sdt-text-primary, var(--text-normal));
+}
+
+.story-panel-history-card-meta {
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--sdt-text-faint, var(--text-faint));
+}
+
+.story-panel-preview {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    flex-direction: column;
+}
+
+.story-panel-preview-title {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--sdt-card-border, var(--background-modifier-border));
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--sdt-text-primary, var(--text-normal));
+}
+
+.story-panel-preview-body {
+    flex: 1;
+    padding: 14px;
+    overflow: auto;
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--sdt-text-secondary, var(--text-muted));
+}
+
+/* 官方 / 本地页：剧本列表 */
+.story-panel-list {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    overflow-y: auto;
+}
+
+.story-panel-list-item {
+    padding: 10px 12px;
+    border: 1px solid var(--sdt-card-border, var(--background-modifier-border));
+    border-radius: 8px;
+    background: var(--sdt-card-bg, var(--background-secondary));
+}
+
+.story-panel-list-item-title {
+    font-size: 12px;
+    color: var(--sdt-text-primary, var(--text-normal));
+}
+
+.story-panel-list-item-desc {
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--sdt-text-faint, var(--text-faint));
+}
+
+/* 配置页 */
+.story-panel-config {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 10px;
+    padding: 16px;
+    overflow-y: auto;
+}
+
+.story-panel-config-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border: 1px solid var(--sdt-card-border, var(--background-modifier-border));
+    border-radius: 8px;
+}
+
+.story-panel-config-label {
+    flex: 0 0 120px;
+    font-size: 12px;
+    color: var(--sdt-text-primary, var(--text-normal));
+}
+
+.story-panel-config-value {
+    flex: 1;
+    min-width: 0;
+    font-size: 12px;
+    color: var(--sdt-text-secondary, var(--text-muted));
+    text-align: right;
+}
+
+.story-panel-config-folder-btn {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: 1px solid var(--sdt-card-border, var(--background-modifier-border));
+    border-radius: 6px;
+    background: transparent;
+    box-shadow: none;
+    color: var(--sdt-text-secondary, var(--text-muted));
+    cursor: pointer;
+}
+
+.story-panel-config-folder-btn:hover {
+    background: var(--sdt-hover-bg, var(--background-modifier-hover));
+    color: var(--sdt-text-primary, var(--text-normal));
+}
+
+.story-panel-config-folder-btn .svg-icon {
+    width: 14px;
+    height: 14px;
+}
