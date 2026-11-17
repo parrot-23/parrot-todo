@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "style": {
+    "preset": "pixel-art",
+    "name": "像素风",
+    "prompt": "pixel art, 32-bit era, limited palette, hard pixel edges, dithering, isometric-friendly",
+    "negative": "smooth gradients, photorealistic, high-res texture",
+    "customNote": ""
+  },
+  "characters": {
+    "小安": "short dark-haired teenage girl, plain light jacket",
+    "阿岩": "teenage boy in a simple jacket, carrying two oranges"
+  },
+  "lockedAt": "2026-11-17",
+  "lockedBy": "人（对话确认：回复「像素风」）",
+  "history": [
+    {
+      "version": 1,
+      "preset": "pixel-art",
+      "name": "像素风",
+      "date": "2026-11-17",
+      "reason": "首次选定（对话确认：回复「像素风」）"
+    }
+  ]
+}

@@ -15414,11 +15414,11 @@ button.interface-today-tasks-add {
 }
 
 .story-panel-preview-body {
+    position: relative;
     flex: 1;
-    padding: 14px;
-    overflow: auto;
-    font-size: 12px;
-    line-height: 1.7;
+    min-height: 0;
+    overflow: hidden;
+    background: #1a1a1f;
     color: var(--sdt-text-secondary, var(--text-muted));
 }
 
@@ -15433,10 +15433,18 @@ button.interface-today-tasks-add {
 }
 
 .story-panel-list-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
     padding: 10px 12px;
     border: 1px solid var(--sdt-card-border, var(--background-modifier-border));
     border-radius: 8px;
     background: var(--sdt-card-bg, var(--background-secondary));
+}
+
+.story-panel-list-item-main {
+    flex: 1;
+    min-width: 0;
 }
 
 .story-panel-list-item-title {
@@ -15507,4 +15515,366 @@ button.interface-today-tasks-add {
 .story-panel-config-folder-btn .svg-icon {
     width: 14px;
     height: 14px;
+}
+
+/* 卡片右侧「预览」按钮 */
+.story-panel-card-btn {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 10px;
+    border: 1px solid var(--sdt-card-border, var(--background-modifier-border));
+    border-radius: 6px;
+    background: transparent;
+    box-shadow: none;
+    font-size: 11px;
+    color: var(--sdt-text-secondary, var(--text-muted));
+    cursor: pointer;
+}
+
+.story-panel-card-btn:hover {
+    border-color: var(--interactive-accent);
+    background: var(--sdt-hover-bg, var(--background-modifier-hover));
+    color: var(--interactive-accent);
+}
+
+.story-panel-card-btn-icon {
+    display: flex;
+    align-items: center;
+}
+
+.story-panel-card-btn-icon .svg-icon {
+    width: 13px;
+    height: 13px;
+}
+
+/* 空状态 */
+.story-panel-empty {
+    padding: 16px 4px;
+    font-size: 12px;
+    color: var(--sdt-text-faint, var(--text-faint));
+}
+
+.story-panel-empty-path {
+    margin-top: 6px;
+    font-size: 11px;
+    color: var(--sdt-text-faint, var(--text-faint));
+    overflow-wrap: anywhere;
+}
+
+/* 舞台：背景 → 立绘 → 物品（z-index 5）→ 对话框 → 菜单 */
+.story-stage-bg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.story-stage-bg.is-fade {
+    animation: story-bg-fade 0.5s ease;
+}
+
+@keyframes story-bg-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.story-stage-bg-empty {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.28);
+}
+
+.story-stage-chip {
+    position: absolute;
+    top: 10px;
+    left: 12px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.5);
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+/* 立绘：left / center / right 三个槽位，站在对话框上沿之上 */
+.story-sprite {
+    position: absolute;
+    bottom: 26%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    transition: opacity 0.25s ease, filter 0.25s ease;
+}
+
+.story-sprite.pos-left {
+    left: 8%;
+}
+
+.story-sprite.pos-center {
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.story-sprite.pos-right {
+    right: 8%;
+}
+
+.story-sprite img {
+    max-height: 46vh;
+    max-width: 38%;
+    object-fit: contain;
+    filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.4));
+}
+
+.story-sprite.is-active img {
+    filter: drop-shadow(0 0 16px rgba(126, 167, 255, 0.75)) drop-shadow(0 4px 12px rgba(0, 0, 0, 0.4));
+}
+
+.story-sprite.is-dim {
+    opacity: 0.4;
+    filter: saturate(0.55) brightness(0.8);
+}
+
+.story-sprite.is-animating {
+    animation: story-sprite-bob 0.9s ease-in-out infinite;
+}
+
+.story-sprite.pos-center.is-animating {
+    animation-name: story-sprite-bob-center;
+}
+
+@keyframes story-sprite-bob {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
+}
+
+@keyframes story-sprite-bob-center {
+    0%, 100% { transform: translateX(-50%) translateY(0); }
+    50% { transform: translateX(-50%) translateY(-5px); }
+}
+
+/* 关键物品：画面中心浮出，2.8s 后由脚本淡出 */
+.story-item {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 10px;
+    border: 1px solid rgba(214, 178, 106, 0.45);
+    border-radius: 14px;
+    background: radial-gradient(circle at 50% 40%, rgba(45, 42, 36, 0.95), rgba(12, 12, 16, 0.95));
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    animation: story-item-in 0.28s ease;
+}
+
+.story-item img {
+    width: 108px;
+    height: 108px;
+    object-fit: contain;
+}
+
+.story-item-name {
+    font-size: 11px;
+    color: rgba(214, 178, 106, 0.9);
+}
+
+@keyframes story-item-in {
+    from { opacity: 0; transform: translate(-50%, -46%) scale(0.94); }
+    to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+/* 对话框：actor / narrator 两种色调 */
+.story-dialog-layer {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    justify-content: center;
+    padding: 0 16px 18px;
+    pointer-events: none;
+}
+
+.story-dialog-box {
+    width: min(86%, 720px);
+    min-height: 96px;
+    padding: 14px 16px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.72);
+    color: #fff;
+}
+
+.story-dialog-box.tone-actor {
+    border-color: rgba(126, 167, 255, 0.35);
+}
+
+.story-dialog-box.tone-narrator {
+    background: rgba(20, 20, 26, 0.7);
+}
+
+.story-dialog-box.tone-narrator .story-dialog-speaker {
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.story-dialog-box.tone-narrator .story-dialog-text {
+    font-style: italic;
+}
+
+.story-dialog-speaker {
+    margin-bottom: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #7ea7ff;
+}
+
+.story-dialog-text {
+    font-size: 13px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+/* 未开始 / 已结束提示 */
+.story-stage-hint {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 0 24px;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.55);
+}
+
+.story-stage-hint-path {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.32);
+    text-align: center;
+    overflow-wrap: anywhere;
+}
+
+.story-stage-end {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 24%;
+    text-align: center;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.story-stage-error {
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.75);
+    color: #ff8a8a;
+    font-size: 12px;
+    white-space: pre-wrap;
+}
+
+/* 剧情选项菜单：居中浮层 */
+.story-stage-menu {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    z-index: 6;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: min(78%, 340px);
+    transform: translate(-50%, -50%);
+}
+
+.story-stage-menu-title {
+    text-align: center;
+    font-size: 13px;
+    font-weight: 600;
+    color: #fff;
+}
+
+.story-stage-menu-option {
+    padding: 9px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.65);
+    box-shadow: none;
+    font-size: 13px;
+    color: #fff;
+    text-align: left;
+    cursor: pointer;
+}
+
+.story-stage-menu-option:hover {
+    border-color: #3370ff;
+    background: rgba(51, 112, 255, 0.28);
+}
+
+/* 预览窗口底部：状态 + 播放 / 下一步 / 重播 */
+.story-panel-preview-footer {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-top: 1px solid var(--sdt-card-border, var(--background-modifier-border));
+}
+
+.story-panel-preview-status {
+    flex: 1;
+    min-width: 0;
+    font-size: 11px;
+    color: var(--sdt-text-faint, var(--text-faint));
+}
+
+.story-panel-preview-actions {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 8px;
+}
+
+.story-panel-play-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border: 1px solid var(--sdt-card-border, var(--background-modifier-border));
+    border-radius: 6px;
+    background: transparent;
+    box-shadow: none;
+    font-size: 12px;
+    color: var(--sdt-text-primary, var(--text-normal));
+    cursor: pointer;
+}
+
+.story-panel-play-btn:hover {
+    background: var(--sdt-hover-bg, var(--background-modifier-hover));
+}
+
+.story-panel-play-btn.is-primary {
+    border-color: var(--interactive-accent);
+    background: var(--interactive-accent);
+    color: var(--text-on-accent);
+}
+
+.story-panel-play-btn.is-primary:hover {
+    background: var(--interactive-accent-hover);
 }

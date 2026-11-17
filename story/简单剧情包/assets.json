@@ -1,0 +1,23 @@
+{
+  "nextId": 4,
+  "items": {
+    "res_0001": {
+      "id": "res_0001",
+      "kind": "image",
+      "name": "旧城天台黄昏",
+      "path": "assets/scenes/旧城天台黄昏.png"
+    },
+    "res_0002": {
+      "id": "res_0002",
+      "kind": "sprite",
+      "name": "小安",
+      "path": "assets/characters/小安.png"
+    },
+    "res_0003": {
+      "id": "res_0003",
+      "kind": "sprite",
+      "name": "阿岩",
+      "path": "assets/characters/阿岩.png"
+    }
+  }
+}
