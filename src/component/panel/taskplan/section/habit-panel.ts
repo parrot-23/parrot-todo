@@ -1,13 +1,13 @@
-// 习惯面板：基于 FloatingPanel，用于查看与设置任务习惯。
+﻿// 习惯面板：基于 FloatingPanel，用于查看与设置任务习惯。
 // 结构：左侧（顶部根任务下拉 + 任务树）+ 右侧（一周七列日历，展示已启用习惯的卡片）。
 import { setIcon } from 'obsidian';
 
-import type { PrototypeTask, TaskHabit } from '../../../datatypes/prototype-task';
-import { t } from '../../../i18n';
-import type { PlanCategory } from '../../../shared/plan-category-manager';
-import { getCurrentWeekKey, makeDayKeyFromWeek } from '../../../shared/plan-data';
-import { getTaskHabit, setTaskHabit } from '../../../shared/task-sections';
-import { FloatingPanel, type FloatingPanelOptions } from '../basic/floating-panel';
+import type { PrototypeTask, TaskHabit } from '../../../../datatypes/prototype-task';
+import { t } from '../../../../i18n';
+import type { PlanCategory } from '../../../../shared/plan-category-manager';
+import { getCurrentWeekKey, makeDayKeyFromWeek } from '../../../../shared/plan-data';
+import { getTaskHabit, setTaskHabit } from '../../../../shared/task-sections';
+import { FloatingPanel, type FloatingPanelOptions } from '../../basic/floating-panel';
 
 /** 习惯面板配置 */
 export interface HabitPanelOptions extends Omit<FloatingPanelOptions, 'title'> {

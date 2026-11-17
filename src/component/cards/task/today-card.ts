@@ -1,12 +1,12 @@
-// 今日任务方框：左侧 24 小时时钟 + 日期切换，右侧当日任务 / 额外任务 / 计时器 / 记录视图。
+﻿// 今日任务方框：左侧 24 小时时钟 + 日期切换，右侧当日任务 / 额外任务 / 计时器 / 记录视图。
 // 从「界面」二级视图中抽离，独立负责时钟、日期、任务列表、计时与执行记录相关交互。
 import { setIcon } from 'obsidian';
 import type { App, Plugin } from 'obsidian';
 
 import type { PrototypeTask } from '../../../datatypes/prototype-task';
 import { t } from '../../../i18n';
-import { TaskPickerPanel } from '../../panel/task/task-picker-panel';
-import { TaskRecordPanel } from '../../panel/task/task-record-panel';
+import { TaskPickerPanel } from '../../panel/taskplan/task/task-picker-panel';
+import { TaskRecordPanel } from '../../panel/taskplan/task/task-record-panel';
 import type { PdcaRepo } from '../../../repos/pdca-repo';
 import type { PlanAssignmentRepo } from '../../../repos/plan-assignment-repo';
 import type { PrototypeTaskRepo } from '../../../repos/prototype-task-repo';

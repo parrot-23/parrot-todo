@@ -1,11 +1,11 @@
-// 任务面板：基于 FloatingPanel 的任务添加入口。
+﻿// 任务面板：基于 FloatingPanel 的任务添加入口。
 // 布局从上到下：第一行输入框 + 类型下拉 + 添加按钮；第二行归属方块（收集篮子 / 待办改进等）；
 // 最下方为已有任务的单行列表（主线 / 支线用左侧颜色竖条区分）。
 import { setIcon } from 'obsidian';
 
-import type { PrototypeTask } from '../../../datatypes/prototype-task';
-import type { TaskExecutionRecord } from '../../../datatypes/task-execution';
-import { t } from '../../../i18n';
+import type { PrototypeTask } from '../../../../datatypes/prototype-task';
+import type { TaskExecutionRecord } from '../../../../datatypes/task-execution';
+import { t } from '../../../../i18n';
 import {
     getCurrentWeekKey,
     getISOWeek,
@@ -13,8 +13,8 @@ import {
     makeWeekKey,
     shiftWeekKey,
     type WeekKey,
-} from '../../../shared/plan-data';
-import { FloatingPanel, type FloatingPanelOptions } from '../basic/floating-panel';
+} from '../../../../shared/plan-data';
+import { FloatingPanel, type FloatingPanelOptions } from '../../basic/floating-panel';
 
 /** 任务类型：主线 / 支线 */
 export type TaskPanelTaskType = 'main' | 'side';

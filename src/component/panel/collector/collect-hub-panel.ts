@@ -1,4 +1,4 @@
-// 收集面板：一级菜单仅「收集」，二级菜单为收集 / 画廊，内容区直接嵌入对应功能面板。
+﻿// 收集面板：一级菜单仅「收集」，二级菜单为收集 / 画廊，内容区直接嵌入对应功能面板。
 // 复用功能面板的两级菜单与嵌入逻辑，仅保留「收集」一级菜单。
 import { t } from '../../../i18n';
 import { FunctionPanel, type FunctionPanelOptions } from '../interface/function-panel';

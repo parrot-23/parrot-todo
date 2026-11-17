@@ -1,22 +1,22 @@
-// 任务详情面板：基于 FloatingPanel，展示单个原型任务的详情。
+﻿// 任务详情面板：基于 FloatingPanel，展示单个原型任务的详情。
 // 左侧：类型标题行（主线任务 / 支线任务）+ 添加按钮，下方为后代任务树；
 // 右侧：任务名称 / 分类 / 描述 + 任务板块（与任务板块面板共用 SectionHost）。
 import { setIcon, type App } from 'obsidian';
 
-import type { PrototypeTask } from '../../../datatypes/prototype-task';
-import { t } from '../../../i18n';
-import type { PlanCategoryData } from '../../../shared/plan-category-manager';
-import { UNCATEGORIZED_CATEGORY_ID } from '../../../shared/plan-category-manager';
-import { getTaskGoals } from '../../../shared/task-sections';
+import type { PrototypeTask } from '../../../../datatypes/prototype-task';
+import { t } from '../../../../i18n';
+import type { PlanCategoryData } from '../../../../shared/plan-category-manager';
+import { UNCATEGORIZED_CATEGORY_ID } from '../../../../shared/plan-category-manager';
+import { getTaskGoals } from '../../../../shared/task-sections';
 import {
     findRootTaskId,
     getTreeSelectedTaskId,
     onTreeSelectionChange,
     setTreeSelectedTaskId,
-} from '../../../shared/task-tree-selection';
-import { applyThemeColors, getCurrentThemeColors } from '../../../themestory/theme-colors';
-import { SectionHost } from '../../section/section-host';
-import { FloatingPanel, type FloatingPanelOptions } from '../basic/floating-panel';
+} from '../../../../shared/task-tree-selection';
+import { applyThemeColors, getCurrentThemeColors } from '../../../../themestory/theme-colors';
+import { SectionHost } from '../../../section/section-host';
+import { FloatingPanel, type FloatingPanelOptions } from '../../basic/floating-panel';
 
 /** 任务详情面板配置 */
 export interface TaskDetailPanelOptions extends Omit<FloatingPanelOptions, 'title'> {

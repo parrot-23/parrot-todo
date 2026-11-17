@@ -1,13 +1,13 @@
-// 任务板块信息面板：基于 FloatingPanel 展示单个任务的全部板块。
+﻿// 任务板块信息面板：基于 FloatingPanel 展示单个任务的全部板块。
 // 第一行显示任务名称与任务分类；入口为点击「今日任务」卡片中的任务条目。
 // 板块内容由共用 SectionHost 渲染（与任务详情面板保持一致）。
 import type { App } from 'obsidian';
 
-import type { PrototypeTask } from '../../../datatypes/prototype-task';
-import { t } from '../../../i18n';
-import { SectionHost } from '../../section/section-host';
-import type { FloatingPanelOptions } from '../basic/floating-panel';
-import { FloatingPanel } from '../basic/floating-panel';
+import type { PrototypeTask } from '../../../../datatypes/prototype-task';
+import { t } from '../../../../i18n';
+import { SectionHost } from '../../../section/section-host';
+import type { FloatingPanelOptions } from '../../basic/floating-panel';
+import { FloatingPanel } from '../../basic/floating-panel';
 
 /** 任务板块信息面板配置 */
 export interface TaskSectionsPanelOptions extends Omit<FloatingPanelOptions, 'title'> {

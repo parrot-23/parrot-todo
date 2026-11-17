@@ -1,15 +1,15 @@
-// 周历面板：基于 FloatingPanel 的日历式展示。
+﻿// 周历面板：基于 FloatingPanel 的日历式展示。
 // 结构：顶部窄条一行（第一列为 PLAN/CHECK，其余六列为 ACT），下方一行 × 七列日期格子（周一至周日），
 // 最下方为内容区：左侧本日目标（当天排布任务及其日目标）、右侧本周排布的任务。
 import { setIcon } from 'obsidian';
 
-import type { PrototypeTask } from '../../../datatypes/prototype-task';
-import { t } from '../../../i18n';
-import type { PlanAssignmentRepo } from '../../../repos/plan-assignment-repo';
-import type { PlanCategory } from '../../../shared/plan-category-manager';
-import { getCurrentDayKey, getCurrentWeekKey, getISOWeek, makeDayKeyFromWeek, makeWeekKey } from '../../../shared/plan-data';
-import { getDayGoalEntries } from '../../../shared/task-sections';
-import { FloatingPanel, type FloatingPanelOptions } from '../basic/floating-panel';
+import type { PrototypeTask } from '../../../../datatypes/prototype-task';
+import { t } from '../../../../i18n';
+import type { PlanAssignmentRepo } from '../../../../repos/plan-assignment-repo';
+import type { PlanCategory } from '../../../../shared/plan-category-manager';
+import { getCurrentDayKey, getCurrentWeekKey, getISOWeek, makeDayKeyFromWeek, makeWeekKey } from '../../../../shared/plan-data';
+import { getDayGoalEntries } from '../../../../shared/task-sections';
+import { FloatingPanel, type FloatingPanelOptions } from '../../basic/floating-panel';
 
 /** 周历面板配置 */
 export interface WeekCalendarPanelOptions extends Omit<FloatingPanelOptions, 'title'> {

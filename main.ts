@@ -18,7 +18,6 @@ import { initI18n, t, getLangDebugInfo } from './src/i18n';
 import { getCurrentWeekKey } from './src/shared/plan-data';
 import { initLogger, log } from './src/shared/logger';
 import { downloadImageToCache } from './src/helper/cache-image';
-import { HelpModal } from './src/helper/help-modal';
 import { ParrotPlanSettingTab } from './src/component/ob/setting-tab';
 import { RunningTaskStatusBar } from './src/component/ob/status-bar';
 
@@ -283,7 +282,7 @@ export default class ParrotPlanPlugin extends Plugin {
 
     /**
      * 打开主视图（Ribbon 图标 / 命令面板共用入口）。
-     * 帮助弹窗在此处触发：仅在用户主动打开插件时弹出，而非 Obsidian 启动时。
+     * 帮助面板在此处触发：仅在用户主动打开插件时弹出，而非 Obsidian 启动时。
      */
     private async openMainView(): Promise<void> {
         const { workspace } = this.app;
@@ -295,11 +294,9 @@ export default class ParrotPlanPlugin extends Plugin {
         }
         await workspace.revealLeaf(leaf);
 
-        // 未勾选「不再提示」时，打开插件后弹出帮助弹窗
-        if (!this.helpDismissed) {
-            new HelpModal(this.app, this.cacheDirName, (dismissed) => {
-                void this.saveHelpDismissed(dismissed);
-            }).open();
+        // 未勾选「不再提示」时，打开插件后自动弹出帮助面板
+        if (!this.helpDismissed && leaf.view instanceof MainView) {
+            leaf.view.openHelpPanel();
         }
     }
 

@@ -1,10 +1,10 @@
-// 任务选择面板：基于 FloatingPanel，顶部搜索框 + 根任务下拉 + 后代任务树，选中后点「确定」回传任务 id。
+﻿// 任务选择面板：基于 FloatingPanel，顶部搜索框 + 根任务下拉 + 后代任务树，选中后点「确定」回传任务 id。
 // 支持多选（multiple）与限定候选范围（scopeTaskId，用于「绑定子任务」等只在本任务后代里选的场景）。
 import { setIcon } from 'obsidian';
 
-import type { PrototypeTask } from '../../../datatypes/prototype-task';
-import { t } from '../../../i18n';
-import { FloatingPanel, type FloatingPanelOptions } from '../basic/floating-panel';
+import type { PrototypeTask } from '../../../../datatypes/prototype-task';
+import { t } from '../../../../i18n';
+import { FloatingPanel, type FloatingPanelOptions } from '../../basic/floating-panel';
 
 /** 任务选择面板配置 */
 export interface TaskPickerPanelOptions extends Omit<FloatingPanelOptions, 'title'> {

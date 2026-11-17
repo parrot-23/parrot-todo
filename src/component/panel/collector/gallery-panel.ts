@@ -1,4 +1,4 @@
-// 画廊面板：基于 FloatingPanel，左侧菜单 + 右侧页面。
+﻿// 画廊面板：基于 FloatingPanel，左侧菜单 + 右侧页面。
 // 左侧菜单最底部为「管理源」按钮，激活后在右侧显示源列表与添加源按钮。
 import { setIcon } from 'obsidian';
 

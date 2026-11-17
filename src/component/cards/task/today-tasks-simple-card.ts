@@ -1,4 +1,4 @@
-// 今日任务（简洁版）卡片：独立实现（第一步改造）。
+﻿// 今日任务（简洁版）卡片：独立实现（第一步改造）。
 // 与普通今日任务卡片的差异：移除顶部日期切换区；习惯列表改为方块卡片网格
 //（分类圆点 + 名称 / 习惯时间点 / 操作按钮，各占一行，从左到右自动换行）。
 // 进行中任务、当天任务、额外任务与底部按钮组保持一致。
@@ -7,8 +7,8 @@ import type { Plugin } from 'obsidian';
 
 import type { PrototypeTask } from '../../../datatypes/prototype-task';
 import { t } from '../../../i18n';
-import { TaskPickerPanel } from '../../panel/task/task-picker-panel';
-import { TaskRecordPanel } from '../../panel/task/task-record-panel';
+import { TaskPickerPanel } from '../../panel/taskplan/task/task-picker-panel';
+import { TaskRecordPanel } from '../../panel/taskplan/task/task-record-panel';
 import type { PdcaRepo } from '../../../repos/pdca-repo';
 import type { CategoryRepo } from '../../../repos/category-repo';
 import type { PlanAssignmentRepo } from '../../../repos/plan-assignment-repo';

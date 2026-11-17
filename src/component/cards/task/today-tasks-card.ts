@@ -1,4 +1,4 @@
-// 今日任务卡片：界面视图编辑模式下通过「添加」面板加入。
+﻿// 今日任务卡片：界面视图编辑模式下通过「添加」面板加入。
 // 结构：< 日期 >（第二行标签：第x周 / 周x / 几天前）+ 习惯 / 当天任务 / 额外任务三个可折叠列表，
 // 底部为「开始任务 / 新增任务 / 记录任务」按钮组（与今日时钟卡片共用同一进行中任务）。
 import { setIcon } from 'obsidian';
@@ -6,8 +6,8 @@ import type { Plugin } from 'obsidian';
 
 import type { PrototypeTask } from '../../../datatypes/prototype-task';
 import { t } from '../../../i18n';
-import { TaskPickerPanel } from '../../panel/task/task-picker-panel';
-import { TaskRecordPanel } from '../../panel/task/task-record-panel';
+import { TaskPickerPanel } from '../../panel/taskplan/task/task-picker-panel';
+import { TaskRecordPanel } from '../../panel/taskplan/task/task-record-panel';
 import type { PdcaRepo } from '../../../repos/pdca-repo';
 import type { CategoryRepo } from '../../../repos/category-repo';
 import type { PlanAssignmentRepo } from '../../../repos/plan-assignment-repo';

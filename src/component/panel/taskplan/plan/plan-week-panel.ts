@@ -1,4 +1,4 @@
-// 计划一周面板：左右结构。
+﻿// 计划一周面板：左右结构。
 // 左侧：周信息摘要（周数 / 日期范围 / 任务数）+ 本周已整周排布的任务列表，
 //       点击任务条目选中它，作为右侧日目标的绑定任务（再次点击取消选中）；
 //       列表底部：选中任务时显示本周描述输入框，未选中时显示本周各分类计划时长柱形图。
@@ -7,21 +7,21 @@
 //       （数据与任务详情「一周目标」选项卡共享任务板块）。
 import { setIcon } from 'obsidian';
 
-import type { TaskStatus } from '../../../datatypes/domain';
-import type { PrototypeTask, TaskDayGoalEntry } from '../../../datatypes/prototype-task';
-import { t } from '../../../i18n';
-import type { PlanAssignmentRepo } from '../../../repos/plan-assignment-repo';
-import type { TimeBoxRepo } from '../../../repos/timebox-repo';
-import type { PlanCategory } from '../../../shared/plan-category-manager';
-import { UNCATEGORIZED_CATEGORY_ID } from '../../../shared/plan-category-manager';
+import type { TaskStatus } from '../../../../datatypes/domain';
+import type { PrototypeTask, TaskDayGoalEntry } from '../../../../datatypes/prototype-task';
+import { t } from '../../../../i18n';
+import type { PlanAssignmentRepo } from '../../../../repos/plan-assignment-repo';
+import type { TimeBoxRepo } from '../../../../repos/timebox-repo';
+import type { PlanCategory } from '../../../../shared/plan-category-manager';
+import { UNCATEGORIZED_CATEGORY_ID } from '../../../../shared/plan-category-manager';
 import {
     getCurrentWeekKey,
     makeDayKeyFromWeek,
     parseWeekKey,
     shiftWeekKey,
-} from '../../../shared/plan-data';
-import { getDayEstimate, getDayGoalEntries, getWeekNote, setDayEstimate, setDayGoalEntries, setWeekNote } from '../../../shared/task-sections';
-import { FloatingPanel, type FloatingPanelOptions } from '../basic/floating-panel';
+} from '../../../../shared/plan-data';
+import { getDayEstimate, getDayGoalEntries, getWeekNote, setDayEstimate, setDayGoalEntries, setWeekNote } from '../../../../shared/task-sections';
+import { FloatingPanel, type FloatingPanelOptions } from '../../basic/floating-panel';
 
 /** 计划一周面板配置 */
 export interface PlanWeekPanelOptions extends Omit<FloatingPanelOptions, 'title'> {

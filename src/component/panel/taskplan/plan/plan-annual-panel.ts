@@ -1,4 +1,4 @@
-// 计划年度面板：左右结构。
+﻿// 计划年度面板：左右结构。
 // 左侧：与习惯面板一致（顶部根任务下拉 + 选中根任务的后代任务树 + 底部工具栏「信息」「目标」按钮，按钮暂为占位）。
 // 右侧：季度泳道图。顶部为季度翻页行（← 2026年 Q2 →）与周列表头（W45 / 11/03），
 // 中间每个任务一行，行内用色块表示该任务整周排布的周区间（数据与计划一周面板共享 PlanAssignmentRepo）；
@@ -6,11 +6,11 @@
 // 排布：拖动色块左右手柄调整区间起止周，在行内空白周列拖拽新建区间；松手后同步该任务全年整周排布。
 import { setIcon } from 'obsidian';
 
-import type { PrototypeTask } from '../../../datatypes/prototype-task';
-import type { TaskStatus } from '../../../datatypes/domain';
-import { t } from '../../../i18n';
-import type { PlanAssignmentRepo } from '../../../repos/plan-assignment-repo';
-import type { PlanCategory } from '../../../shared/plan-category-manager';
+import type { PrototypeTask } from '../../../../datatypes/prototype-task';
+import type { TaskStatus } from '../../../../datatypes/domain';
+import { t } from '../../../../i18n';
+import type { PlanAssignmentRepo } from '../../../../repos/plan-assignment-repo';
+import type { PlanCategory } from '../../../../shared/plan-category-manager';
 import {
     getCurrentWeekKey,
     getISOWeek,
@@ -18,16 +18,16 @@ import {
     makeWeekKey,
     parseWeekKey,
     shiftWeekKey,
-} from '../../../shared/plan-data';
-import { applyThemeColors, getCurrentThemeColors } from '../../../themestory/theme-colors';
-import { getWeekNote, setWeekNote } from '../../../shared/task-sections';
+} from '../../../../shared/plan-data';
+import { applyThemeColors, getCurrentThemeColors } from '../../../../themestory/theme-colors';
+import { getWeekNote, setWeekNote } from '../../../../shared/task-sections';
 import {
     findRootTaskId,
     getTreeSelectedTaskId,
     onTreeSelectionChange,
     setTreeSelectedTaskId,
-} from '../../../shared/task-tree-selection';
-import { FloatingPanel, type FloatingPanelOptions } from '../basic/floating-panel';
+} from '../../../../shared/task-tree-selection';
+import { FloatingPanel, type FloatingPanelOptions } from '../../basic/floating-panel';
 
 /** 计划年度面板配置 */
 export interface PlanAnnualPanelOptions extends Omit<FloatingPanelOptions, 'title'> {

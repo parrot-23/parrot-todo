@@ -1,10 +1,10 @@
-// 任务配置面板：从任务面板类型胶囊左侧的配置按钮打开。
+﻿// 任务配置面板：从任务面板类型胶囊左侧的配置按钮打开。
 // 内容：任务名称 / 任务描述 / 任务类型（胶囊下拉）/ 任务所在目录路径 + 保存。
 import { setIcon } from 'obsidian';
 
-import type { PrototypeTask, PrototypeTaskType } from '../../../datatypes/prototype-task';
-import { t } from '../../../i18n';
-import { FloatingPanel, type FloatingPanelOptions } from '../basic/floating-panel';
+import type { PrototypeTask, PrototypeTaskType } from '../../../../datatypes/prototype-task';
+import { t } from '../../../../i18n';
+import { FloatingPanel, type FloatingPanelOptions } from '../../basic/floating-panel';
 
 /** 保存数据 */
 export interface TaskConfigSavePayload {

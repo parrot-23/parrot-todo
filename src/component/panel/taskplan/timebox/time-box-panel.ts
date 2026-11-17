@@ -1,15 +1,15 @@
-// 时间盒面板：基于 FloatingPanel，用于配置时间盒。
+﻿// 时间盒面板：基于 FloatingPanel，用于配置时间盒。
 // 结构：顶部图例（分类色块 + 名称）+ 7 列 × 24 小时的日历格子。
 // 交互：选中图例分类后，在网格上点击或拖动即可把该分类涂到格子上，数据存入 TimeBoxRepo。
 import type { App } from 'obsidian';
 
-import type { TimeBoxRepo } from '../../../repos/timebox-repo';
-import { t } from '../../../i18n';
-import type { CategoryRepo } from '../../../repos/category-repo';
-import type { PlanCategoryData } from '../../../shared/plan-category-manager';
-import { getCurrentDayKey, getCurrentWeekKey, makeDayKeyFromWeek } from '../../../shared/plan-data';
+import type { TimeBoxRepo } from '../../../../repos/timebox-repo';
+import { t } from '../../../../i18n';
+import type { CategoryRepo } from '../../../../repos/category-repo';
+import type { PlanCategoryData } from '../../../../shared/plan-category-manager';
+import { getCurrentDayKey, getCurrentWeekKey, makeDayKeyFromWeek } from '../../../../shared/plan-data';
 import { CategoryPanel } from './category-panel';
-import { FloatingPanel, type FloatingPanelOptions } from '../basic/floating-panel';
+import { FloatingPanel, type FloatingPanelOptions } from '../../basic/floating-panel';
 
 /** 时间盒面板配置 */
 export interface TimeBoxPanelOptions extends Omit<FloatingPanelOptions, 'title'> {

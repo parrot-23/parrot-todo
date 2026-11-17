@@ -1,4 +1,4 @@
-// 界面视图：新一级视图「界面」下的二级落地页。
+﻿// 界面视图：新一级视图「界面」下的二级落地页。
 // 布局：日期 / 今日时钟 / 今日任务 / 时钟等浮动卡片，右侧垂直功能栏；任务板块内容改为面板（点击任务条目打开）。
 import type { App, Plugin } from 'obsidian';
 
@@ -15,21 +15,21 @@ import { AchievementPanel } from '../../component/panel/achievement/achievement-
 import { CardPickerPanel } from '../../component/panel/interface/card-picker-panel';
 import { FunctionPanel, type FunctionItemId } from '../../component/panel/interface/function-panel';
 import type { FloatingPanel } from '../../component/panel/basic/floating-panel';
-import { CheckPanel } from '../../component/panel/check/check-panel';
-import { CollectPanel } from '../../component/panel/collect/collect-panel';
-import { CollectHubPanel } from '../../component/panel/collect/collect-hub-panel';
-import { DataPanel } from '../../component/panel/check/data-panel';
-import { GalleryPanel } from '../../component/panel/gallery/gallery-panel';
-import { HabitPanel } from '../../component/panel/section/habit-panel';
-import { PlanAnnualPanel } from '../../component/panel/plan/plan-annual-panel';
-import { GoalBoardPanel } from '../../component/panel/section/goal-board-panel';
-import { PlanWeekPanel } from '../../component/panel/plan/plan-week-panel';
-import { TaskSectionsPanel } from '../../component/panel/task/task-sections-panel';
-import { TaskDetailPanel } from '../../component/panel/task/task-detail-panel';
-import { TaskConfigPanel, type TaskConfigSavePayload } from '../../component/panel/task/task-config-panel';
-import { TaskPanel } from '../../component/panel/task/task-panel';
-import { TimeBoxPanel } from '../../component/panel/timebox/time-box-panel';
-import { WeekCalendarPanel } from '../../component/panel/calendar/week-calendar-panel';
+import { CheckPanel } from '../../component/panel/taskplan/check/check-panel';
+import { CollectPanel } from '../../component/panel/collector/collect-panel';
+import { CollectHubPanel } from '../../component/panel/collector/collect-hub-panel';
+import { DataPanel } from '../../component/panel/taskplan/check/data-panel';
+import { GalleryPanel } from '../../component/panel/collector/gallery-panel';
+import { HabitPanel } from '../../component/panel/taskplan/section/habit-panel';
+import { PlanAnnualPanel } from '../../component/panel/taskplan/plan/plan-annual-panel';
+import { GoalBoardPanel } from '../../component/panel/taskplan/section/goal-board-panel';
+import { PlanWeekPanel } from '../../component/panel/taskplan/plan/plan-week-panel';
+import { TaskSectionsPanel } from '../../component/panel/taskplan/task/task-sections-panel';
+import { TaskDetailPanel } from '../../component/panel/taskplan/task/task-detail-panel';
+import { TaskConfigPanel, type TaskConfigSavePayload } from '../../component/panel/taskplan/task/task-config-panel';
+import { TaskPanel } from '../../component/panel/taskplan/task/task-panel';
+import { TimeBoxPanel } from '../../component/panel/taskplan/timebox/time-box-panel';
+import { WeekCalendarPanel } from '../../component/panel/taskplan/calendar/week-calendar-panel';
 import { ThemePanel } from '../../component/panel/interface/theme-panel';
 import type { BaseRepo } from '../../repos/base-repo';
 import type { CategoryRepo } from '../../repos/category-repo';

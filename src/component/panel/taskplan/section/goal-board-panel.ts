@@ -1,12 +1,12 @@
-// 目标面板：左侧任务配置（底部根任务下拉 + 目标通用配置占位），
+﻿// 目标面板：左侧任务配置（底部根任务下拉 + 目标通用配置占位），
 // 右侧为年-周泳道图（按季度翻页，仅展示根任务一行，读取计划整周排布）；
 // 点击色块周格弹出悬浮面板，可填写 / 勾选 / 删除该周的阶段目标（以该周为截止时间点，存入任务的「阶段目标」板块）。
 import { setIcon } from 'obsidian';
 
-import type { PrototypeTask } from '../../../datatypes/prototype-task';
-import { t } from '../../../i18n';
-import type { PlanAssignmentRepo } from '../../../repos/plan-assignment-repo';
-import type { PlanCategory } from '../../../shared/plan-category-manager';
+import type { PrototypeTask } from '../../../../datatypes/prototype-task';
+import { t } from '../../../../i18n';
+import type { PlanAssignmentRepo } from '../../../../repos/plan-assignment-repo';
+import type { PlanCategory } from '../../../../shared/plan-category-manager';
 import {
     getCurrentWeekKey,
     getISOWeek,
@@ -14,9 +14,9 @@ import {
     makeWeekKey,
     parseWeekKey,
     shiftWeekKey,
-} from '../../../shared/plan-data';
-import { appendStageGoal, getSection, getStageGoalEntries, getWeekNote, setStageGoalEntries } from '../../../shared/task-sections';
-import { FloatingPanel, type FloatingPanelOptions } from '../basic/floating-panel';
+} from '../../../../shared/plan-data';
+import { appendStageGoal, getSection, getStageGoalEntries, getWeekNote, setStageGoalEntries } from '../../../../shared/task-sections';
+import { FloatingPanel, type FloatingPanelOptions } from '../../basic/floating-panel';
 
 /** 季度内的一周 */
 interface QuarterWeek {

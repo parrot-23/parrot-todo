@@ -7,6 +7,7 @@ import type { EventBlock, ExecutionRecord } from './datatypes/domain';
 import { InterfaceView } from './views/interface/interface-view';
 import { TopBar } from './component/topbar/top-bar';
 import { SettingsPanel } from './component/panel/interface/settings-panel';
+import { HelpPanel } from './component/panel/help/help-panel';
 import type { PdcaRepo } from './repos/pdca-repo';
 import type { InboxRepo } from './repos/inbox-repo';
 import type { CategoryRepo } from './repos/category-repo';
@@ -14,7 +15,6 @@ import type { PlanSchemeRepo } from './repos/plan-scheme-repo';
 import type { PrototypeTaskRepo } from './repos/prototype-task-repo';
 import { t } from './i18n';
 import { log } from './shared/logger';
-import { HelpModal } from './helper/help-modal';
 import {
     applyThemeColors,
     registerThemeColorsConsumer,
@@ -62,6 +62,8 @@ export class MainView extends ItemView implements ThemeColorsConsumer {
     private layoutToolBtn?: HTMLButtonElement;
     /** 设置面板（顶部工具栏「设置」按钮打开，复用同一实例） */
     private settingsPanel: SettingsPanel | null = null;
+    /** 帮助面板（顶部工具栏「帮助」按钮 / 首次打开插件时自动打开，复用同一实例） */
+    private helpPanel: HelpPanel | null = null;
     /** 主视图根节点：主题颜色令牌注入到这里，供顶部工具栏与内容区统一继承 */
     private rootEl?: HTMLElement;
 
@@ -93,7 +95,7 @@ export class MainView extends ItemView implements ThemeColorsConsumer {
             onOpenFunctionPanel: () => this.interfaceView.openFunctionPanel(),
             onOpenCollectPanel: () => this.interfaceView.openCollectHubPanel(),
             onOpenSettings: () => this.openSettingsPanel(),
-            onOpenHelp: () => this.openHelpModal(),
+            onOpenHelp: () => this.openHelpPanel(),
         });
         this.interfaceView = new InterfaceView(this.app, this.plugin, this.planCategoryData, {
             getSelectedDate: () => this.topBar.getSelectedDate(),
@@ -175,14 +177,21 @@ export class MainView extends ItemView implements ThemeColorsConsumer {
         this.settingsPanel.open();
     }
 
-    /** 打开帮助弹窗（顶部工具栏「帮助」按钮，紧贴设置按钮右侧） */
-    private openHelpModal(): void {
-        const plugin = this.plugin as Plugin & {
-            saveHelpDismissed?: (dismissed: boolean) => Promise<void>;
-        };
-        new HelpModal(this.app, this.cacheDirName, (dismissed) => {
-            void plugin.saveHelpDismissed?.(dismissed);
-        }).open();
+    /** 打开帮助面板（顶部工具栏「帮助」按钮；首次打开插件时也由此自动弹出） */
+    openHelpPanel(): void {
+        if (!this.helpPanel) {
+            const plugin = this.plugin as Plugin & {
+                helpDismissed?: boolean;
+                saveHelpDismissed?: (dismissed: boolean) => Promise<void>;
+            };
+            this.helpPanel = new HelpPanel({
+                app: this.app,
+                cacheDirName: this.cacheDirName,
+                getDismissed: () => plugin.helpDismissed === true,
+                saveDismissed: (dismissed) => plugin.saveHelpDismissed?.(dismissed) ?? Promise.resolve(),
+            });
+        }
+        this.helpPanel.open();
     }
 
     /** 渲染顶部工具栏左侧的「布局」按钮，以及位于顶部工具栏下方居中的扩展工具栏（添加 / 主题 / 退出） */
