@@ -69,4 +69,18 @@ export class TaskExecutionRepo {
             : list.filter((id) => id !== taskId);
         this.data.completedTasksByDay[dayKey] = next;
     }
+
+    /** 某习惯在某日是否已跳过 */
+    isHabitSkipped(dayKey: string, taskId: string): boolean {
+        return (this.data.skippedHabitsByDay[dayKey] ?? []).includes(taskId);
+    }
+
+    /** 设置某习惯在某日的跳过标记 */
+    setHabitSkipped(dayKey: string, taskId: string, skipped: boolean): void {
+        const list = this.data.skippedHabitsByDay[dayKey] ?? (this.data.skippedHabitsByDay[dayKey] = []);
+        const next = skipped
+            ? (list.includes(taskId) ? list : [...list, taskId])
+            : list.filter((id) => id !== taskId);
+        this.data.skippedHabitsByDay[dayKey] = next;
+    }
 }

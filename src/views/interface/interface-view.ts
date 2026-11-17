@@ -393,6 +393,8 @@ export class InterfaceView {
                 timeBoxRepo: holder.timeBoxRepo,
                 getCategories: () => this.categoryData.categories,
                 save: () => holder.saveAll(),
+                getShowAllNotes: () => this.baseRepo.planWeekNotesExpanded,
+                setShowAllNotes: (value) => this.baseRepo.savePlanWeekNotesExpanded(value),
                 onChanged: () => {
                     this.todayCard?.refreshTasks();
                     this.todayTasksCard?.refresh();

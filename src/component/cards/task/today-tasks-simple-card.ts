@@ -59,6 +59,8 @@ export class TodayTasksSimpleCard {
     private expanded: Record<SectionKey, boolean> = { habit: true, planned: true };
     /** 「所有任务」切换：默认仅显示未完成任务，激活后显示全部 */
     private showAllTasks = false;
+    /** 「所有习惯」切换：默认仅显示已过时间点未完成的习惯与未来一小时内待执行的习惯，激活后显示今天全部习惯 */
+    private showAllHabits = false;
     /** 当前查看日期的任务执行统计（次数 / 秒数），渲染前刷新 */
     private executionStats = new Map<string, { count: number; seconds: number }>();
     /** 「进行中的任务」折叠行是否展开（默认展开） */
@@ -166,6 +168,23 @@ export class TodayTasksSimpleCard {
         header.createSpan({ cls: 'interface-today-tasks-simple-title', text: t('interface.todaySimpleTitle') });
 
         const actions = header.createDiv({ cls: 'interface-today-tasks-simple-actions' });
+        // 显示全部习惯：仅影响习惯列表的筛选范围（非激活时只显示已过时间点与未来一小时内待执行的习惯）
+        const allHabitsBtn = actions.createEl('button', {
+            cls: 'interface-today-tasks-simple-icon-btn',
+            attr: {
+                type: 'button',
+                'aria-label': this.showAllHabits
+                    ? t('interface.todayShowRecentHabits')
+                    : t('interface.todayShowAllHabits'),
+            },
+        });
+        allHabitsBtn.toggleClass('is-active', this.showAllHabits);
+        setIcon(allHabitsBtn, 'repeat');
+        allHabitsBtn.addEventListener('click', () => {
+            this.showAllHabits = !this.showAllHabits;
+            this.renderContent();
+        });
+
         const allBtn = actions.createEl('button', {
             cls: 'interface-today-tasks-simple-icon-btn',
             attr: {
@@ -190,13 +209,30 @@ export class TodayTasksSimpleCard {
         addBtn.addEventListener('click', () => this.openTaskPicker());
     }
 
-    /** 习惯区：与普通今日任务卡片一致的行列表；未完成模式仅显示未完成 */
+    /** 习惯区：默认只显示已过时间点未完成的习惯与未来一小时内待执行的习惯；「所有习惯」模式显示今天全部 */
     private renderHabitSection(body: HTMLElement, tasks: PrototypeTask[]): void {
         const dayKey = makeDayKey(this.selectedDate);
-        // 未完成模式仅显示未完成的习惯；「所有任务」模式显示全部（已完成置灰）
-        const visible = this.showAllTasks
-            ? tasks
-            : tasks.filter((task) => !this.taskExecutionRepo.isTaskCompleted(dayKey, task.id));
+        // 当前时间（分钟），用于判断习惯时间点是否已过 / 是否在未来一小时内
+        const now = new Date();
+        const nowMinutes = now.getHours() * 60 + now.getMinutes();
+        const visible = tasks.filter((task) => {
+            const skipped = this.taskExecutionRepo.isHabitSkipped(dayKey, task.id);
+            const completed = this.taskExecutionRepo.isTaskCompleted(dayKey, task.id);
+            // 「所有任务」模式：全部显示（完成 / 跳过置灰）
+            if (this.showAllTasks) return true;
+            // 已跳过的习惯保持常显（置灰，可取消跳过）
+            if (skipped) return true;
+            // 已完成的不再显示
+            if (completed) return false;
+            // 「所有习惯」模式：不做时间范围过滤
+            if (this.showAllHabits) return true;
+            // 回看历史日期：时间点已全部过去，不做未来一小时过滤
+            if (!this.isTodaySelected()) return true;
+            // 未设置时间点的习惯无法判断过去 / 未来，始终显示
+            const habitTime = getTaskHabit(task)?.time;
+            if (!habitTime) return true;
+            return this.habitMinutes(habitTime) <= nowMinutes + 60;
+        });
 
         const section = body.createDiv({ cls: 'interface-today-tasks-section' });
         const head = section.createDiv({ cls: 'interface-today-tasks-section-head' });
@@ -217,8 +253,10 @@ export class TodayTasksSimpleCard {
         }
         for (const task of visible) {
             const completed = this.taskExecutionRepo.isTaskCompleted(dayKey, task.id);
+            const skipped = this.taskExecutionRepo.isHabitSkipped(dayKey, task.id);
             const row = list.createDiv({ cls: 'interface-today-tasks-item' });
             row.toggleClass('is-done', completed);
+            row.toggleClass('is-skipped', skipped);
             row.title = task.name;
             row.addEventListener('click', () => this.options.onOpenTaskBoard?.(task.id));
             // 主线 / 支线标签：固定在条目最左侧（配色与任务面板一致）
@@ -247,6 +285,10 @@ export class TodayTasksSimpleCard {
             if (habitTime) {
                 row.createSpan({ cls: 'interface-today-tasks-item-time', text: habitTime });
             }
+            // 已跳过：条目末尾显示「已跳过」标签
+            if (skipped) {
+                row.createSpan({ cls: 'interface-today-tasks-item-skip-badge', text: t('interface.todaySkippedBadge') });
+            }
             // 当天已完成：条目末尾常显「圆圈 + 打勾」图标
             if (completed) {
                 const doneIconEl = row.createSpan({ cls: 'interface-today-tasks-item-done' });
@@ -265,6 +307,19 @@ export class TodayTasksSimpleCard {
             recordBtn.addEventListener('click', (event) => {
                 event.stopPropagation();
                 this.openRecordPanel(task);
+            });
+            // 跳过今日习惯：位于完成图标之前，跳过后条目置灰常显，可再次点击取消
+            const skipBtn = this.createRowAction(
+                actions,
+                'skip-forward',
+                skipped ? t('interface.todayUnskipHabit') : t('interface.todaySkipHabit'),
+            );
+            skipBtn.toggleClass('is-skipped', skipped);
+            skipBtn.addEventListener('click', (event) => {
+                event.stopPropagation();
+                this.taskExecutionRepo.setHabitSkipped(dayKey, task.id, !skipped);
+                void this.saveAll();
+                this.renderContent();
             });
             const doneBtn = this.createRowAction(
                 actions,
@@ -599,6 +654,13 @@ export class TodayTasksSimpleCard {
                 return habit?.enabled === true && habit.weekdays.includes(weekday);
             })
             .sort((a, b) => (getTaskHabit(a)?.time ?? '').localeCompare(getTaskHabit(b)?.time ?? ''));
+    }
+
+    /** 习惯时间点（HH:mm）→ 当天分钟数（非法值按 0 处理） */
+    private habitMinutes(time: string): number {
+        const [hours, minutes] = time.split(':').map((value) => Number(value));
+        if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return 0;
+        return hours * 60 + minutes;
     }
 
     /** 当天任务：计划排布到所选日期的任务 */

@@ -8546,6 +8546,26 @@ button.swimlane-section-card-settings {
     height: calc(var(--tts-fs) * 0.8125);
 }
 
+/* 当日已跳过习惯：整行置灰（无删除线）+ 末尾「已跳过」标签 */
+.interface-today-tasks-item.is-skipped {
+    opacity: 0.6;
+}
+
+.interface-today-tasks-item.is-skipped .interface-today-tasks-item-name {
+    color: var(--text-faint);
+}
+
+.interface-today-tasks-item-skip-badge {
+    flex: 0 0 auto;
+    font-size: calc(var(--tts-fs) * 0.6875);
+    color: var(--text-faint);
+}
+
+/* 跳过按钮：已跳过时高亮，提示可取消跳过 */
+.interface-today-tasks-item-action.is-skipped {
+    color: var(--text-accent);
+}
+
 /* 悬停时由操作图标组接管，隐藏常显的完成图标 */
 .interface-today-tasks-item:hover .interface-today-tasks-item-done {
     display: none;
@@ -10687,8 +10707,9 @@ button.task-detail-todo-tool-btn:disabled {
     min-height: 0;
 }
 
-/* 第一行：周切换（上一周 / 周数 + 日期范围 / 下一周） */
+/* 第一行：周切换（上一周 / 周数 + 日期范围 / 下一周），右上角为新增按钮 */
 .task-week-goal-nav {
+    position: relative;
     flex: 0 0 auto;
     display: flex;
     align-items: center;
@@ -10916,6 +10937,104 @@ button.task-detail-todo-tool-btn:disabled {
 .task-week-goal-item-delete .svg-icon {
     width: 12px;
     height: 12px;
+}
+
+/* 每日描述：右上角新增按钮（固定在周切换行右侧） */
+.task-week-goal-nav-add {
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: none;
+    border-radius: 3px;
+    background: none;
+    box-shadow: none;
+    color: var(--sdt-text-secondary, var(--text-muted));
+    cursor: pointer;
+}
+
+.task-week-goal-nav-add:hover {
+    background: var(--sdt-hover-bg, var(--background-modifier-hover));
+    color: var(--sdt-text-primary, var(--text-normal));
+}
+
+.task-week-goal-nav-add .svg-icon {
+    width: 14px;
+    height: 14px;
+}
+
+/* 每日描述条目：星期标签 + 勾选 + 内容 + 悬停删除 */
+.task-week-goal-item {
+    padding: 3px 6px;
+    border-radius: 4px;
+}
+
+.task-week-goal-item:hover {
+    background: var(--sdt-hover-bg, var(--background-modifier-hover));
+}
+
+.task-week-goal-item-day {
+    flex: 0 0 32px;
+    font-size: 11px;
+    color: var(--sdt-text-secondary, var(--text-muted));
+}
+
+.task-week-goal-item.is-today .task-week-goal-item-day {
+    color: var(--interactive-accent);
+}
+
+.task-week-goal-item-text {
+    cursor: text;
+}
+
+/* 条目内容的内联编辑输入框 */
+.task-week-goal-item-input {
+    flex: 1;
+    min-width: 0;
+    height: 20px;
+    padding: 0 6px;
+    border: 1px solid var(--sdt-card-border, var(--background-modifier-border));
+    border-radius: 3px;
+    background: var(--sdt-control-bg, var(--background-primary));
+    box-shadow: none;
+    font-size: 12px;
+    color: var(--sdt-text-primary, var(--text-normal));
+}
+
+/* 新增行：周几下拉 + 内容输入 + 确认 */
+.task-week-goal-add-day {
+    flex: 0 0 auto;
+    height: 22px;
+    padding: 0 4px;
+    border: 1px solid var(--sdt-card-border, var(--background-modifier-border));
+    border-radius: 3px;
+    background: var(--sdt-control-bg, var(--background-primary));
+    box-shadow: none;
+    font-size: 11px;
+    color: var(--sdt-text-primary, var(--text-normal));
+}
+
+.task-week-goal-add-confirm {
+    flex: 0 0 auto;
+    height: 22px;
+    padding: 0 8px;
+    border: 1px solid var(--sdt-card-border, var(--background-modifier-border));
+    border-radius: 3px;
+    background: var(--sdt-control-bg, var(--background-primary));
+    box-shadow: none;
+    font-size: 11px;
+    color: var(--sdt-text-primary, var(--text-normal));
+    cursor: pointer;
+}
+
+.task-week-goal-add-confirm:hover {
+    background: var(--sdt-hover-bg, var(--background-modifier-hover));
 }
 
 /* 添加输入行 */
@@ -12514,15 +12633,20 @@ button.task-record-dropdown-item.is-selected {
     color: var(--text-faint);
 }
 
-/* 卡片本体：某天预估时长标识（该天所在列右上角，颜色跟随主题，不另加底色） */
+/* 卡片本体：某天预估时长标识（该天所在列右上角，胶囊形式 + 背景色，避免与父层级文字重叠） */
 .plan-week-daygoal-estimate-badge {
     position: absolute;
     top: 2px;
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    padding: 0 2px;
-    font-size: 10px;
-    line-height: 1.4;
+    height: 13px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: var(--sdt-badge-bg, var(--background-primary));
+    box-shadow: 0 0 0 1px var(--sdt-card-border, var(--background-modifier-border));
+    font-size: 9px;
+    line-height: 1;
+    white-space: nowrap;
     color: var(--sdt-text-secondary, var(--text-muted));
     pointer-events: none;
 }
@@ -12668,6 +12792,49 @@ button.task-record-dropdown-item.is-selected {
     margin-top: 2px;
     font-size: 11px;
     color: var(--sdt-text-secondary, var(--text-muted));
+}
+
+/* 任务数行：任务数 + 行末「本周描述」开关 */
+.plan-week-summary-count-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    margin-top: 2px;
+}
+
+.plan-week-summary-count-row .plan-week-summary-count {
+    margin-top: 0;
+}
+
+.plan-week-summary-notes-toggle {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: none;
+    border-radius: 3px;
+    background: none;
+    box-shadow: none;
+    color: var(--sdt-text-secondary, var(--text-muted));
+    cursor: pointer;
+}
+
+.plan-week-summary-notes-toggle:hover {
+    background: var(--sdt-hover-bg, var(--background-modifier-hover));
+    color: var(--sdt-text-primary, var(--text-normal));
+}
+
+.plan-week-summary-notes-toggle.is-active {
+    color: var(--interactive-accent);
+}
+
+.plan-week-summary-notes-toggle .svg-icon {
+    width: 14px;
+    height: 14px;
 }
 
 .plan-week-task-list {
@@ -14258,10 +14425,20 @@ button.interface-today-tasks-add {
     overflow-y: hidden;
     border-bottom: 1px solid var(--sdt-card-border, var(--background-modifier-border));
     scrollbar-width: thin;
+    scrollbar-color: var(--sdt-card-border, var(--background-modifier-border)) transparent;
 }
 
 .task-section-tabs::-webkit-scrollbar {
     height: 4px;
+}
+
+.task-section-tabs::-webkit-scrollbar-thumb {
+    background: var(--sdt-card-border, var(--background-modifier-border));
+    border-radius: 2px;
+}
+
+.task-section-tabs::-webkit-scrollbar-track {
+    background: transparent;
 }
 
 .task-section-tab {

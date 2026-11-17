@@ -421,8 +421,7 @@ export class TaskDetailPanel extends FloatingPanel {
         });
         confirmBtn.addEventListener('click', () => {
             this.closeDeleteConfirm();
-            this.panelOptions.onDeleteTask?.(this.task.id);
-            this.close();
+            this.deleteCurrentTask();
         });
         this.positionDeleteConfirm(anchor);
         this.deleteConfirmOutsideHandler = (evt: MouseEvent) => {
@@ -439,6 +438,17 @@ export class TaskDetailPanel extends FloatingPanel {
         };
         document.addEventListener('mousedown', this.deleteConfirmOutsideHandler, true);
         document.addEventListener('keydown', this.deleteConfirmEscapeHandler, true);
+    }
+
+    /** 删除右侧当前展示的任务：先清除选中条目（同步共享选中）再交给父面板删除并刷新 */
+    private deleteCurrentTask(): void {
+        const taskId = this.task.id;
+        const deletingRoot = taskId === this.rootTaskId;
+        // 选中条目指向被删除的任务时先清除，否则刷新后各面板仍按已删除的任务渲染
+        if (this.selectedTaskId === taskId) this.clearTaskSelection();
+        this.panelOptions.onDeleteTask?.(taskId);
+        // 整棵任务树被删除时面板已无内容，关闭；删除子任务时清除选中后保持面板打开并刷新
+        if (deletingRoot) this.close();
     }
 
     /** 定位删除确认浮层：优先显示在按钮上方，空间不足时翻到下方 */

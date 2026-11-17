@@ -88,6 +88,9 @@ export class BaseRepo {
     /** 任务库根目录（vault 相对路径，空表示未绑定，随主数据一起持久化） */
     taskLibraryRoot = '';
 
+    /** 计划一周面板是否展开显示所有任务的本周描述（随主数据一起持久化，默认关闭） */
+    planWeekNotesExpanded = false;
+
     constructor(plugin: Plugin) {
         this.plugin = plugin;
     }
@@ -126,6 +129,7 @@ export class BaseRepo {
             helpDismissed: this.helpDismissed,
             scriptModeEnabled: this.scriptModeEnabled,
             taskLibraryRoot: this.taskLibraryRoot,
+            planWeekNotesExpanded: this.planWeekNotesExpanded,
         });
     }
 
@@ -156,6 +160,12 @@ export class BaseRepo {
     /** 保存任务库根目录 */
     async saveTaskLibraryRoot(path: string): Promise<void> {
         this.taskLibraryRoot = path;
+        await this.saveAll();
+    }
+
+    /** 保存计划一周面板「展开显示所有任务的本周描述」开关 */
+    async savePlanWeekNotesExpanded(enabled: boolean): Promise<void> {
+        this.planWeekNotesExpanded = enabled;
         await this.saveAll();
     }
 
@@ -196,6 +206,11 @@ export class BaseRepo {
         this.taskLibraryRoot = typeof savedData.taskLibraryRoot === 'string'
             ? savedData.taskLibraryRoot
             : '';
+
+        // 读取计划一周面板「展开显示所有任务的本周描述」开关（兼容旧数据：默认关闭）
+        this.planWeekNotesExpanded = typeof savedData.planWeekNotesExpanded === 'boolean'
+            ? savedData.planWeekNotesExpanded
+            : false;
 
         const defaultCategories: PlanCategoryData = {
             categories: [
@@ -479,9 +494,10 @@ function parseTaskExecutionData(raw: unknown): TaskExecutionData {
     const records: TaskExecutionData['records'] = [];
     const extraTasksByDay: TaskExecutionData['extraTasksByDay'] = {};
     const completedTasksByDay: TaskExecutionData['completedTasksByDay'] = {};
-    if (!raw || typeof raw !== 'object') return { records, extraTasksByDay, completedTasksByDay };
+    const skippedHabitsByDay: TaskExecutionData['skippedHabitsByDay'] = {};
+    if (!raw || typeof raw !== 'object') return { records, extraTasksByDay, completedTasksByDay, skippedHabitsByDay };
     const rawRecords = (raw as { records?: unknown }).records;
-    if (!Array.isArray(rawRecords)) return { records, extraTasksByDay, completedTasksByDay };
+    if (!Array.isArray(rawRecords)) return { records, extraTasksByDay, completedTasksByDay, skippedHabitsByDay };
     for (const item of rawRecords) {
         if (!item || typeof item !== 'object') continue;
         const r = item as Record<string, unknown>;
@@ -514,7 +530,16 @@ function parseTaskExecutionData(raw: unknown): TaskExecutionData {
             if (validIds.length > 0) completedTasksByDay[dayKey] = validIds;
         }
     }
-    return { records, extraTasksByDay, completedTasksByDay };
+    // 当日跳过习惯（兼容旧数据：默认空）
+    const rawSkippedHabits = (raw as { skippedHabitsByDay?: unknown }).skippedHabitsByDay;
+    if (rawSkippedHabits && typeof rawSkippedHabits === 'object') {
+        for (const [dayKey, ids] of Object.entries(rawSkippedHabits as Record<string, unknown>)) {
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(dayKey) || !Array.isArray(ids)) continue;
+            const validIds = ids.filter((id): id is string => typeof id === 'string');
+            if (validIds.length > 0) skippedHabitsByDay[dayKey] = validIds;
+        }
+    }
+    return { records, extraTasksByDay, completedTasksByDay, skippedHabitsByDay };
 }
 
 /** 解析持久化的进行中任务（兼容旧数据 / 非法数据：返回 undefined） */

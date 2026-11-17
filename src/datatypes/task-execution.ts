@@ -21,4 +21,6 @@ export interface TaskExecutionData {
     extraTasksByDay: Record<string, string[]>;
     /** 按日期键（YYYY-MM-DD）存储的当日已完成任务 id 列表（仅标记当天完成） */
     completedTasksByDay: Record<string, string[]>;
+    /** 按日期键（YYYY-MM-DD）存储的当日跳过习惯 id 列表（仅跳过当天） */
+    skippedHabitsByDay: Record<string, string[]>;
 }

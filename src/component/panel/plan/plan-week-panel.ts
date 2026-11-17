@@ -37,6 +37,10 @@ export interface PlanWeekPanelOptions extends Omit<FloatingPanelOptions, 'title'
     getCategories: () => PlanCategory[];
     /** 数据保存回调 */
     save: () => Promise<void>;
+    /** 是否展开显示所有任务的本周描述（随主数据持久化） */
+    getShowAllNotes: () => boolean;
+    /** 保存「展开显示所有任务的本周描述」开关 */
+    setShowAllNotes: (value: boolean) => Promise<void>;
     /** 数据变更回调（界面视图其他卡片据此刷新） */
     onChanged?: () => void;
 }
@@ -91,6 +95,8 @@ export class PlanWeekPanel extends FloatingPanel {
     private weekKey: string;
     /** 左侧选中的任务 id（右侧日目标的绑定任务） */
     private selectedTaskId: string | undefined;
+    /** 是否展开显示所有任务卡片的本周描述（由摘要卡片行末图标按钮切换，激活状态持久化） */
+    private showAllNotes: boolean;
 
     constructor(private readonly panelOptions: PlanWeekPanelOptions) {
         super({
@@ -102,6 +108,7 @@ export class PlanWeekPanel extends FloatingPanel {
         });
         this.body.addClass('plan-week-panel');
         this.weekKey = getCurrentWeekKey();
+        this.showAllNotes = panelOptions.getShowAllNotes();
         this.renderLayout();
     }
 
@@ -188,9 +195,23 @@ export class PlanWeekPanel extends FloatingPanel {
         if (this.weekKey === getCurrentWeekKey()) head.addClass('is-current');
         head.createSpan({ cls: 'plan-week-summary-week', text: `W${String(week).padStart(2, '0')}` });
         head.createSpan({ cls: 'plan-week-summary-range', text: this.formatWeekRange() });
-        this.summaryEl.createDiv({
+        // 第二行：任务数 + 行末「本周描述」开关（激活后展开所有任务卡片的本周描述）
+        const countRow = this.summaryEl.createDiv({ cls: 'plan-week-summary-count-row' });
+        countRow.createSpan({
             cls: 'plan-week-summary-count',
             text: t('panel.planWeekTaskCount', { count: `${this.plannedTasks().length}` }),
+        });
+        const notesToggle = countRow.createEl('button', {
+            cls: 'plan-week-summary-notes-toggle',
+            attr: { type: 'button', 'aria-label': t('panel.planWeekDescription') },
+        });
+        notesToggle.toggleClass('is-active', this.showAllNotes);
+        setIcon(notesToggle, 'file-text');
+        notesToggle.addEventListener('click', () => {
+            this.showAllNotes = !this.showAllNotes;
+            notesToggle.toggleClass('is-active', this.showAllNotes);
+            void this.panelOptions.setShowAllNotes(this.showAllNotes);
+            this.renderTasks();
         });
     }
 
@@ -224,8 +245,8 @@ export class PlanWeekPanel extends FloatingPanel {
                 this.renderTasks();
                 this.renderDayGrid();
             });
-            // 选中时在条目下方缩进展开本周描述（点击文本切换为编辑框）
-            if (task.id === this.selectedTaskId) this.renderInlineDescription(row, task);
+            // 选中条目或开启「本周描述」开关时，在条目下方缩进展开本周描述
+            if (task.id === this.selectedTaskId || this.showAllNotes) this.renderInlineDescription(row, task);
         }
     }
 
@@ -443,7 +464,7 @@ export class PlanWeekPanel extends FloatingPanel {
         return date.getMonth() + 1;
     }
 
-    /** 本周按天排布的任务段：同一任务连续的天合并为一段，并分入不冲突的泳道 */
+    /** 本周按天排布的任务段：同一任务连续的天合并为一段；每行泳道与左侧任务列表从上到下的顺序一一对应 */
     private buildDaySegments(): { task: PrototypeTask; start: number; end: number; lane: number }[] {
         const tasks = new Map(this.panelOptions.getTasks().map((task) => [task.id, task]));
         const weekdaysByTask = new Map<string, number[]>();
@@ -455,10 +476,22 @@ export class PlanWeekPanel extends FloatingPanel {
                 weekdaysByTask.set(assignment.taskId, days);
             }
         }
+        // 泳道行号 = 任务在左侧列表中的位置；保证右侧卡片上下次序与左侧任务列表一致
+        const planned = this.plannedTasks();
+        const laneByTask = new Map<string, number>();
+        planned.forEach((task, index) => laneByTask.set(task.id, index));
+        const treeOrder = this.taskTreeOrder();
+        Array.from(weekdaysByTask.keys())
+            .filter((taskId) => !laneByTask.has(taskId))
+            .sort((a, b) => (treeOrder.get(a) ?? Number.MAX_SAFE_INTEGER)
+                - (treeOrder.get(b) ?? Number.MAX_SAFE_INTEGER)
+                || a.localeCompare(b))
+            .forEach((taskId, index) => laneByTask.set(taskId, planned.length + index));
         const segments: { task: PrototypeTask; start: number; end: number; lane: number }[] = [];
         weekdaysByTask.forEach((days, taskId) => {
             const task = tasks.get(taskId);
             if (!task) return;
+            const lane = laneByTask.get(taskId) ?? 0;
             const sorted = days.slice().sort((a, b) => a - b)
                 .filter((day, index, list) => index === 0 || day !== list[index - 1]);
             let start = sorted[0];
@@ -469,24 +502,13 @@ export class PlanWeekPanel extends FloatingPanel {
                     prev = day;
                     continue;
                 }
-                segments.push({ task, start, end: prev, lane: 0 });
+                segments.push({ task, start, end: prev, lane });
                 start = day;
                 prev = day;
             }
-            segments.push({ task, start, end: prev, lane: 0 });
+            segments.push({ task, start, end: prev, lane });
         });
-        segments.sort((a, b) => a.start - b.start
-            || (b.end - b.start) - (a.end - a.start)
-            || a.task.name.localeCompare(b.task.name));
-        const lanes: { start: number; end: number }[][] = [];
-        for (const segment of segments) {
-            let lane = 0;
-            while (lanes[lane]?.some((item) => !(item.end < segment.start || item.start > segment.end))) {
-                lane += 1;
-            }
-            (lanes[lane] ??= []).push({ start: segment.start, end: segment.end });
-            segment.lane = lane;
-        }
+        segments.sort((a, b) => a.lane - b.lane || a.start - b.start);
         return segments;
     }
 
@@ -774,7 +796,7 @@ export class PlanWeekPanel extends FloatingPanel {
         this.renderTasks();
     }
 
-    /** 本周已整周排布的任务（保持排布顺序，去重并跳过已删除 / 已归档任务） */
+    /** 本周已整周排布的任务：去重后按任务树从上到下的位置排序（跳过已删除 / 已归档任务） */
     private plannedTasks(): PrototypeTask[] {
         const tasks = this.panelOptions.getTasks();
         const seen = new Set<string>();
@@ -785,7 +807,35 @@ export class PlanWeekPanel extends FloatingPanel {
             const task = tasks.find((item) => item.id === assignment.taskId);
             if (task) result.push(task);
         }
+        const order = this.taskTreeOrder();
+        result.sort((a, b) => (order.get(a.id) ?? Number.MAX_SAFE_INTEGER)
+            - (order.get(b.id) ?? Number.MAX_SAFE_INTEGER));
         return result;
+    }
+
+    /** 任务树从上到下的位置索引：根任务按数组顺序，子任务递归展开 */
+    private taskTreeOrder(): Map<string, number> {
+        const tasks = this.panelOptions.getTasks();
+        const knownIds = new Set(tasks.map((task) => task.id));
+        const childrenByParent = new Map<string | undefined, PrototypeTask[]>();
+        for (const task of tasks) {
+            const parentKey = task.parentId && knownIds.has(task.parentId) ? task.parentId : undefined;
+            const list = childrenByParent.get(parentKey) ?? [];
+            list.push(task);
+            childrenByParent.set(parentKey, list);
+        }
+        const order = new Map<string, number>();
+        let index = 0;
+        const visit = (parentId: string | undefined): void => {
+            for (const task of childrenByParent.get(parentId) ?? []) {
+                if (order.has(task.id)) continue;
+                order.set(task.id, index);
+                index += 1;
+                visit(task.id);
+            }
+        };
+        visit(undefined);
+        return order;
     }
 
     /** 左侧底栏：始终显示本周各分类计划时长 */

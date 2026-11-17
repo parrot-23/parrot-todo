@@ -7,7 +7,7 @@
 import { Notice, TFolder, setIcon, type App, type TFile } from 'obsidian';
 
 import type { ChecklistItem } from '../../datatypes/domain';
-import type { PrototypeTask } from '../../datatypes/prototype-task';
+import type { PrototypeTask, TaskDayGoalEntry } from '../../datatypes/prototype-task';
 import type { SectionDisplayMode, SectionType } from '../../datatypes/task-section';
 import { getLang, getWeekDays, t } from '../../i18n';
 import { SECTION_REGISTRY } from '../../shared/section-registry';
@@ -46,6 +46,17 @@ import { FileEditorPanel } from '../panel/basic/file-editor-panel';
 
 /** 标签 key */
 type LabelKey = Parameters<typeof t>[0];
+
+/** 周一到周日的 i18n key（每日描述按周几排序与选择使用） */
+const WEEKDAY_LABEL_KEYS: LabelKey[] = [
+    'week.monday',
+    'week.tuesday',
+    'week.wednesday',
+    'week.thursday',
+    'week.friday',
+    'week.saturday',
+    'week.sunday',
+];
 
 /** 板块宿主配置 */
 export interface SectionHostOptions {
@@ -465,11 +476,11 @@ export class SectionHost {
 
     /* ---------------- 日目标 ---------------- */
 
-    /** 「一周目标」：顶部周切换 + 周一到周日 7 个方框 */
+    /** 「每日描述」：顶部周切换 + 右上角新增；仅渲染有内容的日期条目，按周一到周日排序 */
     private renderDayGoals(body: HTMLElement, task: PrototypeTask): void {
         const wrap = body.createDiv({ cls: 'task-week-goal' });
 
-        // 第一行：周切换按钮（上一周 / 周数 + 日期范围 / 下一周）
+        // 第一行：周切换按钮（上一周 / 周数 + 日期范围 / 下一周），右上角为新增按钮
         const nav = wrap.createDiv({ cls: 'task-week-goal-nav' });
         const prevBtn = nav.createEl('button', {
             cls: 'task-week-goal-nav-btn',
@@ -502,107 +513,91 @@ export class SectionHost {
             this.render();
         });
 
-        // 周一到周日：每天一个方框
-        const list = wrap.createDiv({ cls: 'task-week-goal-list' });
-        const weekdayKeys: LabelKey[] = [
-            'week.monday',
-            'week.tuesday',
-            'week.wednesday',
-            'week.thursday',
-            'week.friday',
-            'week.saturday',
-            'week.sunday',
-        ];
-        for (let day = 1; day <= 7; day += 1) {
-            const dayKey = makeDayKeyFromWeek(this.weekKey, day);
-            this.renderDayGoalBox(list, task, dayKey, t(weekdayKeys[day - 1]));
-        }
-    }
-
-    /** 单日方框：左侧星期标题，右侧工具行 + 分割线 + 日目标列表 */
-    private renderDayGoalBox(parentEl: HTMLElement, task: PrototypeTask, dayKey: string, weekdayLabel: string): void {
-        const box = parentEl.createDiv({ cls: 'task-week-goal-day' });
-        if (dayKey === getCurrentDayKey()) box.addClass('is-today');
-
-        const head = box.createDiv({ cls: 'task-week-goal-day-head' });
-        head.createSpan({ cls: 'task-week-goal-day-name', text: weekdayLabel });
-        head.createSpan({
-            cls: 'task-week-goal-day-date',
-            text: `${Number(dayKey.slice(5, 7))}/${Number(dayKey.slice(8, 10))}`,
-        });
-
-        const body = box.createDiv({ cls: 'task-week-goal-day-body' });
-        const toolbar = body.createDiv({ cls: 'task-week-goal-day-toolbar' });
-        toolbar.createSpan({ cls: 'task-week-goal-day-toolbar-label', text: t('panel.weekGoalUnplanned') });
-        const addBtn = toolbar.createEl('button', {
-            cls: 'task-week-goal-day-add',
+        // 右上角：新增一条每日描述（选择周几 + 填写内容）
+        const addBtn = nav.createEl('button', {
+            cls: 'task-week-goal-nav-add',
             attr: { type: 'button', 'aria-label': t('common.add') },
         });
         setIcon(addBtn, 'plus');
-        addBtn.addEventListener('click', () => this.startAddDayGoal(body, task, dayKey));
+        addBtn.addEventListener('click', () => this.startAddDayGoal(wrap, task));
 
-        body.createDiv({ cls: 'task-week-goal-day-divider' });
-
-        const list = body.createDiv({ cls: 'task-week-goal-day-list' });
-        const entries = getDayGoalEntries(task, dayKey);
-        if (entries.length === 0) {
-            list.createDiv({ cls: 'task-week-goal-day-empty', text: t('panel.weekGoalEmpty') });
+        // 仅渲染有内容的条目：按周一到周日排序，同一天内按创建顺序
+        const list = wrap.createDiv({ cls: 'task-week-goal-list' });
+        let count = 0;
+        for (let day = 1; day <= 7; day += 1) {
+            const dayKey = makeDayKeyFromWeek(this.weekKey, day);
+            for (const entry of getDayGoalEntries(task, dayKey)) {
+                this.renderDayGoalRow(list, task, dayKey, t(WEEKDAY_LABEL_KEYS[day - 1]), entry);
+                count += 1;
+            }
         }
-        for (const entry of entries) {
-            const row = list.createDiv({ cls: 'task-week-goal-item' });
-            row.toggleClass('is-done', entry.done === true);
-            const checkbox = row.createEl('input', { cls: 'task-week-goal-item-check', attr: { type: 'checkbox' } });
-            checkbox.checked = entry.done === true;
-            checkbox.addEventListener('change', () => {
-                entry.done = checkbox.checked;
-                if (!checkbox.checked) delete entry.done;
-                void this.commit(task);
-            });
-            row.createSpan({ cls: 'task-week-goal-item-text', text: entry.text });
-            const delBtn = row.createEl('button', {
-                cls: 'task-week-goal-item-delete',
-                attr: { type: 'button', 'aria-label': t('common.delete') },
-            });
-            setIcon(delBtn, 'x');
-            delBtn.addEventListener('click', () => {
-                setDayGoalEntries(task, dayKey, getDayGoalEntries(task, dayKey).filter((item) => item.id !== entry.id));
-                void this.commit(task);
-            });
-        }
+        if (count === 0) list.createDiv({ cls: 'task-week-goal-day-empty', text: t('panel.weekGoalEmpty') });
     }
 
-    /** 在列表末尾插入输入行，回车 / 失焦提交，Esc 取消 */
-    private startAddDayGoal(body: HTMLElement, task: PrototypeTask, dayKey: string): void {
-        const existing = body.querySelector<HTMLInputElement>('.task-week-goal-add-input');
-        if (existing) {
-            existing.focus();
-            return;
-        }
-        const list = body.querySelector<HTMLElement>('.task-week-goal-day-list');
-        if (!list) return;
-        list.querySelector('.task-week-goal-day-empty')?.remove();
-
-        const inputRow = list.createDiv({ cls: 'task-week-goal-add-row' });
-        const input = inputRow.createEl('input', {
-            cls: 'task-week-goal-add-input',
-            attr: { type: 'text', placeholder: t('panel.weekGoalAddPlaceholder') },
+    /** 单条每日描述：星期标签 + 完成勾选 + 内容（点击编辑）+ 悬停删除 */
+    private renderDayGoalRow(
+        parentEl: HTMLElement,
+        task: PrototypeTask,
+        dayKey: string,
+        weekdayLabel: string,
+        entry: TaskDayGoalEntry,
+    ): void {
+        const row = parentEl.createDiv({ cls: 'task-week-goal-item' });
+        row.toggleClass('is-done', entry.done === true);
+        row.toggleClass('is-today', dayKey === getCurrentDayKey());
+        row.createSpan({ cls: 'task-week-goal-item-day', text: weekdayLabel });
+        const checkbox = row.createEl('input', { cls: 'task-week-goal-item-check', attr: { type: 'checkbox' } });
+        checkbox.checked = entry.done === true;
+        checkbox.addEventListener('change', () => {
+            entry.done = checkbox.checked;
+            if (!checkbox.checked) delete entry.done;
+            void this.commit(task);
         });
+        const textEl = row.createSpan({ cls: 'task-week-goal-item-text', text: entry.text });
+        textEl.addEventListener('click', () => this.startEditDayGoal(textEl, task, dayKey, entry));
+        const delBtn = row.createEl('button', {
+            cls: 'task-week-goal-item-delete',
+            attr: { type: 'button', 'aria-label': t('common.delete') },
+        });
+        setIcon(delBtn, 'x');
+        delBtn.addEventListener('click', () => {
+            setDayGoalEntries(task, dayKey, getDayGoalEntries(task, dayKey).filter((item) => item.id !== entry.id));
+            void this.commit(task);
+        });
+    }
+
+    /** 点击条目内容切换为内联输入框：回车 / 失焦保存，Esc 放弃修改 */
+    private startEditDayGoal(
+        textEl: HTMLElement,
+        task: PrototypeTask,
+        dayKey: string,
+        entry: TaskDayGoalEntry,
+    ): void {
+        if (textEl.parentElement?.querySelector('.task-week-goal-item-input')) return;
+        const input = document.createElement('input');
+        input.className = 'task-week-goal-item-input';
+        input.type = 'text';
+        input.value = entry.text;
+        textEl.replaceWith(input);
         input.focus();
+        input.select();
 
         let finished = false;
         const finish = (commit: boolean): void => {
             if (finished) return;
             finished = true;
-            const text = input.value.trim();
-            inputRow.remove();
-            if (!commit || !text) {
+            const next = input.value.trim();
+            if (!commit || !next || next === entry.text) {
                 this.render();
                 return;
             }
-            setDayGoalEntries(task, dayKey, [
-                ...getDayGoalEntries(task, dayKey),
-                { id: `dgoal_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, text, createdAt: Date.now() },
-            ]);
+            setDayGoalEntries(
+                task,
+                dayKey,
+                getDayGoalEntries(task, dayKey).map((item) =>
+                    item.id === entry.id ? { ...item, text: next } : item,
+                ),
+            );
             void this.commit(task);
         };
         input.addEventListener('keydown', (evt) => {
@@ -615,6 +610,68 @@ export class SectionHost {
             }
         });
         input.addEventListener('blur', () => finish(true));
+    }
+
+    /** 在列表末尾插入新增行：选择周几 + 填写内容，回车 / 确认保存，Esc 取消 */
+    private startAddDayGoal(wrap: HTMLElement, task: PrototypeTask): void {
+        const existing = wrap.querySelector<HTMLInputElement>('.task-week-goal-add-input');
+        if (existing) {
+            existing.focus();
+            return;
+        }
+        const list = wrap.querySelector<HTMLElement>('.task-week-goal-list');
+        if (!list) return;
+        list.querySelector('.task-week-goal-day-empty')?.remove();
+
+        const inputRow = list.createDiv({ cls: 'task-week-goal-add-row' });
+        const daySelect = inputRow.createEl('select', { cls: 'task-week-goal-add-day' });
+        for (let day = 1; day <= 7; day += 1) {
+            const option = daySelect.createEl('option', { text: t(WEEKDAY_LABEL_KEYS[day - 1]) });
+            option.value = makeDayKeyFromWeek(this.weekKey, day);
+        }
+        // 默认选中今天（当前周），查看其它周时默认周一
+        const todayKey = getCurrentDayKey();
+        daySelect.value = Array.from(daySelect.options).some((option) => option.value === todayKey)
+            ? todayKey
+            : makeDayKeyFromWeek(this.weekKey, 1);
+
+        const input = inputRow.createEl('input', {
+            cls: 'task-week-goal-add-input',
+            attr: { type: 'text', placeholder: t('panel.weekGoalAddPlaceholder') },
+        });
+        const confirmBtn = inputRow.createEl('button', {
+            cls: 'task-week-goal-add-confirm',
+            text: t('common.confirm'),
+            attr: { type: 'button' },
+        });
+        input.focus();
+
+        let finished = false;
+        const finish = (commit: boolean): void => {
+            if (finished) return;
+            finished = true;
+            const text = input.value.trim();
+            const dayKey = daySelect.value;
+            if (!commit || !text || !dayKey) {
+                this.render();
+                return;
+            }
+            setDayGoalEntries(task, dayKey, [
+                ...getDayGoalEntries(task, dayKey),
+                { id: `dgoal_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, text, createdAt: Date.now() },
+            ]);
+            void this.commit(task);
+        };
+        confirmBtn.addEventListener('click', () => finish(true));
+        input.addEventListener('keydown', (evt) => {
+            if (evt.key === 'Enter') {
+                evt.preventDefault();
+                finish(true);
+            } else if (evt.key === 'Escape') {
+                evt.preventDefault();
+                finish(false);
+            }
+        });
     }
 
     /* ---------------- 本周描述 ---------------- */
