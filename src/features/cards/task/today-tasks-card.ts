@@ -15,6 +15,7 @@ import type { PrototypeTaskRepo } from '../../../core/repos/prototype-task-repo'
 import type { TaskExecutionRepo } from '../../../core/repos/task-execution-repo';
 import { getCurrentDayKey, getISOWeek, makeDayKey, makeWeekKey } from '../../../core/shared/plan-data';
 import { getDayGoalEntries, getTaskHabit } from '../../../core/shared/task-sections';
+import { getTaskKind } from '../../../core/shared/task-kind';
 
 /** 当天 0 点 */
 function startOfToday(): Date {
@@ -516,7 +517,7 @@ export class TodayTasksCard {
         return this.prototypeTaskRepo.tasks
             .filter((task) => {
                 const habit = getTaskHabit(task);
-                return habit?.enabled === true && habit.weekdays.includes(weekday);
+                return getTaskKind(task) === 'habit' && habit?.enabled === true && habit.weekdays.includes(weekday);
             })
             .sort((a, b) => (getTaskHabit(a)?.time ?? '').localeCompare(getTaskHabit(b)?.time ?? ''));
     }

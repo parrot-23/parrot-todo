@@ -7,6 +7,12 @@ import type { TaskSection, TaskSectionDisplayMap } from './task-section';
 /** 原型任务类型：主线 / 支线 */
 export type PrototypeTaskType = 'main' | 'side';
 
+/** 任务类型（kind）：普通任务 / 习惯 / 目标，未设置时按普通任务处理 */
+export type TaskKind = 'task' | 'habit' | 'goal';
+
+/** 默认任务类型 */
+export const DEFAULT_TASK_KIND: TaskKind = 'task';
+
 /** 任务习惯设置 */
 export interface TaskHabit {
     /** 是否启用习惯 */
@@ -15,6 +21,10 @@ export interface TaskHabit {
     time: string;
     /** 生效星期（1 = 周一 … 7 = 周日） */
     weekdays: number[];
+    /** 是否全天习惯（为 true 时不使用具体时间点） */
+    allDay?: boolean;
+    /** 预估时长（分钟） */
+    duration?: number;
 }
 
 /** 任务目标条目（任务详情「目标」清单） */
@@ -54,6 +64,8 @@ export interface PrototypeTask {
     name: string;
     /** 任务类型 */
     type: PrototypeTaskType;
+    /** 任务类型标签（任务 / 习惯 / 目标，旧任务无此字段，默认「任务」） */
+    kind?: TaskKind;
     /** 父任务 id（子任务使用；根任务为空） */
     parentId?: string;
     /** 任务描述 */

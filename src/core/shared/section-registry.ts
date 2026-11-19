@@ -175,7 +175,13 @@ function parseHabitPayload(raw: unknown): TaskHabit | null {
     const weekdays = Array.isArray(r.weekdays)
         ? r.weekdays.filter((day): day is number => typeof day === 'number' && day >= 1 && day <= 7)
         : [];
-    return { enabled: r.enabled, time, weekdays };
+    return {
+        enabled: r.enabled,
+        time,
+        weekdays,
+        allDay: r.allDay === true,
+        duration: typeof r.duration === 'number' && r.duration >= 0 ? Math.round(r.duration) : undefined,
+    };
 }
 
 /** 板块注册表（顺序即界面中未创建板块的平铺顺序） */

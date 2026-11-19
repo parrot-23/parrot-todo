@@ -20,7 +20,7 @@ import type { TaskExecutionData } from '../datatypes/task-execution';
 import type { TimeBoxData } from '../datatypes/timebox-data';
 import type { ThemeData, Theme } from '../datatypes/theme';
 import { DEFAULT_THEME_ID } from '../datatypes/theme';
-import { createSectionsFromLegacy, parseSectionDisplay, parseTaskSections } from '../shared/task-sections';
+import { createSectionsFromLegacy, getTaskGoals, getTaskHabit, parseSectionDisplay, parseTaskSections } from '../shared/task-sections';
 import { log } from '../shared/logger';
 import { t } from '../i18n';
 
@@ -57,6 +57,8 @@ export interface PluginData {
     prototypeTaskMetaMigrationDone?: number;
     /** 原型任务板块结构版本（0 = 旧字段结构，1 = task.sections 结构） */
     taskSectionSchemaVersion?: number;
+    /** 原型任务类型版本（0 = 未迁移，1 = 已按习惯/目标推断 task.kind） */
+    taskKindSchemaVersion?: number;
     /** OKR 记录卡片的填写结果（顶层独立存储，不挂在任务上，避免任务对象膨胀） */
     recordEntries: OkrRecordEntry[];
     /** 当前进行中的任务（界面视图「今天任务」计时，随主数据一起持久化） */
@@ -122,6 +124,7 @@ export class BaseRepo {
             themeData: d.themeData,
             prototypeTaskMetaMigrationDone: d.prototypeTaskMetaMigrationDone,
             taskSectionSchemaVersion: d.taskSectionSchemaVersion,
+            taskKindSchemaVersion: d.taskKindSchemaVersion,
             recordEntries: d.recordEntries,
             runningTask: d.runningTask,
             cacheDirName: this.cacheDirName,
@@ -287,6 +290,18 @@ export class BaseRepo {
             : 0;
         // 原型任务（旧字段一次性迁移为 task.sections；兼容旧数据：默认空数组）
         const initialPrototypeTasks = parsePrototypeTasks(savedData.prototypeTasks, savedTaskSectionSchemaVersion < 1);
+        // 任务类型版本（0 = 旧数据，需要一次性推断习惯 / 目标类型）
+        const savedTaskKindSchemaVersion = typeof savedData.taskKindSchemaVersion === 'number'
+            ? savedData.taskKindSchemaVersion
+            : 0;
+        // 一次性迁移：已启用习惯 → 习惯；存在阶段目标 → 目标；两者都有时按习惯处理，其余为任务
+        if (savedTaskKindSchemaVersion < 1) {
+            for (const task of initialPrototypeTasks) {
+                if (task.kind !== undefined) continue;
+                if (getTaskHabit(task)?.enabled) task.kind = 'habit';
+                else if (getTaskGoals(task).length > 0) task.kind = 'goal';
+            }
+        }
         // 时间盒数据（兼容旧数据：默认空）
         const initialTimeBoxData = parseTimeBoxData(savedData.timeBoxData);
         // 计划排布数据（兼容旧数据：默认空）
@@ -341,12 +356,13 @@ export class BaseRepo {
             themeData: initialThemeData,
             prototypeTaskMetaMigrationDone: prototypeTaskMetaMigrated ? 1 : initialPrototypeTaskMetaVersion,
             taskSectionSchemaVersion: savedTaskSectionSchemaVersion < 1 ? 1 : savedTaskSectionSchemaVersion,
+            taskKindSchemaVersion: savedTaskKindSchemaVersion < 1 ? 1 : savedTaskKindSchemaVersion,
             recordEntries: initialOkrEntries,
             runningTask: initialRunningTask,
         };
 
         // 转换后立即落盘，避免下次启动重复执行
-        if (prototypeTaskMetaMigrated || savedTaskSectionSchemaVersion < 1) await this.saveAll();
+        if (prototypeTaskMetaMigrated || savedTaskSectionSchemaVersion < 1 || savedTaskKindSchemaVersion < 1) await this.saveAll();
 
         // 持久化自检：记录加载到的板块条目数，便于排查重启后数据丢失
         log('持久化自检', countSectionStats(initialPrototypeTasks));
@@ -399,6 +415,7 @@ function parsePrototypeTasks(raw: unknown, migrateLegacy: boolean): PrototypeTas
             ...(sections ? { sections } : {}),
             ...(sectionDisplay ? { sectionDisplay } : {}),
             ...(r.archived === true ? { archived: true } : {}),
+            ...(r.kind === 'task' || r.kind === 'habit' || r.kind === 'goal' ? { kind: r.kind } : {}),
             createdAt: typeof r.createdAt === 'number' ? r.createdAt : 0,
         });
     }

@@ -8,6 +8,7 @@ import type { PlanCategory } from '../../../core/shared/plan-category-manager';
 import { getCurrentWeekKey, makeDayKeyFromWeek } from '../../../core/shared/plan-data';
 import { getTaskHabit, setTaskHabit } from '../../../core/shared/task-sections';
 import { FloatingPanel, type FloatingPanelOptions } from '../../../ui/basic/floating-panel';
+import { TaskTree } from '../task/task-tree';
 
 /** 习惯面板配置 */
 export interface HabitPanelOptions extends Omit<FloatingPanelOptions, 'title'> {
@@ -42,6 +43,8 @@ const WEEKDAY_KEYS = [
 export class HabitPanel extends FloatingPanel {
     private rootSelectEl!: HTMLSelectElement;
     private treeEl!: HTMLElement;
+    /** 任务树公共组件 */
+    private taskTree!: TaskTree;
     private paneEl!: HTMLElement;
     /** 右侧底部的习惯设置面板（默认显示，选中任务后可见） */
     private habitPanelEl!: HTMLElement;
@@ -97,16 +100,16 @@ export class HabitPanel extends FloatingPanel {
             this.updateDetailButton();
         });
         this.treeEl = left.createDiv({ cls: 'habit-tree' });
-        this.treeEl.addEventListener('click', (evt) => {
-            const row = (evt.target as HTMLElement).closest('.task-detail-tree-row') as HTMLElement | null;
-            const taskId = row?.dataset.taskId;
-            if (!taskId) return;
-            // 再次点击已选中的条目则取消选中
-            if (taskId === this.selectedTaskId) {
-                this.clearTaskSelection();
-            } else {
-                this.selectTask(taskId);
-            }
+        this.taskTree = new TaskTree(this.treeEl, {
+            getTasks: () => this.panelOptions.getTasks(),
+            getRootId: () => this.rootTaskId,
+            isSelected: (task) => task.id === this.selectedTaskId,
+            renderTrailing: (row, task) => this.renderTrailingIcon(row, task),
+            onRowClick: (task) => {
+                // 再次点击已选中的条目则取消选中
+                if (task.id === this.selectedTaskId) this.clearTaskSelection();
+                else this.selectTask(task.id);
+            },
         });
 
         // 右侧：一周七列日历内容
@@ -144,31 +147,7 @@ export class HabitPanel extends FloatingPanel {
 
     /** 渲染选中根任务（含根任务自身）的任务树 */
     private renderTree(): void {
-        this.treeEl.empty();
-        if (!this.rootTaskId) return;
-        const rootTask = this.panelOptions.getTasks().find((task) => task.id === this.rootTaskId);
-        if (rootTask) this.renderTreeRow(this.treeEl, rootTask, 0);
-        this.renderTreeNodes(this.treeEl, this.rootTaskId, 1);
-    }
-
-    private renderTreeNodes(parentEl: HTMLElement, parentId: string, depth: number): void {
-        const children = this.panelOptions.getTasks().filter((task) => task.parentId === parentId);
-        for (const child of children) {
-            this.renderTreeRow(parentEl, child, depth);
-            this.renderTreeNodes(parentEl, child.id, depth + 1);
-        }
-    }
-
-    /** 渲染单条任务行（缩进 + 分支图标 + 名称 + 末尾图标） */
-    private renderTreeRow(parentEl: HTMLElement, task: PrototypeTask, depth: number): void {
-        const row = parentEl.createDiv({ cls: 'task-detail-tree-row' });
-        row.style.marginLeft = `${depth * 14}px`;
-        row.dataset.taskId = task.id;
-        row.toggleClass('is-selected', task.id === this.selectedTaskId);
-        const iconEl = row.createSpan({ cls: 'task-detail-tree-icon' });
-        setIcon(iconEl, 'git-branch');
-        row.createSpan({ cls: 'task-detail-tree-label', text: task.name });
-        this.renderTrailingIcon(row, task);
+        this.taskTree.render();
     }
 
     /**
@@ -195,10 +174,7 @@ export class HabitPanel extends FloatingPanel {
     /** 选中任务条目（高亮，供习惯面板绑定） */
     private selectTask(taskId: string): void {
         this.selectedTaskId = taskId;
-        this.treeEl.querySelectorAll('.task-detail-tree-row').forEach((el) => {
-            const row = el as HTMLElement;
-            row.toggleClass('is-selected', row.dataset.taskId === taskId);
-        });
+        this.taskTree.refreshSelection();
         this.renderHabitPanel();
         this.updateDetailButton();
     }
@@ -206,9 +182,7 @@ export class HabitPanel extends FloatingPanel {
     /** 取消选中任务条目（清除高亮） */
     private clearTaskSelection(): void {
         this.selectedTaskId = undefined;
-        this.treeEl.querySelectorAll('.task-detail-tree-row').forEach((el) => {
-            (el as HTMLElement).removeClass('is-selected');
-        });
+        this.taskTree.refreshSelection();
         this.renderHabitPanel();
         this.updateDetailButton();
     }

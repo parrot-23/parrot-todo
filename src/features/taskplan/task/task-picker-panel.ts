@@ -1,10 +1,9 @@
 ﻿// 任务选择面板：基于 FloatingPanel，顶部搜索框 + 根任务下拉 + 后代任务树，选中后点「确定」回传任务 id。
 // 支持多选（multiple）与限定候选范围（scopeTaskId，用于「绑定子任务」等只在本任务后代里选的场景）。
-import { setIcon } from 'obsidian';
-
 import type { PrototypeTask } from '../../../core/datatypes/prototype-task';
 import { t } from '../../../core/i18n';
 import { FloatingPanel, type FloatingPanelOptions } from '../../../ui/basic/floating-panel';
+import { TaskTree } from './task-tree';
 
 /** 任务选择面板配置 */
 export interface TaskPickerPanelOptions extends Omit<FloatingPanelOptions, 'title'> {
@@ -27,6 +26,8 @@ export class TaskPickerPanel extends FloatingPanel {
     private searchEl!: HTMLInputElement;
     private rootSelectEl!: HTMLSelectElement;
     private treeEl!: HTMLElement;
+    /** 任务树公共组件（只渲染根任务的后代） */
+    private taskTree!: TaskTree;
     private confirmButton!: HTMLButtonElement;
 
     /** 下拉选中的根任务 id */
@@ -71,10 +72,12 @@ export class TaskPickerPanel extends FloatingPanel {
         if (this.pickerOptions.scopeTaskId) this.rootSelectEl.style.display = 'none';
 
         this.treeEl = this.body.createDiv({ cls: 'task-picker-tree' });
-        this.treeEl.addEventListener('click', (evt) => {
-            const row = (evt.target as HTMLElement).closest('.task-detail-tree-row') as HTMLElement | null;
-            const taskId = row?.dataset.taskId;
-            if (taskId) this.selectTask(taskId);
+        this.taskTree = new TaskTree(this.treeEl, {
+            getTasks: () => this.pickerOptions.getTasks(),
+            getRootId: () => this.rootTaskId,
+            showRoot: false,
+            isSelected: (task) => this.selectedIds.has(task.id),
+            onRowClick: (task) => this.selectTask(task.id),
         });
 
         const footer = this.body.createDiv({ cls: 'task-picker-footer' });
@@ -127,7 +130,6 @@ export class TaskPickerPanel extends FloatingPanel {
 
     /** 渲染任务树：搜索时全局平铺匹配结果，否则展示下拉选中根任务的后代 */
     private renderTree(): void {
-        this.treeEl.empty();
         const tasks = this.pickerOptions.getTasks();
         const keyword = this.searchEl.value.trim().toLowerCase();
         const scope = this.scopeIds();
@@ -137,20 +139,20 @@ export class TaskPickerPanel extends FloatingPanel {
             const matches = tasks.filter((task) => (!scope || scope.has(task.id))
                 && task.name.toLowerCase().includes(keyword));
             if (matches.length === 0) {
+                this.treeEl.empty();
                 this.treeEl.createDiv({ cls: 'interface-today-empty', text: t('panel.taskPickerEmpty') });
                 return;
             }
-            for (const task of matches) {
-                this.createTaskRow(this.treeEl, task, this.taskPath(task, byId));
-            }
+            this.taskTree.renderFlat(matches.map((task) => ({ task, label: this.taskPath(task, byId) })));
             return;
         }
 
         if (!this.rootTaskId) {
+            this.treeEl.empty();
             this.treeEl.createDiv({ cls: 'interface-today-empty', text: t('panel.planNoTask') });
             return;
         }
-        this.renderTreeNodes(this.treeEl, this.rootTaskId, 0);
+        this.taskTree.render();
         if (!this.treeEl.firstChild) {
             this.treeEl.createDiv({ cls: 'interface-today-empty', text: t('panel.taskPickerEmpty') });
         }
@@ -176,26 +178,6 @@ export class TaskPickerPanel extends FloatingPanel {
         };
         walk(scopeTaskId);
         return ids;
-    }
-
-    private renderTreeNodes(parentEl: HTMLElement, parentId: string, depth: number): void {
-        const children = this.pickerOptions.getTasks().filter((task) => task.parentId === parentId);
-        for (const child of children) {
-            const row = this.createTaskRow(parentEl, child);
-            row.style.marginLeft = `${depth * 14}px`;
-            this.renderTreeNodes(parentEl, child.id, depth + 1);
-        }
-    }
-
-    /** 创建一条任务行（与习惯面板左侧任务树同一套样式） */
-    private createTaskRow(parentEl: HTMLElement, task: PrototypeTask, label?: string): HTMLElement {
-        const row = parentEl.createDiv({ cls: 'task-detail-tree-row' });
-        row.dataset.taskId = task.id;
-        row.toggleClass('is-selected', this.selectedIds.has(task.id));
-        const iconEl = row.createSpan({ cls: 'task-detail-tree-icon' });
-        setIcon(iconEl, 'git-branch');
-        row.createSpan({ cls: 'task-detail-tree-label', text: label ?? task.name });
-        return row;
     }
 
     /** 任务路径：父级任务名以「 / 」连接，搜索结果中用于区分同名任务 */
@@ -225,10 +207,7 @@ export class TaskPickerPanel extends FloatingPanel {
     }
 
     private updateSelectionStyles(): void {
-        this.treeEl.querySelectorAll('.task-detail-tree-row').forEach((el) => {
-            const row = el as HTMLElement;
-            row.toggleClass('is-selected', this.selectedIds.has(row.dataset.taskId ?? ''));
-        });
+        this.taskTree.refreshSelection();
         this.updateConfirmState();
     }
 

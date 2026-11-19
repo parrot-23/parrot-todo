@@ -21,6 +21,7 @@ import {
 } from '../../../core/shared/plan-data';
 import { applyThemeColors, getCurrentThemeColors } from '../../../theme/theme-colors';
 import { getWeekNote, setWeekNote } from '../../../core/shared/task-sections';
+import { isTreeTaskCollapsed } from '../../../core/shared/task-tree-collapse';
 import {
     findRootTaskId,
     getTreeSelectedTaskId,
@@ -28,6 +29,7 @@ import {
     setTreeSelectedTaskId,
 } from '../../../core/shared/task-tree-selection';
 import { FloatingPanel, type FloatingPanelOptions } from '../../../ui/basic/floating-panel';
+import { TaskTree } from '../task/task-tree';
 
 /** 计划年度面板配置 */
 export interface PlanAnnualPanelOptions extends Omit<FloatingPanelOptions, 'title'> {
@@ -70,9 +72,6 @@ const STATUS_OPTIONS: {
     { value: 'done', icon: 'check-circle', labelKey: 'taskPlan.statusDone' },
     { value: 'paused', icon: 'pause', labelKey: 'taskPlan.statusPaused' },
 ];
-
-/** 任务树行缩进（px） */
-const TREE_DEPTH_INDENT = 14;
 
 /** 任务树行 / 泳道行高度（px），两侧共用同一滚动容器，行高一致才能对齐 */
 const ROW_HEIGHT = 26;
@@ -156,6 +155,8 @@ interface DragState {
 export class PlanAnnualPanel extends FloatingPanel {
     private rootSelectEl!: HTMLSelectElement;
     private treeEl!: HTMLElement;
+    /** 任务树公共组件 */
+    private taskTree!: TaskTree;
     private navEl!: HTMLElement;
     private weekHeaderEl!: HTMLElement;
     private laneEl!: HTMLElement;
@@ -329,13 +330,19 @@ export class PlanAnnualPanel extends FloatingPanel {
         });
         // 第三行：任务树（从根任务开始）
         this.treeEl = left.createDiv({ cls: 'plan-annual-tree' });
-        this.treeEl.addEventListener('click', (evt) => {
-            const row = (evt.target as HTMLElement).closest('.task-detail-tree-row') as HTMLElement | null;
-            const taskId = row?.dataset.taskId;
-            if (!taskId) return;
-            // 再次点击已选中的条目则取消选中
-            if (taskId === this.selectedTaskId) this.clearTaskSelection();
-            else this.selectTask(taskId);
+        this.taskTree = new TaskTree(this.treeEl, {
+            getTasks: () => this.panelOptions.getTasks(),
+            getRootId: () => this.rootTaskId,
+            rowClass: 'plan-annual-tree-row',
+            isSelected: (task) => task.id === this.selectedTaskId,
+            renderTrailing: (row, task) => this.renderTreeStatus(row, task),
+            onRowClick: (task) => {
+                // 再次点击已选中的条目则取消选中
+                if (task.id === this.selectedTaskId) this.clearTaskSelection();
+                else this.selectTask(task.id);
+            },
+            // 折叠后同步重绘泳道，保证左右行严格对齐
+            onToggle: () => this.renderLanes(),
         });
 
         // 右侧：季度导航行 + 周列表头 + 泳道行
@@ -393,30 +400,12 @@ export class PlanAnnualPanel extends FloatingPanel {
 
     /** 渲染选中根任务（含根任务自身）的任务树 */
     private renderTree(): void {
-        this.treeEl.empty();
-        if (!this.rootTaskId) return;
-        const rootTask = this.panelOptions.getTasks().find((task) => task.id === this.rootTaskId);
-        if (rootTask) this.renderTreeRow(this.treeEl, rootTask, 0);
-        this.renderTreeNodes(this.treeEl, this.rootTaskId, 1);
+        this.taskTree.render();
     }
 
-    private renderTreeNodes(parentEl: HTMLElement, parentId: string, depth: number): void {
-        const children = this.panelOptions.getTasks().filter((task) => task.parentId === parentId);
-        for (const child of children) {
-            this.renderTreeRow(parentEl, child, depth);
-            this.renderTreeNodes(parentEl, child.id, depth + 1);
-        }
-    }
-
-    /** 渲染单条任务行（缩进 + 分支图标 + 名称 + 状态图标） */
-    private renderTreeRow(parentEl: HTMLElement, task: PrototypeTask, depth: number): void {
-        const row = parentEl.createDiv({ cls: 'task-detail-tree-row plan-annual-tree-row' });
-        row.style.marginLeft = `${depth * TREE_DEPTH_INDENT}px`;
-        row.dataset.taskId = task.id;
-        row.toggleClass('is-selected', task.id === this.selectedTaskId);
-        setIcon(row.createSpan({ cls: 'task-detail-tree-icon' }), 'git-branch');
-        row.createSpan({ cls: 'task-detail-tree-label', text: task.name });
-        // 所有状态（含未开始）都绘制状态图标，点击弹出状态下拉列表；
+    /** 行末尾：任务状态图标（点击弹出状态下拉列表） */
+    private renderTreeStatus(row: HTMLElement, task: PrototypeTask): void {
+        // 所有状态（含未开始）都绘制状态图标；
         // 未开始的图标仅在悬浮任务条目或选中任务时显示
         const statusEl = row.createSpan({ cls: 'plan-tree-status-icon plan-annual-status-btn' });
         statusEl.toggleClass('is-not-started', (task.status ?? 'notStarted') === 'notStarted');
@@ -426,6 +415,8 @@ export class PlanAnnualPanel extends FloatingPanel {
             this.openStatusMenu(statusEl, task);
         });
     }
+
+    /** 打开状态下拉列表（挂在 body 上，贴在图标下方；选择后更新任务状态） */
 
     /** 打开状态下拉列表（挂在 body 上，贴在图标下方；选择后更新任务状态） */
     private openStatusMenu(anchorEl: HTMLElement, task: PrototypeTask): void {
@@ -479,6 +470,8 @@ export class PlanAnnualPanel extends FloatingPanel {
         const rootTask = tasks.find((task) => task.id === this.rootTaskId);
         if (rootTask) result.push(rootTask);
         const collect = (parentId: string): void => {
+            // 折叠的任务不收集其后代，保证右侧泳道与左侧任务树严格对齐
+            if (isTreeTaskCollapsed(this.rootTaskId, parentId)) return;
             for (const child of tasks.filter((task) => task.parentId === parentId)) {
                 result.push(child);
                 collect(child.id);
@@ -573,10 +566,7 @@ export class PlanAnnualPanel extends FloatingPanel {
 
     /** 同步任务树行与泳道行的选中态 */
     private refreshSelection(): void {
-        this.treeEl.querySelectorAll('.task-detail-tree-row').forEach((el) => {
-            const row = el as HTMLElement;
-            row.toggleClass('is-selected', row.dataset.taskId === this.selectedTaskId);
-        });
+        this.taskTree.refreshSelection();
         this.laneEl.querySelectorAll('.plan-annual-lane-row').forEach((el) => {
             const row = el as HTMLElement;
             row.toggleClass('is-selected', row.dataset.taskId === this.selectedTaskId);
@@ -689,7 +679,7 @@ export class PlanAnnualPanel extends FloatingPanel {
             barEl.toggleClass('is-done', status === 'done');
             barEl.toggleClass('is-paused', status === 'paused');
             barEl.toggleClass('is-not-started', status === 'notStarted');
-            // 进度条按周拆格：填写了本周描述的周在格子右下角显示标识
+            // 进度条按周拆格：填写了本周描述的周在格子右上角显示标识
             const barWeeks = this.quarterWeeks.slice(bar.startIndex, bar.endIndex + 1);
             const weekSpan = barWeeks.length;
             for (let offset = 0; offset < weekSpan; offset++) {

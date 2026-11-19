@@ -43,6 +43,7 @@ import type { PlanCategoryData } from './shared/plan-category-manager';
 import { getCurrentWeekKey, getISOWeek, makeDayKey, makeWeekKey } from './shared/plan-data';
 import { renameTaskDir, sanitizeFolderName } from './shared/task-library';
 import { getTaskFileDir } from './shared/task-sections';
+import { filterTasksByKind } from './shared/task-kind';
 import { findRootTaskId, getTreeSelectedTaskId, setTreeSelectedTaskId } from './shared/task-tree-selection';
 
 /** 界面视图配置 */
@@ -295,7 +296,7 @@ export class InterfaceView {
             };
             this.habitPanel = new HabitPanel({
                 container: this.panelContainer,
-                getTasks: () => this.prototypeTaskRepo.tasks,
+                getTasks: () => filterTasksByKind(this.prototypeTaskRepo.tasks, 'habit'),
                 getCategories: () => this.categoryData.categories,
                 save: () => holder.saveAll(),
                 onChanged: () => {
@@ -322,7 +323,7 @@ export class InterfaceView {
             };
             this.goalBoardPanel = new GoalBoardPanel({
                 container: this.panelContainer,
-                getTasks: () => this.prototypeTaskRepo.tasks,
+                getTasks: () => filterTasksByKind(this.prototypeTaskRepo.tasks, 'goal'),
                 getCategories: () => this.categoryData.categories,
                 planAssignmentRepo: holder.planAssignmentRepo,
                 save: () => holder.saveAll(),
@@ -390,6 +391,7 @@ export class InterfaceView {
                 container: this.panelContainer,
                 getTasks: () => this.prototypeTaskRepo.tasks,
                 planAssignmentRepo: holder.planAssignmentRepo,
+                taskExecutionRepo: this.taskExecutionRepo,
                 timeBoxRepo: holder.timeBoxRepo,
                 getCategories: () => this.categoryData.categories,
                 save: () => holder.saveAll(),

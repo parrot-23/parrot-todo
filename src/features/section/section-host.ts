@@ -7,10 +7,11 @@
 import { Notice, TFolder, setIcon, type App, type TFile } from 'obsidian';
 
 import type { ChecklistItem } from '../../core/datatypes/domain';
-import type { PrototypeTask, TaskDayGoalEntry } from '../../core/datatypes/prototype-task';
+import type { PrototypeTask, TaskDayGoalEntry, TaskHabit, TaskKind } from '../../core/datatypes/prototype-task';
 import type { SectionDisplayMode, SectionType } from '../../core/datatypes/task-section';
 import { getLang, getWeekDays, t } from '../../core/i18n';
 import { SECTION_REGISTRY } from '../../core/shared/section-registry';
+import { getTaskKind } from '../../core/shared/task-kind';
 import {
     getCurrentDayKey,
     getCurrentWeekKey,
@@ -58,6 +59,13 @@ const WEEKDAY_LABEL_KEYS: LabelKey[] = [
     'week.sunday',
 ];
 
+/** 任务类型三选一的选项（任务类型不显示图标） */
+const KIND_OPTIONS: { value: TaskKind; icon?: string; labelKey: LabelKey }[] = [
+    { value: 'task', labelKey: 'panel.taskKindTask' },
+    { value: 'habit', icon: 'repeat', labelKey: 'panel.taskKindHabit' },
+    { value: 'goal', icon: 'target', labelKey: 'panel.taskKindGoal' },
+];
+
 /** 板块宿主配置 */
 export interface SectionHostOptions {
     /** Obsidian App */
@@ -76,6 +84,8 @@ export interface SectionHostOptions {
     onChanged?: () => void;
     /** 只展示这些板块类型（默认全部） */
     types?: SectionType[];
+    /** 是否在选项卡栏最左侧固定显示「任务类型」选项卡（任务详情面板使用） */
+    showKindTab?: boolean;
 }
 
 /** 任务板块宿主 */
@@ -85,6 +95,8 @@ export class SectionHost {
     private hostEl: HTMLElement | null = null;
     /** 当前选中的内容板块选项卡 */
     private activeType: SectionType | null = null;
+    /** 是否正在显示「任务类型」选项卡 */
+    private activeKind = false;
     /** 是否正在显示配置页（齿轮按钮） */
     private showConfig = false;
     /** 日目标板块当前查看的周键 */
@@ -105,6 +117,7 @@ export class SectionHost {
     /** 切换任务时重置临时状态（首次渲染落在第一个可见板块） */
     reset(): void {
         this.activeType = null;
+        this.activeKind = false;
         this.showConfig = false;
         this.weekKey = getCurrentWeekKey();
         this.checklistSort = 'created';
@@ -132,13 +145,18 @@ export class SectionHost {
         const types = this.visibleTypes(task);
         // 当前选项卡因显示设置或内容变化被隐藏时回到默认视图
         if (this.activeType && !types.includes(this.activeType)) this.activeType = null;
-        if (!this.showConfig && !this.activeType) this.activeType = types[0] ?? null;
+        // 任务类型选项卡固定存在时，默认落在该选项卡
+        if (!this.showConfig && !this.activeType && !this.activeKind) {
+            if (this.options.showKindTab) this.activeKind = true;
+            else this.activeType = types[0] ?? null;
+        }
         // 没有可显示的板块时，配置页作为兜底视图
-        if (!this.activeType) this.showConfig = true;
+        if (!this.activeType && !this.activeKind) this.showConfig = true;
 
         this.renderTabs(host, task, types);
         const body = host.createDiv({ cls: 'task-section-tab-body' });
-        if (this.showConfig || !this.activeType) this.renderConfig(body, task);
+        if (this.showConfig || (!this.activeType && !this.activeKind)) this.renderConfig(body, task);
+        else if (this.activeKind) this.renderKind(body, task);
         else this.renderBody(body, task, this.activeType);
     }
 
@@ -178,6 +196,14 @@ export class SectionHost {
     private renderTabs(parent: HTMLElement, task: PrototypeTask, types: SectionType[]): void {
         const bar = parent.createDiv({ cls: 'task-section-tabs-bar' });
         const tabs = bar.createDiv({ cls: 'task-section-tabs' });
+        // 任务类型选项卡：固定在第一位，不参与板块显示设置
+        if (this.options.showKindTab) {
+            const kindTab = tabs.createEl('button', { cls: 'task-section-tab', attr: { type: 'button' } });
+            kindTab.toggleClass('is-active', !this.showConfig && this.activeKind);
+            setIcon(kindTab.createSpan({ cls: 'task-section-tab-icon' }), 'shapes');
+            kindTab.createSpan({ cls: 'task-section-tab-label', text: t('panel.sectionKindTab') });
+            kindTab.addEventListener('click', () => this.activateKindTab());
+        }
         for (const type of types) {
             const def = SECTION_REGISTRY[type];
             const tab = tabs.createEl('button', { cls: 'task-section-tab', attr: { type: 'button' } });
@@ -204,7 +230,132 @@ export class SectionHost {
     private activateTab(type: SectionType): void {
         if (!this.showConfig && this.activeType === type) return;
         this.showConfig = false;
+        this.activeKind = false;
         this.activeType = type;
+        this.render();
+    }
+
+    /** 切换到「任务类型」选项卡 */
+    private activateKindTab(): void {
+        if (!this.showConfig && this.activeKind) return;
+        this.showConfig = false;
+        this.activeType = null;
+        this.activeKind = true;
+        this.render();
+    }
+
+    /** 任务类型选项卡内容：第一行设置任务类型（任务 / 习惯 / 目标 三选一） */
+    private renderKind(body: HTMLElement, task: PrototypeTask): void {
+        const wrap = body.createDiv({ cls: 'task-section-kind' });
+        const row = wrap.createDiv({ cls: 'task-section-kind-row' });
+        row.createSpan({ cls: 'task-section-kind-label', text: t('panel.sectionKindLabel') });
+        const group = row.createDiv({ cls: 'task-section-kind-options' });
+        const current = getTaskKind(task);
+        for (const option of KIND_OPTIONS) {
+            const btn = group.createEl('button', {
+                cls: 'task-section-kind-btn',
+                attr: { type: 'button' },
+            });
+            btn.toggleClass('is-active', current === option.value);
+            if (option.icon) setIcon(btn.createSpan({ cls: 'task-section-kind-btn-icon' }), option.icon);
+            btn.createSpan({ cls: 'task-section-kind-btn-label', text: t(option.labelKey) });
+            btn.addEventListener('click', () => {
+                if (getTaskKind(task) === option.value) return;
+                task.kind = option.value;
+                void this.options.save();
+                this.options.onChanged?.();
+                this.render();
+            });
+        }
+        // 习惯类型：下方内嵌习惯设置（与「习惯」面板共用同一份数据）
+        if (current === 'habit') this.renderHabitKindSettings(wrap, task);
+    }
+
+    /** 习惯设置：启用 / 全天或时间点 + 预估时长 / 生效星期（不受启用状态限制，始终可编辑） */
+    private renderHabitKindSettings(parentEl: HTMLElement, task: PrototypeTask): void {
+        const habit = this.readHabit(task);
+        const config = parentEl.createDiv({ cls: 'habit-config' });
+
+        const enableRow = config.createDiv({ cls: 'habit-enable' });
+        const switchEl = enableRow.createDiv({ cls: 'checkbox-container' });
+        const switchInput = switchEl.createEl('input', { type: 'checkbox' });
+        switchInput.checked = habit.enabled;
+        // Obsidian 的开关圆球位置由容器的 is-enabled 类控制，而不是 input:checked
+        switchEl.toggleClass('is-enabled', habit.enabled);
+        const enableIconEl = enableRow.createSpan({ cls: 'habit-enable-icon' });
+        setIcon(enableIconEl, 'repeat');
+        enableRow.createSpan({ cls: 'habit-enable-text', text: t('panel.habitEnable') });
+        switchInput.addEventListener('change', () => {
+            this.saveHabit(task, { enabled: switchInput.checked });
+        });
+
+        // 全天开关 + 具体时间点 + 预估时长
+        const timeRow = config.createDiv({ cls: 'habit-time-row' });
+        const allDayEl = timeRow.createEl('label', { cls: 'habit-enable task-kind-allday' });
+        const allDaySwitch = allDayEl.createDiv({ cls: 'checkbox-container' });
+        const allDayInput = allDaySwitch.createEl('input', { type: 'checkbox' });
+        allDayInput.checked = habit.allDay === true;
+        allDaySwitch.toggleClass('is-enabled', habit.allDay === true);
+        allDayEl.createSpan({ cls: 'habit-enable-text', text: t('panel.habitAllDay') });
+        allDayInput.addEventListener('change', () => {
+            this.saveHabit(task, { allDay: allDayInput.checked });
+        });
+
+        if (!habit.allDay) {
+            const timeInput = timeRow.createEl('input', { cls: 'habit-time', type: 'time' });
+            timeInput.value = habit.time;
+            timeInput.addEventListener('change', () => {
+                this.saveHabit(task, { time: timeInput.value || '09:00' });
+            });
+        }
+
+        const durationEl = timeRow.createDiv({ cls: 'task-kind-duration' });
+        durationEl.createSpan({ cls: 'habit-time-label', text: t('panel.habitDuration') });
+        const durationInput = durationEl.createEl('input', {
+            cls: 'habit-time task-kind-duration-input',
+            type: 'number',
+        });
+        durationInput.min = '0';
+        durationInput.value = String(habit.duration ?? 30);
+        durationEl.createSpan({ cls: 'habit-time-label', text: t('panel.habitDurationUnit') });
+        durationInput.addEventListener('change', () => {
+            const value = Number(durationInput.value);
+            this.saveHabit(task, { duration: Number.isFinite(value) && value >= 0 ? Math.round(value) : 30 });
+        });
+
+        // 生效星期：默认周一至周日全部激活，点击可取消 / 恢复
+        const daysRow = config.createDiv({ cls: 'habit-days' });
+        for (let day = 1; day <= 7; day += 1) {
+            const button = daysRow.createEl('button', {
+                cls: 'habit-day',
+                attr: { type: 'button' },
+                text: t(WEEKDAY_LABEL_KEYS[day - 1]),
+            });
+            button.toggleClass('is-active', habit.weekdays.includes(day));
+            button.addEventListener('click', () => {
+                const current = this.readHabit(task);
+                const weekdays = current.weekdays.includes(day)
+                    ? current.weekdays.filter((item) => item !== day)
+                    : [...current.weekdays, day].sort((a, b) => a - b);
+                this.saveHabit(task, { weekdays });
+            });
+        }
+    }
+
+    /** 读取习惯设置（未创建时返回默认值：未启用、09:00、周一到周日全选） */
+    private readHabit(task: PrototypeTask): TaskHabit {
+        return getTaskHabit(task) ?? {
+            enabled: false,
+            time: '09:00',
+            weekdays: [1, 2, 3, 4, 5, 6, 7],
+        };
+    }
+
+    /** 保存习惯设置并刷新 */
+    private saveHabit(task: PrototypeTask, patch: Partial<TaskHabit>): void {
+        setTaskHabit(task, { ...this.readHabit(task), ...patch });
+        void this.options.save();
+        this.options.onChanged?.();
         this.render();
     }
 
@@ -944,10 +1095,11 @@ export class SectionHost {
         }
     }
 
-    /** 打开任务文件：Markdown 使用内置编辑面板，其它类型交给 Obsidian 默认打开方式 */
+    /** 打开任务文件：仅普通 .md（文件名不含其他点）使用内置编辑面板，其余类型（如 xxx.universe.md）交给 Obsidian 新标签页打开 */
     private openTaskFile(file: TFile): void {
-        if (file.extension !== 'md') {
-            void this.options.app.workspace.getLeaf(false).openFile(file);
+        const isPlainMarkdown = file.extension === 'md' && !file.basename.includes('.');
+        if (!isPlainMarkdown) {
+            void this.options.app.workspace.getLeaf('tab').openFile(file);
             return;
         }
         this.fileEditorPanel?.destroy();

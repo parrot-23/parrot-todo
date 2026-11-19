@@ -3,11 +3,12 @@
 // 右侧：任务名称 / 分类 / 描述 + 任务板块（与任务板块面板共用 SectionHost）。
 import { setIcon, type App } from 'obsidian';
 
-import type { PrototypeTask } from '../../../core/datatypes/prototype-task';
+import type { PrototypeTask, TaskKind } from '../../../core/datatypes/prototype-task';
+import { getTaskKind } from '../../../core/shared/task-kind';
 import { t } from '../../../core/i18n';
 import type { PlanCategoryData } from '../../../core/shared/plan-category-manager';
 import { UNCATEGORIZED_CATEGORY_ID } from '../../../core/shared/plan-category-manager';
-import { getTaskGoals } from '../../../core/shared/task-sections';
+import { expandTreeTask } from '../../../core/shared/task-tree-collapse';
 import {
     findRootTaskId,
     getTreeSelectedTaskId,
@@ -16,6 +17,7 @@ import {
 } from '../../../core/shared/task-tree-selection';
 import { applyThemeColors, getCurrentThemeColors } from '../../../theme/theme-colors';
 import { SectionHost } from '../../section/section-host';
+import { TaskTree, TREE_DEPTH_INDENT } from './task-tree';
 import { FloatingPanel, type FloatingPanelOptions } from '../../../ui/basic/floating-panel';
 
 /** 任务详情面板配置 */
@@ -48,10 +50,15 @@ export interface TaskDetailPanelOptions extends Omit<FloatingPanelOptions, 'titl
     onOpenConfig?: (task: PrototypeTask) => void;
 }
 
-/** 任务树每层缩进像素（与行 marginLeft 一致） */
-const TREE_DEPTH_INDENT = 14;
 /** 长按进入拖动的等待时间（毫秒） */
 const TREE_LONG_PRESS_MS = 300;
+
+/** 任务类型图标与文案（任务条目末尾展示；任务类型不显示图标） */
+const TREE_KIND_META: Record<TaskKind, { icon?: string; labelKey: Parameters<typeof t>[0] }> = {
+    task: { labelKey: 'panel.taskKindTask' },
+    habit: { icon: 'repeat', labelKey: 'panel.taskKindHabit' },
+    goal: { icon: 'target', labelKey: 'panel.taskKindGoal' },
+};
 
 /** 任务详情面板 */
 export class TaskDetailPanel extends FloatingPanel {
@@ -59,6 +66,8 @@ export class TaskDetailPanel extends FloatingPanel {
     private task: PrototypeTask;
     private tasks: PrototypeTask[];
     private treeEl!: HTMLElement;
+    /** 任务树公共组件 */
+    private taskTree!: TaskTree;
     private addFormEl!: HTMLElement;
     private inputEl!: HTMLInputElement;
     /** 右侧板块容器 */
@@ -67,12 +76,6 @@ export class TaskDetailPanel extends FloatingPanel {
     private sectionHost!: SectionHost;
     /** 当前选中的任务 id（决定 + 按钮在哪个任务下新增子任务），默认根任务；取消选中时为 undefined */
     private selectedTaskId: string | undefined;
-    /** 左侧底部工具栏：表单打卡按钮 */
-    private formButtonEl!: HTMLButtonElement;
-    /** 右侧底部设置面板（表单打卡） */
-    private settingPanelEl!: HTMLElement;
-    /** 当前激活的设置面板类型 */
-    private settingActive: 'form' | null = null;
     /** 删除确认浮层（点击删除按钮时显示在按钮上方） */
     private deleteConfirmEl: HTMLElement | null = null;
     /** 删除确认浮层的点击外部关闭回调 */
@@ -132,6 +135,9 @@ export class TaskDetailPanel extends FloatingPanel {
             getTaskLibraryRoot: options.getTaskLibraryRoot,
             save: options.save,
             container: options.container,
+            showKindTab: true,
+            // 类型或习惯设置变化后立即刷新左侧任务树（行末尾类型图标热更新）
+            onChanged: () => this.renderTree(),
         });
         this.renderContent();
     }
@@ -139,7 +145,6 @@ export class TaskDetailPanel extends FloatingPanel {
     /** 每次打开时刷新板块内容（数据可能被其它入口改动） */
     override open(): void {
         if (this.sectionsEl?.isConnected) this.sectionHost.render();
-        this.renderSettingPanel();
         super.open();
     }
 
@@ -261,31 +266,28 @@ export class TaskDetailPanel extends FloatingPanel {
 
         // 后代任务树
         this.treeEl = left.createDiv({ cls: 'task-detail-tree' });
-        // 事件委托：点击行即选中（避免每次重绘重新绑定）
-        this.treeEl.addEventListener('click', (evt) => {
-            // 长按拖动结束后抑制一次点击，避免把拖动误判为选中
-            if (this.suppressTreeClick) {
-                this.suppressTreeClick = false;
-                return;
-            }
-            const row = (evt.target as HTMLElement).closest('.task-detail-tree-row') as HTMLElement | null;
-            const taskId = row?.dataset.taskId;
-            if (!taskId) return;
-            // 再次点击已选中的条目取消选中
-            if (taskId === this.selectedTaskId) this.clearTaskSelection();
-            else this.selectTask(taskId);
+        this.taskTree = new TaskTree(this.treeEl, {
+            getTasks: () => this.tasks,
+            getRootId: () => this.rootTaskId,
+            isSelected: (task) => task.id === this.selectedTaskId,
+            renderTrailing: (row, task) => this.renderTreeTrailing(row, task),
+            onRowClick: (task) => {
+                // 长按拖动结束后抑制一次点击，避免把拖动误判为选中
+                if (this.suppressTreeClick) {
+                    this.suppressTreeClick = false;
+                    return;
+                }
+                // 再次点击已选中的条目取消选中
+                if (task.id === this.selectedTaskId) this.clearTaskSelection();
+                else this.selectTask(task.id);
+            },
+            onRowPointerDown: (evt, task, row) => {
+                // 根任务不可拖动（任务树始终以它为根）
+                if (task.id !== this.rootTaskId) this.startTreeLongPress(evt, task, row);
+            },
         });
         this.refreshRootSelect();
         this.renderTree();
-
-        // 左侧底部工具栏：表单打卡（激活后右侧底部显示设置面板）
-        const toolbar = left.createDiv({ cls: 'task-detail-toolbar' });
-        this.formButtonEl = this.createToolbarButton(
-            toolbar,
-            'check-square',
-            t('panel.formCheckSetting'),
-            () => this.toggleSetting(),
-        );
 
         // 右侧：任务信息（名称 / 分类 / 描述）+ 任务板块（切换左侧选中任务时整体重建）
         this.rightEl = body.createDiv({ cls: 'task-detail-right' });
@@ -369,10 +371,6 @@ export class TaskDetailPanel extends FloatingPanel {
         // 板块区：已落库板块 + 未创建板块胶囊（与任务板块面板共用 SectionHost）
         this.sectionsEl = right.createDiv({ cls: 'task-detail-sections' });
         this.sectionHost.render(this.sectionsEl);
-        // 右侧底部：设置面板（默认隐藏，由左侧工具栏按钮控制）
-        this.settingPanelEl = right.createDiv({ cls: 'task-detail-setting-panel is-hidden' });
-
-        this.renderSettingPanel();
     }
 
     /** 创建右侧标题区的方块按钮（图标 + 换行 + 名称） */
@@ -477,53 +475,6 @@ export class TaskDetailPanel extends FloatingPanel {
         }
         this.deleteConfirmEl?.remove();
         this.deleteConfirmEl = null;
-    }
-
-    /** 创建左侧工具栏按钮（图标 + 文字） */
-    private createToolbarButton(
-        parent: HTMLElement,
-        icon: string,
-        text: string,
-        onClick: () => void,
-    ): HTMLButtonElement {
-        const button = parent.createEl('button', { cls: 'task-detail-toolbar-btn', attr: { type: 'button' } });
-        const iconEl = button.createSpan({ cls: 'task-detail-toolbar-btn-icon' });
-        setIcon(iconEl, icon);
-        button.createSpan({ cls: 'task-detail-toolbar-btn-text', text });
-        button.addEventListener('click', onClick);
-        return button;
-    }
-
-    /** 切换表单打卡设置面板（再次点击按钮则关闭） */
-    private toggleSetting(): void {
-        this.settingActive = this.settingActive === 'form' ? null : 'form';
-        this.renderSettingPanel();
-    }
-
-    /** 渲染右侧底部设置面板（未激活时隐藏） */
-    private renderSettingPanel(): void {
-        this.formButtonEl.toggleClass('is-active', this.settingActive === 'form');
-        this.settingPanelEl.empty();
-        const visible = this.settingActive !== null;
-        this.settingPanelEl.toggleClass('is-hidden', !visible);
-        if (!visible) return;
-
-        // 第一行：颜色圆点 + 任务名称 + 分类（与习惯面板任务信息一致）
-        const task = this.tasks.find((item) => item.id === this.selectedTaskId) ?? this.task;
-        const head = this.settingPanelEl.createDiv({ cls: 'plan-info-head' });
-        const category = this.panelOptions.categoryData?.categories
-            .find((item) => item.id === task.categoryId);
-        const dot = head.createSpan({ cls: 'plan-info-dot' });
-        dot.style.background = category?.color ?? '#888888';
-        head.createSpan({ cls: 'plan-info-name', text: task.name });
-        head.createSpan({
-            cls: 'plan-info-category',
-            text: category?.label ?? t('defaultCategory.uncategorized'),
-        });
-
-        // 第二行：表单打卡内容（暂为占位）
-        const body = this.settingPanelEl.createDiv({ cls: 'task-detail-setting-body' });
-        body.createDiv({ cls: 'task-detail-setting-placeholder', text: t('panel.formCheckPending') });
     }
 
 
@@ -661,50 +612,28 @@ export class TaskDetailPanel extends FloatingPanel {
     }
 
 
-    /** 渲染任务树（从根任务开始，含根任务自身） */
+    /** 渲染任务树（组件内部处理缩进、折叠与空态） */
     private renderTree(): void {
-        this.treeEl.empty();
-        const rootTask = this.tasks.find((task) => task.id === this.rootTaskId);
-        if (!rootTask) {
+        this.taskTree.render();
+        if (!this.treeEl.firstChild) {
             this.treeEl.createDiv({ cls: 'task-detail-tree-empty', text: t('panel.noSubTask') });
-            return;
         }
-        this.renderTreeRow(this.treeEl, rootTask, 0);
-        this.renderTreeNodes(this.treeEl, this.rootTaskId, 1);
     }
 
-    /** 递归渲染某一层的子任务 */
-    private renderTreeNodes(parentEl: HTMLElement, parentId: string, depth: number): void {
-        const children = this.tasks.filter((task) => task.parentId === parentId);
-        for (const child of children) {
-            this.renderTreeRow(parentEl, child, depth);
-            this.renderTreeNodes(parentEl, child.id, depth + 1);
-        }
+    /** 行末尾：任务类型图标（习惯 / 目标；任务类型不显示图标） */
+    private renderTreeTrailing(row: HTMLElement, task: PrototypeTask): void {
+        const kind = getTaskKind(task);
+        const meta = TREE_KIND_META[kind];
+        if (!meta.icon) return;
+        const kindEl = row.createSpan({ cls: 'task-detail-tree-kind' });
+        kindEl.setAttr('title', t(meta.labelKey));
+        const iconEl = kindEl.createSpan({ cls: 'task-detail-tree-kind-icon' });
+        setIcon(iconEl, meta.icon);
     }
+
+    /** 长按任务条目后进入拖动：按落点重排顺序并调整层级（限制在当前根任务子树内） */
 
     /** 渲染单条任务行（根任务与后代共用） */
-    private renderTreeRow(parentEl: HTMLElement, child: PrototypeTask, depth: number): void {
-        const row = parentEl.createDiv({ cls: 'task-detail-tree-row' });
-        row.style.marginLeft = `${depth * TREE_DEPTH_INDENT}px`;
-        row.dataset.taskId = child.id;
-        row.dataset.depth = String(depth);
-        const iconEl = row.createSpan({ cls: 'task-detail-tree-icon' });
-        setIcon(iconEl, 'git-branch');
-        row.createSpan({ cls: 'task-detail-tree-label', text: child.name });
-        // 条目末尾始终显示目标图标 + 该任务自身目标数量（为 0 不显示）
-        const goalCount = getTaskGoals(child).length;
-        if (goalCount > 0) {
-            const goalEl = row.createSpan({ cls: 'task-detail-tree-goal' });
-            const goalIconEl = goalEl.createSpan({ cls: 'task-detail-tree-goal-icon' });
-            setIcon(goalIconEl, 'target');
-            goalEl.createSpan({ cls: 'task-detail-tree-goal-count', text: String(goalCount) });
-        }
-        row.toggleClass('is-selected', child.id === this.selectedTaskId);
-        // 根任务不可拖动（任务树始终以它为根）
-        if (child.id !== this.rootTaskId) {
-            row.addEventListener('mousedown', (evt) => this.startTreeLongPress(evt, child, row));
-        }
-    }
 
     /** 长按任务条目后进入拖动：按落点重排顺序并调整层级（限制在当前根任务子树内） */
     private startTreeLongPress(evt: MouseEvent, item: PrototypeTask, row: HTMLElement): void {
@@ -898,10 +827,7 @@ export class TaskDetailPanel extends FloatingPanel {
     private selectTask(taskId: string): void {
         this.selectedTaskId = taskId;
         this.publishSelection();
-        this.treeEl.querySelectorAll('.task-detail-tree-row').forEach((el) => {
-            const row = el as HTMLElement;
-            row.toggleClass('is-selected', row.dataset.taskId === taskId);
-        });
+        this.taskTree.refreshSelection();
         const next = this.tasks.find((item) => item.id === taskId);
         if (next && next.id !== this.task.id) {
             // 右侧整体切换为选中任务：名称 / 分类 / 描述 / 板块，未提交的内联编辑先行放弃
@@ -911,16 +837,13 @@ export class TaskDetailPanel extends FloatingPanel {
             this.renderRightPane();
             return;
         }
-        this.renderSettingPanel();
     }
 
     /** 取消任务条目选中：清除高亮，右侧回到任务树根任务（面板打开时的任务） */
     private clearTaskSelection(): void {
         this.selectedTaskId = undefined;
         this.publishSelection();
-        this.treeEl.querySelectorAll('.task-detail-tree-row').forEach((el) => {
-            (el as HTMLElement).removeClass('is-selected');
-        });
+        this.taskTree.refreshSelection();
         const rootTask = this.tasks.find((item) => item.id === this.rootTaskId);
         if (rootTask && rootTask.id !== this.task.id) {
             // 右侧切回根任务，未提交的内联编辑先行放弃
@@ -930,7 +853,6 @@ export class TaskDetailPanel extends FloatingPanel {
             this.renderRightPane();
             return;
         }
-        this.renderSettingPanel();
     }
 
     /** 把当前选中任务写入共享状态（应用外部同步期间不回写，避免循环） */
@@ -986,7 +908,10 @@ export class TaskDetailPanel extends FloatingPanel {
             this.inputEl.focus();
             return;
         }
-        this.panelOptions.onAddChild?.(name, this.selectedTaskId ?? this.rootTaskId);
+        const parentId = this.selectedTaskId ?? this.rootTaskId;
+        // 新增子任务后展开父级，保证新条目可见
+        if (parentId) expandTreeTask(this.rootTaskId, parentId);
+        this.panelOptions.onAddChild?.(name, parentId);
         this.hideAddForm();
     }
 }
