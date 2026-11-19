@@ -12492,10 +12492,16 @@ button.task-record-dropdown-item.is-selected {
 }
 
 .plan-week-task-chip-name {
+    position: relative;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+/* 名称尾部预留空隙，避免省略的文字被白点压住 */
+.plan-week-task-chip-name.has-desc-dot {
+    padding-right: 6px;
 }
 
 /* 事件卡片第二行：与卡片覆盖天数同列，按天展示预估时长 / 已执行时长 / 完成状态 */
@@ -12566,15 +12572,16 @@ button.task-record-dropdown-item.is-selected {
     height: 11px;
 }
 
-/* 该天已填写日描述：事件卡片该天所在列的右上角显示白色圆点 */
+/* 该天已填写日描述：位于任务名称行，纵向居中于文字，横向与下方完成状态图标中心对齐 */
 .plan-week-day-desc-dot {
     position: absolute;
-    top: 2px;
+    top: 50%;
     z-index: 2;
     width: 4px;
     height: 4px;
     border-radius: 50%;
-    background: #ffffff;
+    background: #eee;
+    transform: translateY(-50%);
 }
 
 /* 日目标悬浮预览：悬浮卡片某天区域时展示该天已填写的日目标，挂在面板根节点上 */
@@ -12607,27 +12614,6 @@ button.task-record-dropdown-item.is-selected {
     gap: 5px;
     font-size: 12px;
     color: var(--sdt-text-primary, var(--text-normal));
-}
-
-/* 已完成的日目标：图标与文字淡化 */
-.plan-week-daygoal-tip-item.is-done {
-    color: var(--text-faint);
-}
-
-.plan-week-daygoal-tip-icon {
-    display: inline-flex;
-    flex-shrink: 0;
-    align-items: center;
-    color: var(--sdt-text-secondary, var(--text-muted));
-}
-
-.plan-week-daygoal-tip-icon .svg-icon {
-    width: 12px;
-    height: 12px;
-}
-
-.plan-week-daygoal-tip-item.is-done .plan-week-daygoal-tip-icon {
-    color: var(--text-faint);
 }
 
 .plan-week-daygoal-tip-text {

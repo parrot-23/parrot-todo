@@ -527,7 +527,7 @@ export class PlanWeekPanel extends FloatingPanel {
         chip.style.gridRow = String(lane + 1);
         const parentPath = this.taskPath(task);
         chip.title = parentPath ? `${parentPath} > ${task.name}` : task.name;
-        chip.createDiv({ cls: 'plan-week-task-chip-name', text: task.name });
+        const nameRow = chip.createDiv({ cls: 'plan-week-task-chip-name', text: task.name });
         // 第二行：与卡片覆盖的天数同列数，每列展示该天的预估时长、已执行时长与完成状态
         const metaRow = chip.createDiv({ cls: 'plan-week-task-chip-meta' });
         metaRow.style.gridTemplateColumns = `repeat(${span}, minmax(0, 1fr))`;
@@ -563,11 +563,13 @@ export class PlanWeekPanel extends FloatingPanel {
                 this.hideDayGoalTip();
                 void this.toggleDayCompletion(task, dayKey);
             });
-            // 该天已填写日描述：在该天所在列的右上角显示白色圆点
+            // 该天已填写日描述：白点位于任务名称行内，纵向居中于文字，横向与该天列下方完成状态图标中心对齐
             const hasDescription = getDayGoalEntries(task, dayKey).length > 0;
             if (hasDescription) {
-                const dot = chip.createSpan({ cls: 'plan-week-day-desc-dot' });
-                dot.style.right = `calc(${((span - offset - 1) * 100) / span}% + 2px)`;
+                nameRow.addClass('has-desc-dot');
+                const dot = nameRow.createSpan({ cls: 'plan-week-day-desc-dot' });
+                // 状态图标宽 11px，中心距列右边缘 5.5px；白点宽 4px，右偏移 3.5px 即中心对齐
+                dot.style.right = `calc(${((span - offset - 1) * 100) / span}% + 3.5px)`;
             }
         }
         // 左键：同步选中该任务，并在点击的这一天旁打开日描述编辑浮层（阻止冒泡，避免触发列的排布）
@@ -639,13 +641,10 @@ export class PlanWeekPanel extends FloatingPanel {
                 cls: 'plan-week-daygoal-tip-head',
                 text: `${this.formatDayLabel(dayKey)} ${t(WEEKDAY_LABEL_KEYS[weekday - 1])}`,
             });
-            // 日描述：每天只有一条，悬浮展示内容；完成状态取今日任务卡片当天的勾选
+            // 日描述：每天只有一条，悬浮展示内容，不做勾选
             const description = entries[0];
             if (description) {
-                const completed = this.isDayCompleted(task, dayKey);
                 const row = tip.createDiv({ cls: 'plan-week-daygoal-tip-item' });
-                row.toggleClass('is-done', completed);
-                setIcon(row.createSpan({ cls: 'plan-week-daygoal-tip-icon' }), completed ? 'circle-check' : 'circle');
                 row.createSpan({ cls: 'plan-week-daygoal-tip-text', text: description.text });
             }
             this.dayGoalTipKey = key;
