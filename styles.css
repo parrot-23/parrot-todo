@@ -12199,6 +12199,13 @@ button.task-record-dropdown-item.is-selected {
     flex-shrink: 0;
 }
 
+/* 官方 ToggleComponent 的容器，保证开关行内不被压缩 */
+.habit-enable-switch {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
 .habit-enable-icon {
     display: inline-flex;
     align-items: center;
@@ -12213,6 +12220,33 @@ button.task-record-dropdown-item.is-selected {
     display: flex;
     flex-direction: column;
     gap: 8px;
+}
+
+/* 目标类型配置：启用目标 + 截止周数 / 截止日期 */
+.goal-config {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.goal-deadline-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.goal-deadline-year {
+    width: 72px;
+}
+
+.goal-deadline-week {
+    width: 60px;
+}
+
+.goal-deadline-unit {
+    color: var(--text-muted);
+    font-size: 12px;
 }
 
 .habit-config.is-disabled {

@@ -2,7 +2,7 @@
 // 视图与仓库不再直接操作具体字段，避免板块结构变化时到处改动。
 
 import type { ChecklistItem } from '../datatypes/domain';
-import type { PrototypeTask, TaskDayGoalEntry, TaskGoalEntry, TaskHabit } from '../datatypes/prototype-task';
+import type { PrototypeTask, TaskDayGoalEntry, TaskGoalConfig, TaskGoalEntry, TaskHabit } from '../datatypes/prototype-task';
 import type { SectionDisplayMode, SectionType, TaskSection, TaskSectionDisplayMap, TaskSectionOf, TaskSectionPayloadMap, TaskStageGoalEntry } from '../datatypes/task-section';
 import { parseLegacyDescriptionPayload, SECTION_REGISTRY } from './section-registry';
 
@@ -312,6 +312,35 @@ export function getTaskGoals(task: PrototypeTask): TaskGoalEntry[] {
 export function setTaskGoals(task: PrototypeTask, goals: TaskGoalEntry[]): void {
     const section = ensureSection(task, 'goals');
     section.payload.items = goals;
+    section.updatedAt = Date.now();
+}
+
+/** 读取目标类型配置（未显式关闭视为启用，兼容旧数据） */
+export function getTaskGoalConfig(task: PrototypeTask): TaskGoalConfig {
+    const payload = getSection(task, 'goals')?.payload;
+    return {
+        enabled: payload?.enabled !== false,
+        ...(payload?.deadlineWeek ? { deadlineWeek: payload.deadlineWeek } : {}),
+        ...(payload?.deadlineDate ? { deadlineDate: payload.deadlineDate } : {}),
+    };
+}
+
+/** 写入目标类型配置（启用为默认值，直接删除该键） */
+export function setTaskGoalConfig(task: PrototypeTask, patch: Partial<TaskGoalConfig>): void {
+    const section = ensureSection(task, 'goals');
+    const payload = section.payload;
+    if ('enabled' in patch) {
+        if (patch.enabled === false) payload.enabled = false;
+        else delete payload.enabled;
+    }
+    if ('deadlineWeek' in patch) {
+        if (patch.deadlineWeek) payload.deadlineWeek = patch.deadlineWeek;
+        else delete payload.deadlineWeek;
+    }
+    if ('deadlineDate' in patch) {
+        if (patch.deadlineDate) payload.deadlineDate = patch.deadlineDate;
+        else delete payload.deadlineDate;
+    }
     section.updatedAt = Date.now();
 }
 

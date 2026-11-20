@@ -25,8 +25,16 @@ export interface TaskSectionPayloadMap {
     };
     /** 阶段目标（键为周键 YYYY-Www，该周为截止时间点） */
     stageGoals: { entries: Record<string, TaskStageGoalEntry[]> };
-    /** 目标清单 */
-    goals: { items: TaskGoalEntry[] };
+    /** 目标清单（含目标类型配置：启用 / 截止周 / 截止日期） */
+    goals: {
+        items: TaskGoalEntry[];
+        /** 是否启用目标（仅目标类型任务使用；缺省视为启用，兼容旧数据） */
+        enabled?: boolean;
+        /** 截止周（周键 YYYY-Www） */
+        deadlineWeek?: string;
+        /** 截止日期（YYYY-MM-DD） */
+        deadlineDate?: string;
+    };
     /** 任务文件 */
     files: { fileDir?: string; fileTimestamp?: boolean };
     /** 习惯 */

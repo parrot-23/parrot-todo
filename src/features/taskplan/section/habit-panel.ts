@@ -1,6 +1,6 @@
 ﻿// 习惯面板：基于 FloatingPanel，用于查看与设置任务习惯。
 // 结构：左侧（顶部根任务下拉 + 任务树）+ 右侧（一周七列日历，展示已启用习惯的卡片）。
-import { setIcon } from 'obsidian';
+import { ToggleComponent, setIcon } from 'obsidian';
 
 import type { PrototypeTask, TaskHabit } from '../../../core/datatypes/prototype-task';
 import { t } from '../../../core/i18n';
@@ -222,19 +222,16 @@ export class HabitPanel extends FloatingPanel {
 
         // 第二行：开关 + 图标 + 文字（启用习惯）
         const enableRow = this.habitPanelEl.createDiv({ cls: 'habit-enable' });
-        const switchEl = enableRow.createDiv({ cls: 'checkbox-container' });
-        const switchInput = switchEl.createEl('input', { type: 'checkbox' });
-        switchInput.checked = habit.enabled;
-        // Obsidian 的开关圆球位置由容器的 is-enabled 类控制，而不是 input:checked
-        switchEl.toggleClass('is-enabled', habit.enabled);
+        new ToggleComponent(enableRow.createDiv({ cls: 'habit-enable-switch' }))
+            .setValue(habit.enabled)
+            .onChange((value) => {
+                this.saveHabit(task, { enabled: value });
+                this.refreshTreeTrailingIcons();
+                this.renderHabitPanel();
+            });
         const enableIconEl = enableRow.createSpan({ cls: 'habit-enable-icon' });
         setIcon(enableIconEl, 'repeat');
         enableRow.createSpan({ cls: 'habit-enable-text', text: t('panel.habitEnable') });
-        switchInput.addEventListener('change', () => {
-            this.saveHabit(task, { enabled: switchInput.checked });
-            this.refreshTreeTrailingIcons();
-            this.renderHabitPanel();
-        });
 
         // 第三 / 四行：时间 + 星期（仅启用后可配置）
         const config = this.habitPanelEl.createDiv({ cls: 'habit-config' });

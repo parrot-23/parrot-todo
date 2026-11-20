@@ -4,10 +4,10 @@
 //  2. 「开启」始终显示该类型选项卡，「自动」仅在板块存在内容时显示，「关闭」始终隐藏（数据保留）；
 //  3. 没有可显示的板块时，配置页作为兜底视图；
 //  4. 内容读写统一走 shared/task-sections 访问器，首次写入内容时自动创建板块。
-import { Notice, TFolder, setIcon, type App, type TFile } from 'obsidian';
+import { Notice, TFolder, ToggleComponent, setIcon, type App, type TFile } from 'obsidian';
 
 import type { ChecklistItem } from '../../core/datatypes/domain';
-import type { PrototypeTask, TaskDayGoalEntry, TaskHabit, TaskKind } from '../../core/datatypes/prototype-task';
+import type { PrototypeTask, TaskDayGoalEntry, TaskGoalConfig, TaskHabit, TaskKind } from '../../core/datatypes/prototype-task';
 import type { SectionDisplayMode, SectionType } from '../../core/datatypes/task-section';
 import { getLang, getWeekDays, t } from '../../core/i18n';
 import { SECTION_REGISTRY } from '../../core/shared/section-registry';
@@ -15,7 +15,10 @@ import { getTaskKind } from '../../core/shared/task-kind';
 import {
     getCurrentDayKey,
     getCurrentWeekKey,
+    getISOWeek,
+    getWeeksInYear,
     makeDayKeyFromWeek,
+    makeWeekKey,
     parseWeekKey,
     shiftWeekKey,
 } from '../../core/shared/plan-data';
@@ -29,6 +32,7 @@ import {
     getStageGoalEntries,
     getTaskFileDir,
     getTaskFileTimestamp,
+    getTaskGoalConfig,
     getTaskGoals,
     getTaskHabit,
     hasSection,
@@ -37,6 +41,7 @@ import {
     setSectionDisplay,
     setStageGoalEntries,
     setTaskFileTimestamp,
+    setTaskGoalConfig,
     setTaskGoals,
     setTaskHabit,
     setWeekNote,
@@ -279,6 +284,10 @@ export class SectionHost {
             btn.addEventListener('click', () => {
                 if (getTaskKind(task) === option.value) return;
                 task.kind = option.value;
+                // 首次切换为目标类型时默认不启用目标，勾选后才参与目标面板
+                if (option.value === 'goal' && !hasSection(task, 'goals')) {
+                    setTaskGoalConfig(task, { enabled: false });
+                }
                 void this.options.save();
                 this.options.onChanged?.();
                 this.render();
@@ -286,6 +295,8 @@ export class SectionHost {
         }
         // 习惯类型：下方内嵌习惯设置（与「习惯」面板共用同一份数据）
         if (current === 'habit') this.renderHabitKindSettings(wrap, task);
+        // 目标类型：下方勾选启用目标 + 截止周数 / 截止日期
+        else if (current === 'goal') this.renderGoalKindSettings(wrap, task);
     }
 
     /** 习惯设置：启用 / 全天或时间点 + 预估时长 / 生效星期（不受启用状态限制，始终可编辑） */
@@ -294,29 +305,24 @@ export class SectionHost {
         const config = parentEl.createDiv({ cls: 'habit-config' });
 
         const enableRow = config.createDiv({ cls: 'habit-enable' });
-        const switchEl = enableRow.createDiv({ cls: 'checkbox-container' });
-        const switchInput = switchEl.createEl('input', { type: 'checkbox' });
-        switchInput.checked = habit.enabled;
-        // Obsidian 的开关圆球位置由容器的 is-enabled 类控制，而不是 input:checked
-        switchEl.toggleClass('is-enabled', habit.enabled);
+        new ToggleComponent(enableRow.createDiv({ cls: 'habit-enable-switch' }))
+            .setValue(habit.enabled)
+            .onChange((value) => {
+                this.saveHabit(task, { enabled: value });
+            });
         const enableIconEl = enableRow.createSpan({ cls: 'habit-enable-icon' });
         setIcon(enableIconEl, 'repeat');
         enableRow.createSpan({ cls: 'habit-enable-text', text: t('panel.habitEnable') });
-        switchInput.addEventListener('change', () => {
-            this.saveHabit(task, { enabled: switchInput.checked });
-        });
 
         // 全天开关 + 具体时间点 + 预估时长
         const timeRow = config.createDiv({ cls: 'habit-time-row' });
         const allDayEl = timeRow.createEl('label', { cls: 'habit-enable task-kind-allday' });
-        const allDaySwitch = allDayEl.createDiv({ cls: 'checkbox-container' });
-        const allDayInput = allDaySwitch.createEl('input', { type: 'checkbox' });
-        allDayInput.checked = habit.allDay === true;
-        allDaySwitch.toggleClass('is-enabled', habit.allDay === true);
+        new ToggleComponent(allDayEl.createDiv({ cls: 'habit-enable-switch' }))
+            .setValue(habit.allDay === true)
+            .onChange((value) => {
+                this.saveHabit(task, { allDay: value });
+            });
         allDayEl.createSpan({ cls: 'habit-enable-text', text: t('panel.habitAllDay') });
-        allDayInput.addEventListener('change', () => {
-            this.saveHabit(task, { allDay: allDayInput.checked });
-        });
 
         if (!habit.allDay) {
             const timeInput = timeRow.createEl('input', { cls: 'habit-time', type: 'time' });
@@ -374,6 +380,104 @@ export class SectionHost {
         void this.options.save();
         this.options.onChanged?.();
         this.render();
+    }
+
+    /** 目标设置：勾选启用目标后，配置截止周数（年份 + 周数）或截止日期 */
+    private renderGoalKindSettings(parentEl: HTMLElement, task: PrototypeTask): void {
+        const config = getTaskGoalConfig(task);
+        const wrapEl = parentEl.createDiv({ cls: 'goal-config' });
+
+        const enableRow = wrapEl.createDiv({ cls: 'habit-enable' });
+        new ToggleComponent(enableRow.createDiv({ cls: 'habit-enable-switch' }))
+            .setValue(config.enabled)
+            .onChange((value) => {
+                this.saveGoalConfig(task, { enabled: value });
+            });
+        setIcon(enableRow.createSpan({ cls: 'habit-enable-icon' }), 'target');
+        enableRow.createSpan({ cls: 'habit-enable-text', text: t('panel.goalEnable') });
+
+        // 截止周数：年份 + 周数（输入框 + 下拉候选；未勾选启用目标时也显示）
+        const weekRow = wrapEl.createDiv({ cls: 'goal-deadline-row' });
+        weekRow.createSpan({ cls: 'habit-time-label', text: t('panel.goalDeadlineWeek') });
+        const parsedWeek = config.deadlineWeek ? parseWeekKey(config.deadlineWeek) : null;
+        const currentYear = new Date().getFullYear();
+        const yearListId = `goal-year-${crypto.randomUUID()}`;
+        const weekListId = `goal-week-${crypto.randomUUID()}`;
+        const yearInput = weekRow.createEl('input', { cls: 'habit-time goal-deadline-year', type: 'text' });
+        yearInput.inputMode = 'numeric';
+        yearInput.placeholder = String(currentYear);
+        yearInput.setAttr('list', yearListId);
+        yearInput.value = parsedWeek ? String(parsedWeek.year) : '';
+        const yearList = weekRow.createEl('datalist', { attr: { id: yearListId } });
+        for (let year = currentYear - 5; year <= currentYear + 15; year += 1) {
+            yearList.createEl('option', { attr: { value: String(year) } });
+        }
+        weekRow.createSpan({ cls: 'goal-deadline-unit', text: t('panel.goalDeadlineYearUnit') });
+        const weekInput = weekRow.createEl('input', { cls: 'habit-time goal-deadline-week', type: 'text' });
+        weekInput.inputMode = 'numeric';
+        weekInput.setAttr('list', weekListId);
+        weekInput.value = parsedWeek ? String(parsedWeek.week) : '';
+        const weekList = weekRow.createEl('datalist', { attr: { id: weekListId } });
+        for (let week = 1; week <= 53; week += 1) {
+            weekList.createEl('option', { attr: { value: String(week) } });
+        }
+        weekRow.createSpan({ cls: 'goal-deadline-unit', text: t('panel.goalDeadlineWeekUnit') });
+        // 两项都为空视为清空；只填其中一项时暂不提交，避免打断连续输入
+        const syncWeek = (): void => {
+            const yearText = yearInput.value.trim();
+            const weekText = weekInput.value.trim();
+            if (!yearText && !weekText) {
+                this.saveGoalConfig(task, { deadlineWeek: undefined });
+                return;
+            }
+            const year = yearText ? Math.round(Number(yearText)) : currentYear;
+            const week = Math.round(Number(weekText));
+            if (!Number.isFinite(year) || year < 2000 || year > 2100) return;
+            if (!Number.isFinite(week) || week < 1) return;
+            const clamped = Math.min(week, getWeeksInYear(year));
+            if (!yearText) yearInput.value = String(year);
+            if (clamped !== week) weekInput.value = String(clamped);
+            this.saveGoalConfig(task, { deadlineWeek: makeWeekKey(year, clamped) });
+        };
+        const handleEnter = (evt: KeyboardEvent): void => {
+            if (evt.key !== 'Enter') return;
+            evt.preventDefault();
+            syncWeek();
+        };
+        yearInput.addEventListener('change', syncWeek);
+        weekInput.addEventListener('change', syncWeek);
+        yearInput.addEventListener('keydown', handleEnter);
+        weekInput.addEventListener('keydown', handleEnter);
+
+        // 截止日期：设置后按日期自动推算所属周并回填年份与周数
+        const dateRow = wrapEl.createDiv({ cls: 'goal-deadline-row' });
+        dateRow.createSpan({ cls: 'habit-time-label', text: t('panel.goalDeadlineDate') });
+        const dateInput = dateRow.createEl('input', { cls: 'habit-time', type: 'date' });
+        dateInput.value = config.deadlineDate ?? '';
+        dateInput.addEventListener('change', () => {
+            const value = dateInput.value;
+            if (!value) {
+                this.saveGoalConfig(task, { deadlineDate: undefined });
+                return;
+            }
+            const date = new Date(`${value}T00:00:00`);
+            if (Number.isNaN(date.getTime())) return;
+            const year = date.getFullYear();
+            const week = getISOWeek(date);
+            yearInput.value = String(year);
+            weekInput.value = String(week);
+            this.saveGoalConfig(task, {
+                deadlineDate: value,
+                deadlineWeek: makeWeekKey(year, week),
+            });
+        });
+    }
+
+    /** 保存目标配置（不重绘，避免输入过程中失焦被重建） */
+    private saveGoalConfig(task: PrototypeTask, patch: Partial<TaskGoalConfig>): void {
+        setTaskGoalConfig(task, patch);
+        void this.options.save();
+        this.options.onChanged?.();
     }
 
     /** 打开配置页 */

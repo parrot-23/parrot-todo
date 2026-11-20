@@ -27,6 +27,16 @@ export interface TaskHabit {
     duration?: number;
 }
 
+/** 任务目标配置（任务类型为「目标」时使用） */
+export interface TaskGoalConfig {
+    /** 是否启用目标（未显式关闭时视为启用，兼容旧数据） */
+    enabled: boolean;
+    /** 截止周（周键，如 2026-W45） */
+    deadlineWeek?: string;
+    /** 截止日期（YYYY-MM-DD；设置日期时自动回填所属周） */
+    deadlineDate?: string;
+}
+
 /** 任务目标条目（任务详情「目标」清单） */
 export interface TaskGoalEntry {
     id: string;

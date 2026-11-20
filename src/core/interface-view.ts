@@ -42,8 +42,8 @@ import { applyThemeColors, setCurrentThemeColors } from '../theme/theme-colors';
 import type { PlanCategoryData } from './shared/plan-category-manager';
 import { getCurrentWeekKey, getISOWeek, makeDayKey, makeWeekKey } from './shared/plan-data';
 import { renameTaskDir, sanitizeFolderName } from './shared/task-library';
-import { getTaskFileDir } from './shared/task-sections';
-import { filterTasksByKind } from './shared/task-kind';
+import { getTaskFileDir, getTaskGoalConfig } from './shared/task-sections';
+import { filterTasksByKind, getTaskKind } from './shared/task-kind';
 import { findRootTaskId, getTreeSelectedTaskId, setTreeSelectedTaskId } from './shared/task-tree-selection';
 
 /** 界面视图配置 */
@@ -323,7 +323,9 @@ export class InterfaceView {
             };
             this.goalBoardPanel = new GoalBoardPanel({
                 container: this.panelContainer,
-                getTasks: () => filterTasksByKind(this.prototypeTaskRepo.tasks, 'goal'),
+                // 目标类型任务需在任务详情中勾选「启用目标」后才出现在目标面板
+                getTasks: () => filterTasksByKind(this.prototypeTaskRepo.tasks, 'goal')
+                    .filter((task) => getTaskKind(task) !== 'goal' || getTaskGoalConfig(task).enabled),
                 getCategories: () => this.categoryData.categories,
                 planAssignmentRepo: holder.planAssignmentRepo,
                 save: () => holder.saveAll(),

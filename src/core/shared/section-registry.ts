@@ -167,12 +167,15 @@ function parseStageGoalsPayload(raw: unknown): TaskSectionPayloadMap['stageGoals
     return { entries };
 }
 
-/** 解析目标清单 */
+/** 解析目标清单（兼容旧版直接存数组的数据） */
 function parseGoalsPayload(raw: unknown): TaskSectionPayloadMap['goals'] | null {
-    raw = unwrapPayload(raw, 'items');
-    if (!Array.isArray(raw)) return null;
+    const record = raw && typeof raw === 'object' && !Array.isArray(raw)
+        ? raw as Record<string, unknown>
+        : null;
+    const listRaw = record && 'items' in record ? record.items : raw;
+    if (!Array.isArray(listRaw)) return null;
     const items: TaskGoalEntry[] = [];
-    for (const entry of raw) {
+    for (const entry of listRaw) {
         if (!entry || typeof entry !== 'object') continue;
         const r = entry as Record<string, unknown>;
         if (typeof r.id !== 'string' || typeof r.text !== 'string') continue;
@@ -191,7 +194,16 @@ function parseGoalsPayload(raw: unknown): TaskSectionPayloadMap['goals'] | null 
             ...(typeof r.endWeek === 'string' && /^\d{4}-W\d{2}$/.test(r.endWeek) ? { endWeek: r.endWeek } : {}),
         });
     }
-    return { items };
+    return {
+        items,
+        ...(record?.enabled === false ? { enabled: false } : record?.enabled === true ? { enabled: true } : {}),
+        ...(typeof record?.deadlineWeek === 'string' && /^\d{4}-W\d{2}$/.test(record.deadlineWeek)
+            ? { deadlineWeek: record.deadlineWeek }
+            : {}),
+        ...(typeof record?.deadlineDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(record.deadlineDate)
+            ? { deadlineDate: record.deadlineDate }
+            : {}),
+    };
 }
 
 /** 解析任务文件配置（无有效配置时返回空载荷，交由 isEmpty 判定） */
