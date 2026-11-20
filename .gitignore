@@ -19,6 +19,10 @@ yarn.lock
 
 # obsidian
 data.json
+data.json.old
+# 按年度拆分的本地数据文件（data-2026.json / data-2026.db 等）
+data-*.json
+data-*.db
 .hotreload
 parrot-plan.log
 parrot-plan.log

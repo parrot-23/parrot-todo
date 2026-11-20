@@ -57,6 +57,86 @@ export interface PluginData {
 }
 
 /**
+ * 单个年度的数据切片（写入 data-YYYY.json）。
+ * 只包含带时间维度的数据；分类、方案、任务等跨年实体留在全局 data.json。
+ */
+interface YearData {
+    events: EventBlock[];
+    executions: ExecutionRecord[];
+    plannedWeeks: string[];
+    timeBoxData: TimeBoxData;
+    planAssignmentData: PlanAssignmentData;
+    taskExecutionData: TaskExecutionData;
+    recordEntries: OkrRecordEntry[];
+}
+
+/** 全局数据版本：v2 起 data.json 只存全局数据，年度数据按年拆分到 data-YYYY.json */
+const GLOBAL_VERSION = 2;
+
+/** 年度数据文件版本 */
+const YEAR_VERSION = 1;
+
+/** 年度 JSON 文件名格式（如 data-2026.json） */
+const YEAR_FILE_PATTERN = /^data-(\d{4})\.json$/;
+
+/** 从周键（如 2026-W40）取年份 */
+function yearFromWeekKey(key?: string): number | null {
+    if (!key) return null;
+    const m = /^(\d{4})-W\d{1,2}$/.exec(key);
+    return m ? Number(m[1]) : null;
+}
+
+/** 从日键（如 2026-10-16）取年份 */
+function yearFromDayKey(key?: string): number | null {
+    if (!key) return null;
+    const m = /^(\d{4})-\d{2}-\d{2}$/.exec(key);
+    return m ? Number(m[1]) : null;
+}
+
+/** 当前年份（无法从数据自身判定时作为兜底） */
+function currentYear(): number {
+    return new Date().getFullYear();
+}
+
+/** 空年度切片 */
+function emptyYearData(): YearData {
+    return {
+        events: [],
+        executions: [],
+        plannedWeeks: [],
+        timeBoxData: { cells: [] },
+        planAssignmentData: { assignments: [], weekAssignments: [] },
+        taskExecutionData: {
+            records: [],
+            extraTasksByDay: {},
+            completedTasksByDay: {},
+            skippedHabitsByDay: {},
+        },
+        recordEntries: [],
+    };
+}
+
+/** 年度切片是否没有任何数据 */
+function isEmptyYearData(y: YearData): boolean {
+    return y.events.length === 0
+        && y.executions.length === 0
+        && y.plannedWeeks.length === 0
+        && y.timeBoxData.cells.length === 0
+        && y.planAssignmentData.assignments.length === 0
+        && y.planAssignmentData.weekAssignments.length === 0
+        && y.taskExecutionData.records.length === 0
+        && Object.keys(y.taskExecutionData.extraTasksByDay).length === 0
+        && Object.keys(y.taskExecutionData.completedTasksByDay).length === 0
+        && Object.keys(y.taskExecutionData.skippedHabitsByDay).length === 0
+        && y.recordEntries.length === 0;
+}
+
+/** 把未知数据按数组追加到目标数组（非数组忽略） */
+function pushAll<T>(target: T[], raw: unknown): void {
+    if (Array.isArray(raw)) target.push(...raw as T[]);
+}
+
+/**
  * 基础数据仓库：持有全量数据 + 唯一保存出口 + 加载/迁移/清空逻辑。
  * 从 main.ts 迁入，不新增业务逻辑，仅做职责归位。
  */
@@ -89,31 +169,26 @@ export class BaseRepo {
     }
 
     /**
-     * 唯一的数据保存出口：把插件持有的全部数据一次性写回。
+     * 唯一的数据保存出口：全局数据写回 data.json，年度数据按自身日期拆分写入 data-YYYY.json。
      * 所有视图与设置项都通过此方法保存，避免「全量覆盖」与「合并写回」两套逻辑并存
      * 导致字段互相覆盖。
      */
     async saveAll(): Promise<void> {
         const d = this.data;
         if (!d) return;
+        // 先写年度文件，再改写全局 data.json：即使中途失败也不会丢失旧版全量数据
+        await this.writeYearFiles(d);
         await this.plugin.saveData({
-            version: 1,
+            version: GLOBAL_VERSION,
             dayTemplateData: d.templateData,
             timeBlockCategoryData: d.categoryData,
             schemeData: d.schemeData,
-            events: d.events,
-            executions: d.executions,
             inboxData: d.inboxData,
-            plannedWeeks: d.plannedWeeks,
             workbench: d.workbench,
             gtdData: d.gtdData,
             prototypeTasks: d.prototypeTasks,
-            timeBoxData: d.timeBoxData,
-            planAssignmentData: d.planAssignmentData,
             interfaceLayoutData: d.interfaceLayoutData,
-            taskExecutionData: d.taskExecutionData,
             themeData: d.themeData,
-            recordEntries: d.recordEntries,
             runningTask: d.runningTask,
             helpDismissed: this.helpDismissed,
             scriptModeEnabled: this.scriptModeEnabled,
@@ -156,14 +231,36 @@ export class BaseRepo {
     }
 
     /**
-     * 加载数据：读取 + 解析，最终写入 this.data。
-     * 从 main.ts 的 onload 迁入。
+     * 加载数据：读取全局 data.json + 各年度 data-YYYY.json，合并后写入 this.data。
+     * 旧版（v1）全量快照会在此处自动拆分迁移（保留字段兼容）。
      */
     async load(): Promise<void> {
         const rawData: unknown = await this.plugin.loadData();
-        let savedData: Record<string, unknown> =
+        const savedData: Record<string, unknown> =
             rawData && typeof rawData === 'object' ? rawData as Record<string, unknown> : {};
 
+        this.applySettings(savedData);
+
+        if (savedData.version === GLOBAL_VERSION) {
+            // v2：data.json 只存全局数据，年度数据分散在 data-YYYY.json
+            this.data = this.parseGlobalData(savedData);
+            await this.mergeYearFiles();
+        } else {
+            // 旧版（v1）或历史数据：全量快照 → 解析后按年度拆分，并改写为 v2 格式
+            this.data = this.parseLegacyData(savedData);
+            if (Object.keys(savedData).length > 0) {
+                await this.saveAll();
+                log('旧数据已迁移为按年度拆分的文件');
+            }
+        }
+
+        // 持久化自检：记录加载到的板块条目数，便于排查重启后数据丢失
+        const d = this.data;
+        if (d) log('持久化自检', countSectionStats(d.prototypeTasks));
+    }
+
+    /** 解析随全局数据一起持久化的设置项（兼容旧数据） */
+    private applySettings(savedData: Record<string, unknown>): void {
         // 读取「不再提示」帮助弹窗标记（兼容旧数据：默认未勾选）
         this.helpDismissed = typeof savedData.helpDismissed === 'boolean'
             ? savedData.helpDismissed
@@ -189,7 +286,10 @@ export class BaseRepo {
         this.storyLocalDirPath = typeof savedData.storyLocalDirPath === 'string'
             ? savedData.storyLocalDirPath
             : '';
+    }
 
+    /** 解析全局数据（年度字段先留空，由年度文件合并填充） */
+    private parseGlobalData(savedData: Record<string, unknown>): PluginData {
         const defaultCategories: PlanCategoryData = {
             categories: [
                 { id: 'uncategorized', label: t('defaultCategory.uncategorized'), color: '#888888' },
@@ -198,18 +298,6 @@ export class BaseRepo {
                 { id: 'play', label: t('defaultCategory.play'), color: '#f2a65a' },
             ],
         };
-
-        if (savedData.version !== 1) {
-            savedData = {
-                version: 1,
-                dayTemplateData: { dayTemplates: [], dayProperties: [] },
-                timeBlockCategoryData: defaultCategories,
-                inboxData: DEFAULT_INBOX_DATA,
-                schemeData: { schemes: [] },
-                events: [],
-                executions: [],
-            };
-        }
 
         const initialTemplateData = (savedData.dayTemplateData ?? { dayTemplates: [], dayProperties: [] }) as DayTemplateData;
         const initialCategoryData = (savedData.timeBlockCategoryData ?? defaultCategories) as PlanCategoryData;
@@ -221,10 +309,6 @@ export class BaseRepo {
         const initialPlanSchemeData = (savedData.schemeData ?? { schemes: [] }) as PlanSchemeData;
         // 兼容旧数据：确保默认方案始终存在且位于首位
         ensureDefaultScheme(initialPlanSchemeData, t('planScheme.defaultName'));
-        // 已制定周计划的周键列表（兼容旧数据：默认空数组）
-        const initialPlannedWeeks = Array.isArray(savedData.plannedWeeks)
-            ? savedData.plannedWeeks as string[]
-            : [];
         // 工作台卡片数据（兼容旧数据：默认空）
         const initialWorkbench = (savedData.workbench && typeof savedData.workbench === 'object')
             ? savedData.workbench as WorkbenchData
@@ -238,51 +322,200 @@ export class BaseRepo {
         if (!Array.isArray(initialGtdData.sources)) initialGtdData.sources = [];
         // 原型任务（兼容旧数据：默认空数组）
         const initialPrototypeTasks = parsePrototypeTasks(savedData.prototypeTasks);
-        // 时间盒数据（兼容旧数据：默认空）
-        const initialTimeBoxData = parseTimeBoxData(savedData.timeBoxData);
-        // 计划排布数据（兼容旧数据：默认空）
-        const initialPlanAssignmentData = parsePlanAssignmentData(savedData.planAssignmentData);
         // 界面视图卡片布局（兼容旧数据：默认全部显示）
         const initialInterfaceLayoutData = parseInterfaceLayoutData(savedData.interfaceLayoutData);
-        // 任务执行记录（兼容旧数据：默认空）
-        const initialTaskExecutionData = parseTaskExecutionData(savedData.taskExecutionData);
         // 界面主题数据（兼容旧数据：默认空列表）
         const initialThemeData = parseThemeData(savedData.themeData);
-        // OKR 记录卡片填写结果（顶层独立存储，兼容旧数据：默认空）
-        const initialOkrEntries = Array.isArray(savedData.recordEntries)
-            ? savedData.recordEntries as PluginData['recordEntries']
-            : [];
         // 当前进行中的任务（兼容旧数据：默认无）
         const initialRunningTask = parseRunningTask(savedData.runningTask);
 
-        // 存入仓库实例，作为唯一数据源（视图重建时从这里读取最新数据）
-        this.data = {
+        return {
             templateData: initialTemplateData,
             categoryData: initialCategoryData,
-            events: (savedData.events ?? []) as EventBlock[],
-            executions: (savedData.executions ?? []) as ExecutionRecord[],
+            events: [],
+            executions: [],
             inboxData: initialInboxData,
             schemeData: initialPlanSchemeData,
-            plannedWeeks: initialPlannedWeeks,
+            plannedWeeks: [],
             workbench: initialWorkbench,
             gtdData: initialGtdData,
             prototypeTasks: initialPrototypeTasks,
-            timeBoxData: initialTimeBoxData,
-            planAssignmentData: initialPlanAssignmentData,
+            timeBoxData: { cells: [] },
+            planAssignmentData: { assignments: [], weekAssignments: [] },
             interfaceLayoutData: initialInterfaceLayoutData,
-            taskExecutionData: initialTaskExecutionData,
+            taskExecutionData: {
+                records: [],
+                extraTasksByDay: {},
+                completedTasksByDay: {},
+                skippedHabitsByDay: {},
+            },
             themeData: initialThemeData,
-            recordEntries: initialOkrEntries,
+            recordEntries: [],
             runningTask: initialRunningTask,
         };
+    }
 
-        // 持久化自检：记录加载到的板块条目数，便于排查重启后数据丢失
-        log('持久化自检', countSectionStats(initialPrototypeTasks));
+    /** 解析旧版（v1）全量快照（含年度数据） */
+    private parseLegacyData(savedData: Record<string, unknown>): PluginData {
+        const d = this.parseGlobalData(savedData);
+        d.events = Array.isArray(savedData.events) ? savedData.events as EventBlock[] : [];
+        d.executions = Array.isArray(savedData.executions) ? savedData.executions as ExecutionRecord[] : [];
+        d.plannedWeeks = Array.isArray(savedData.plannedWeeks)
+            ? (savedData.plannedWeeks as unknown[]).filter((w): w is string => typeof w === 'string')
+            : [];
+        d.timeBoxData = parseTimeBoxData(savedData.timeBoxData);
+        d.planAssignmentData = parsePlanAssignmentData(savedData.planAssignmentData);
+        d.taskExecutionData = parseTaskExecutionData(savedData.taskExecutionData);
+        d.recordEntries = Array.isArray(savedData.recordEntries)
+            ? savedData.recordEntries as OkrRecordEntry[]
+            : [];
+        return d;
+    }
+
+    /** 插件目录（vault 相对路径，与 data.json 同级） */
+    private get pluginDir(): string {
+        return `${this.plugin.app.vault.configDir}/plugins/${this.plugin.manifest.id}`;
+    }
+
+    /** 列出已存在的年度 JSON 文件的年份 */
+    private async listYearFileYears(): Promise<number[]> {
+        const adapter = this.plugin.app.vault.adapter;
+        try {
+            const listing = await adapter.list(this.pluginDir);
+            const years: number[] = [];
+            for (const file of listing.files) {
+                const name = file.split('/').pop() ?? '';
+                const m = YEAR_FILE_PATTERN.exec(name);
+                if (m) years.push(Number(m[1]));
+            }
+            return years;
+        } catch {
+            return [];
+        }
+    }
+
+    /** 读取所有年度 JSON 文件并合并到 this.data（跨年度查询依赖此合并结果） */
+    private async mergeYearFiles(): Promise<void> {
+        const d = this.data;
+        if (!d) return;
+        const adapter = this.plugin.app.vault.adapter;
+        for (const year of await this.listYearFileYears()) {
+            try {
+                const parsed: unknown = JSON.parse(await adapter.read(`${this.pluginDir}/data-${year}.json`));
+                if (!parsed || typeof parsed !== 'object') continue;
+                const raw = parsed as Record<string, unknown>;
+
+                pushAll(d.events, raw.events);
+                pushAll(d.executions, raw.executions);
+                pushAll(d.plannedWeeks, raw.plannedWeeks);
+
+                const timeBox = parseTimeBoxData(raw.timeBoxData);
+                d.timeBoxData.cells.push(...timeBox.cells);
+
+                const assignment = parsePlanAssignmentData(raw.planAssignmentData);
+                d.planAssignmentData.assignments.push(...assignment.assignments);
+                d.planAssignmentData.weekAssignments.push(...assignment.weekAssignments);
+
+                const execution = parseTaskExecutionData(raw.taskExecutionData);
+                d.taskExecutionData.records.push(...execution.records);
+                Object.assign(d.taskExecutionData.extraTasksByDay, execution.extraTasksByDay);
+                Object.assign(d.taskExecutionData.completedTasksByDay, execution.completedTasksByDay);
+                Object.assign(d.taskExecutionData.skippedHabitsByDay, execution.skippedHabitsByDay);
+
+                pushAll(d.recordEntries, raw.recordEntries);
+            } catch (err) {
+                log(`读取年度数据文件失败：${year}`, err);
+            }
+        }
+    }
+
+    /** 按数据自身日期把年度数据分组（无法判定年份时归入当前年） */
+    private groupByYear(d: PluginData): Map<number, YearData> {
+        const buckets = new Map<number, YearData>();
+        const bucket = (year: number | null): YearData => {
+            const y = year ?? currentYear();
+            let b = buckets.get(y);
+            if (!b) {
+                b = emptyYearData();
+                buckets.set(y, b);
+            }
+            return b;
+        };
+
+        for (const ev of d.events) bucket(yearFromWeekKey(ev.weekKey)).events.push(ev);
+        for (const ex of d.executions) bucket(yearFromWeekKey(ex.weekKey)).executions.push(ex);
+        for (const week of d.plannedWeeks) bucket(yearFromWeekKey(week)).plannedWeeks.push(week);
+
+        for (const cell of d.timeBoxData.cells) {
+            bucket(yearFromWeekKey(cell.weekKey)).timeBoxData.cells.push(cell);
+        }
+        for (const assignment of d.planAssignmentData.assignments) {
+            bucket(yearFromWeekKey(assignment.weekKey)).planAssignmentData.assignments.push(assignment);
+        }
+        for (const assignment of d.planAssignmentData.weekAssignments) {
+            bucket(yearFromWeekKey(assignment.weekKey)).planAssignmentData.weekAssignments.push(assignment);
+        }
+
+        const execution = d.taskExecutionData;
+        for (const record of execution.records) {
+            bucket(new Date(record.startAt).getFullYear()).taskExecutionData.records.push(record);
+        }
+        for (const [dayKey, ids] of Object.entries(execution.extraTasksByDay)) {
+            bucket(yearFromDayKey(dayKey)).taskExecutionData.extraTasksByDay[dayKey] = ids;
+        }
+        for (const [dayKey, ids] of Object.entries(execution.completedTasksByDay)) {
+            bucket(yearFromDayKey(dayKey)).taskExecutionData.completedTasksByDay[dayKey] = ids;
+        }
+        for (const [dayKey, ids] of Object.entries(execution.skippedHabitsByDay)) {
+            bucket(yearFromDayKey(dayKey)).taskExecutionData.skippedHabitsByDay[dayKey] = ids;
+        }
+
+        for (const entry of d.recordEntries) {
+            bucket(yearFromDayKey(entry.dayKey)).recordEntries.push(entry);
+        }
+
+        // 丢弃没有任何数据的年度，避免写空文件
+        buckets.forEach((yearData, year) => {
+            if (isEmptyYearData(yearData)) buckets.delete(year);
+        });
+        return buckets;
+    }
+
+    /** 把内存中的年度数据写成 data-YYYY.json（并清理已无数据的年度文件） */
+    private async writeYearFiles(d: PluginData): Promise<void> {
+        const adapter = this.plugin.app.vault.adapter;
+        const buckets = this.groupByYear(d);
+        try {
+            for (const year of await this.listYearFileYears()) {
+                if (!buckets.has(year)) {
+                    await adapter.remove(`${this.pluginDir}/data-${year}.json`);
+                }
+            }
+            for (const entry of Array.from(buckets.entries())) {
+                const year = entry[0];
+                const yearData = entry[1];
+                await adapter.write(
+                    `${this.pluginDir}/data-${year}.json`,
+                    JSON.stringify({ version: YEAR_VERSION, year, ...yearData }, null, 2),
+                );
+            }
+        } catch (err) {
+            log('写入年度数据文件失败', err);
+        }
     }
 
     /** 清空全部插件数据并重置为默认值 */
     async clearAll(): Promise<void> {
-        await this.plugin.saveData({});
+        // 先删除所有年度数据文件，再重置全局 data.json
+        const adapter = this.plugin.app.vault.adapter;
+        try {
+            for (const year of await this.listYearFileYears()) {
+                await adapter.remove(`${this.pluginDir}/data-${year}.json`);
+            }
+        } catch {
+            // 忽略删除失败
+        }
+        await this.plugin.saveData({ version: GLOBAL_VERSION });
     }
 }
 
@@ -426,8 +659,7 @@ function parseTaskExecutionData(raw: unknown): TaskExecutionData {
     const skippedHabitsByDay: TaskExecutionData['skippedHabitsByDay'] = {};
     if (!raw || typeof raw !== 'object') return { records, extraTasksByDay, completedTasksByDay, skippedHabitsByDay };
     const rawRecords = (raw as { records?: unknown }).records;
-    if (!Array.isArray(rawRecords)) return { records, extraTasksByDay, completedTasksByDay, skippedHabitsByDay };
-    for (const item of rawRecords) {
+    for (const item of Array.isArray(rawRecords) ? rawRecords : []) {
         if (!item || typeof item !== 'object') continue;
         const r = item as Record<string, unknown>;
         if (typeof r.id !== 'string' || typeof r.taskId !== 'string') continue;
