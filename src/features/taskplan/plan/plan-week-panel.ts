@@ -240,7 +240,7 @@ export class PlanWeekPanel extends FloatingPanel {
             const main = row.createDiv({ cls: 'plan-week-task-main' });
             const category = this.panelOptions.getCategories().find((item) => item.id === task.categoryId);
             const dot = main.createSpan({ cls: 'plan-week-task-dot' });
-            dot.style.background = category?.color ?? 'var(--text-faint)';
+            dot.setCssStyles({ background: category?.color ?? 'var(--text-faint)' });
             main.createSpan({ cls: 'plan-week-task-name', text: task.name });
             setIcon(main.createSpan({ cls: 'plan-week-task-status' }), STATUS_ICONS[task.status ?? 'notStarted']);
             row.addEventListener('click', () => {
@@ -340,9 +340,9 @@ export class PlanWeekPanel extends FloatingPanel {
         const columnsRow = grid.createDiv({ cls: 'plan-week-columns' });
         const segments = this.buildDaySegments();
         const laneCount = segments.reduce((max, item) => Math.max(max, item.lane + 1), 0);
-        columnsRow.style.gridTemplateRows = laneCount > 0
+        columnsRow.setCssStyles({ gridTemplateRows: laneCount > 0
             ? `repeat(${laneCount}, min-content) 1fr`
-            : '1fr';
+            : '1fr' });
         for (let col = 0; col < 7; col += 1) {
             const dayKey = makeDayKeyFromWeek(this.weekKey, col + 1);
             const header = headerRow.createDiv({ cls: 'plan-week-header-cell' });
@@ -361,8 +361,7 @@ export class PlanWeekPanel extends FloatingPanel {
             });
             // 日列作为背景层跨满所有行：已选中任务时点击某列即排布到该天
             const column = columnsRow.createDiv({ cls: 'plan-week-column' });
-            column.style.gridColumn = String(col + 1);
-            column.style.gridRow = '1 / -1';
+            column.setCssStyles({ gridColumn: String(col + 1), gridRow: '1 / -1' });
             column.toggleClass('is-assignable', this.selectedTaskId !== undefined);
             column.addEventListener('click', () => this.assignSelectedTaskToDay(col + 1));
         }
@@ -456,7 +455,7 @@ export class PlanWeekPanel extends FloatingPanel {
                     `${t('panel.planWeekDailyEstimate')} ${this.formatMinutesLong(row.estimate)}`,
                     `${t('panel.planWeekDailyExecuted')} ${this.formatMinutesLong(row.executed)}`,
                 ].join(' | ');
-                rowEl.createSpan({ cls: 'plan-week-daily-dot' }).style.background = row.color ?? '#888888';
+                rowEl.createSpan({ cls: 'plan-week-daily-dot' }).setCssStyles({ background: row.color ?? '#888888' });
                 rowEl.createSpan({ cls: 'plan-week-daily-value', text: this.formatMinutesLong(row.minutes) });
                 rowEl.createSpan({ cls: 'plan-week-daily-sep', text: '|' });
                 rowEl.createSpan({ cls: 'plan-week-daily-estimate', text: this.formatMinutesLong(row.estimate) });
@@ -581,14 +580,13 @@ export class PlanWeekPanel extends FloatingPanel {
         const { task, start, end, lane } = segment;
         const span = end - start + 1;
         const chip = parentEl.createDiv({ cls: 'plan-week-task-chip plan-week-span-chip' });
-        chip.style.gridColumn = `${start} / span ${span}`;
-        chip.style.gridRow = String(lane + 1);
+        chip.setCssStyles({ gridColumn: `${start} / span ${span}`, gridRow: String(lane + 1) });
         const parentPath = this.taskPath(task);
         chip.title = parentPath ? `${parentPath} > ${task.name}` : task.name;
         const nameRow = chip.createDiv({ cls: 'plan-week-task-chip-name', text: task.name });
         // 第二行：与卡片覆盖的天数同列数，每列展示该天的预估时长、已执行时长与完成状态
         const metaRow = chip.createDiv({ cls: 'plan-week-task-chip-meta' });
-        metaRow.style.gridTemplateColumns = `repeat(${span}, minmax(0, 1fr))`;
+        metaRow.setCssStyles({ gridTemplateColumns: `repeat(${span}, minmax(0, 1fr))` });
         for (let offset = 0; offset < span; offset += 1) {
             const weekday = start + offset;
             const dayKey = makeDayKeyFromWeek(this.weekKey, weekday);
@@ -629,7 +627,7 @@ export class PlanWeekPanel extends FloatingPanel {
                 nameRow.addClass('has-desc-dot');
                 const dot = nameRow.createSpan({ cls: 'plan-week-day-desc-dot' });
                 // 状态图标宽 11px，中心距列左边缘 5.5px；白点宽 4px，左偏移 3.5px 即中心对齐
-                dot.style.left = `calc(${(offset * 100) / span}% + 3.5px)`;
+                dot.setCssStyles({ left: `calc(${(offset * 100) / span}% + 3.5px)` });
             }
         }
         // 左键：同步选中该任务，并在点击的这一天旁打开日描述编辑浮层（阻止冒泡，避免触发列的排布）
@@ -709,7 +707,7 @@ export class PlanWeekPanel extends FloatingPanel {
             }
             this.dayGoalTipKey = key;
         }
-        tip.style.display = 'flex';
+        tip.setCssStyles({ display: 'flex' });
         // 面板根节点为定位参照：横向对齐悬浮所在天，纵向优先显示在卡片下方，空间不足时翻到上方
         const rootRect = this.element.getBoundingClientRect();
         const columnWidth = chipRect.width / span;
@@ -719,13 +717,12 @@ export class PlanWeekPanel extends FloatingPanel {
         const maxLeft = Math.max(8, rootRect.width - width - 8);
         let top = chipRect.bottom - rootRect.top + 6;
         if (top + height > rootRect.height - 8) top = chipRect.top - rootRect.top - height - 6;
-        tip.style.left = `${Math.min(Math.max(rawLeft, 8), maxLeft)}px`;
-        tip.style.top = `${Math.max(8, top)}px`;
+        tip.setCssStyles({ left: `${Math.min(Math.max(rawLeft, 8), maxLeft)}px`, top: `${Math.max(8, top)}px` });
     }
 
     /** 隐藏日目标悬浮预览，同时清空内容键以便下次重新渲染 */
     private hideDayGoalTip(): void {
-        this.dayGoalTipEl.style.display = 'none';
+        this.dayGoalTipEl.setCssStyles({ display: 'none' });
         this.dayGoalTipKey = undefined;
     }
 
@@ -855,8 +852,7 @@ export class PlanWeekPanel extends FloatingPanel {
         const maxLeft = Math.max(8, rootRect.width - width - 8);
         let top = anchor.rect.bottom - rootRect.top + 6;
         if (top + height > rootRect.height - 8) top = anchor.rect.top - rootRect.top - height - 6;
-        editor.style.left = `${Math.min(Math.max(rawLeft, 8), maxLeft)}px`;
-        editor.style.top = `${Math.max(8, top)}px`;
+        editor.setCssStyles({ left: `${Math.min(Math.max(rawLeft, 8), maxLeft)}px`, top: `${Math.max(8, top)}px` });
     }
 
     /** 把左侧选中的任务排布到某一天（同时补入本周整周排布） */
@@ -948,7 +944,7 @@ export class PlanWeekPanel extends FloatingPanel {
 
         for (const row of rows) {
             const rowEl = wrap.createDiv({ cls: 'check-cat-bars-row' });
-            rowEl.createSpan({ cls: 'check-cat-bars-dot' }).style.background = row.color ?? '#888888';
+            rowEl.createSpan({ cls: 'check-cat-bars-dot' }).setCssStyles({ background: row.color ?? '#888888' });
             rowEl.createSpan({ cls: 'check-cat-bars-label', text: row.label });
             const track = rowEl.createDiv({ cls: 'check-cat-bars-track is-plain' });
             track.createDiv({ cls: 'check-cat-bars-fill' }).setCssProps({

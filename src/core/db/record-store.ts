@@ -52,7 +52,7 @@ function yearFromDayKey(key?: string): number | null {
 function parseRow(row: Record<string, unknown>): OkrRecordEntry {
     let values: Record<string, string | number | boolean> = {};
     try {
-        const parsed = JSON.parse(String(row.values_json));
+        const parsed: unknown = JSON.parse(String(row.values_json));
         if (parsed && typeof parsed === 'object') values = parsed as Record<string, string | number | boolean>;
     } catch {
         // 非法 JSON 忽略，保留空 values
@@ -187,7 +187,7 @@ export class RecordStore {
             try {
                 stmt.bind([inboxId]);
                 while (stmt.step()) {
-                    results.push(parseRow(stmt.getAsObject() as Record<string, unknown>));
+                    results.push(parseRow(stmt.getAsObject()));
                 }
             } finally {
                 stmt.free();
@@ -247,7 +247,7 @@ export class RecordStore {
                     );
                     try {
                         while (stmt.step()) {
-                            rows.push(parseRow(stmt.getAsObject() as Record<string, unknown>));
+                            rows.push(parseRow(stmt.getAsObject()));
                         }
                     } finally {
                         stmt.free();

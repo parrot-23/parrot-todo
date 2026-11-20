@@ -117,17 +117,17 @@ export class FloatingPanel {
             this.root.addClass('is-absolute');
             // 层级用内联样式写入：CSS 里 .floating-panel.is-absolute 的 z-index 优先级高于内联样式，
             // 不覆盖的话 bringToFront() 设置的层级会失效（后打开的面板无法置顶）
-            this.root.style.zIndex = String(options.zIndex ?? BASE_HOSTED_PANEL_Z_INDEX);
+            this.root.setCssStyles({ zIndex: String(options.zIndex ?? BASE_HOSTED_PANEL_Z_INDEX) });
             // absolute 定位需要容器本身可作为定位参照
             if (getComputedStyle(this.host).position === 'static') {
-                this.host.style.position = 'relative';
+                this.host.setCssStyles({ position: 'relative' });
             }
         } else if (options.zIndex !== undefined) {
             // 固定层级面板：直接写入内联层级，不参与置顶递增
-            this.root.style.zIndex = String(options.zIndex);
+            this.root.setCssStyles({ zIndex: String(options.zIndex) });
         }
-        this.root.style.display = 'none';
-        if (options.width) this.root.style.width = `${options.width}px`;
+        this.root.setCssStyles({ display: 'none' });
+        if (options.width) this.root.setCssStyles({ width: `${options.width}px` });
 
         this.headerEl = this.root.createDiv({ cls: 'floating-panel-header' });
         this.titleEl = this.headerEl.createDiv({ cls: 'floating-panel-title' });
@@ -196,6 +196,9 @@ export class FloatingPanel {
         this.embeddedHost = container;
         this.root.addClass('is-embedded');
         this.root.removeClass('is-absolute');
+        // 清除内联定位/尺寸/层级，交由 .is-embedded 的 CSS 规则铺满容器，
+        // 避免内联样式优先级高于样式表导致需要 !important 覆盖
+        this.root.setCssStyles({ left: '', top: '', width: '', zIndex: '' });
         container.appendChild(this.root);
     }
 
@@ -205,6 +208,10 @@ export class FloatingPanel {
         this.embeddedHost = null;
         this.root.removeClass('is-embedded');
         if (!this.hostIsBody) this.root.addClass('is-absolute');
+        // 恢复内联层级（absolute 定位的面板层级由 JS 内联写入）
+        if (!this.hostIsBody) {
+            this.root.setCssStyles({ zIndex: String(this.options.zIndex ?? BASE_HOSTED_PANEL_Z_INDEX) });
+        }
         this.host.appendChild(this.root);
     }
 
@@ -283,7 +290,7 @@ export class FloatingPanel {
             return;
         }
         this.opened = true;
-        this.root.style.display = 'flex';
+        this.root.setCssStyles({ display: 'flex' });
         // 嵌入模式：作为内容块显示，不居中、不置顶、不注册 Esc / 失焦关闭
         if (this.isEmbedded) return;
         if (this.left === null || this.top === null) {
@@ -305,7 +312,7 @@ export class FloatingPanel {
     close(): void {
         if (!this.opened) return;
         this.opened = false;
-        this.root.style.display = 'none';
+        this.root.setCssStyles({ display: 'none' });
         this.dragging = false;
         this.root.removeClass('is-dragging');
         document.removeEventListener('keydown', this.onKeyDown);
@@ -337,13 +344,13 @@ export class FloatingPanel {
             // 层级只在小范围内递增，超过上限时重排一次，避免盖住下拉浮层等更高层元素
             if (topPanelZIndex >= MAX_PANEL_Z_INDEX) this.renormalizeZIndex();
             topPanelZIndex += 1;
-            this.root.style.zIndex = String(topPanelZIndex);
+            this.root.setCssStyles({ zIndex: String(topPanelZIndex) });
             return;
         }
         // 容器内面板：只在同一容器内比较层级，避免不同容器之间互相干扰
         if (topHostedPanelZIndex >= MAX_HOSTED_PANEL_Z_INDEX) this.renormalizeHostedZIndex();
         topHostedPanelZIndex += 1;
-        this.root.style.zIndex = String(topHostedPanelZIndex);
+        this.root.setCssStyles({ zIndex: String(topHostedPanelZIndex) });
     }
 
     /** 重排所有已打开面板的层级，恢复连续递增的初始区间 */
@@ -352,7 +359,7 @@ export class FloatingPanel {
             .filter((el) => el.style.display !== 'none')
             .sort((a, b) => Number(a.style.zIndex || BASE_PANEL_Z_INDEX) - Number(b.style.zIndex || BASE_PANEL_Z_INDEX));
         let zIndex = BASE_PANEL_Z_INDEX;
-        for (const el of panels) el.style.zIndex = String(++zIndex);
+        for (const el of panels) el.setCssStyles({ zIndex: String(++zIndex) });
         topPanelZIndex = zIndex;
     }
 
@@ -362,7 +369,7 @@ export class FloatingPanel {
             .filter((el) => el.style.display !== 'none')
             .sort((a, b) => Number(a.style.zIndex || BASE_HOSTED_PANEL_Z_INDEX) - Number(b.style.zIndex || BASE_HOSTED_PANEL_Z_INDEX));
         let zIndex = BASE_HOSTED_PANEL_Z_INDEX;
-        for (const el of panels) el.style.zIndex = String(++zIndex);
+        for (const el of panels) el.setCssStyles({ zIndex: String(++zIndex) });
         topHostedPanelZIndex = zIndex;
     }
 
@@ -389,8 +396,7 @@ export class FloatingPanel {
         const maxTop = Math.max(0, hostSize.height - this.root.offsetHeight);
         this.left = Math.max(0, Math.min(left, maxLeft));
         this.top = Math.max(0, Math.min(top, maxTop));
-        this.root.style.left = `${this.left}px`;
-        this.root.style.top = `${this.top}px`;
+        this.root.setCssStyles({ left: `${this.left}px`, top: `${this.top}px` });
     }
 
     /**

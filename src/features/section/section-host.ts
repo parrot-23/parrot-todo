@@ -745,10 +745,11 @@ export class SectionHost {
         entry: TaskDayGoalEntry,
     ): void {
         if (textEl.parentElement?.querySelector('.task-week-goal-item-input')) return;
-        const input = document.createElement('input');
-        input.className = 'task-week-goal-item-input';
-        input.type = 'text';
-        input.value = entry.text;
+        const input = textEl.parentElement.createEl('input', {
+            cls: 'task-week-goal-item-input',
+            type: 'text',
+            value: entry.text,
+        });
         textEl.replaceWith(input);
         input.focus();
         input.select();

@@ -245,7 +245,7 @@ export class TaskDetailPanel extends FloatingPanel {
         addBtn.addEventListener('click', () => this.toggleAddForm());
 
         this.addFormEl = addWrap.createDiv({ cls: 'task-detail-add-form' });
-        this.addFormEl.style.display = 'none';
+        this.addFormEl.setCssStyles({ display: 'none' });
         this.inputEl = this.addFormEl.createEl('input', { cls: 'task-detail-add-input' });
         this.inputEl.type = 'text';
         this.inputEl.placeholder = t('panel.subTaskName');
@@ -328,7 +328,7 @@ export class TaskDetailPanel extends FloatingPanel {
         const category = this.panelOptions.categoryData?.categories
             .find((item) => item.id === this.task.categoryId);
         const dotEl = categoryRow.createSpan({ cls: 'task-detail-category-dot' });
-        dotEl.style.background = category?.color ?? '#888888';
+        dotEl.setCssStyles({ background: category?.color ?? '#888888' });
         const categoryNameEl = categoryRow.createSpan({
             cls: 'task-detail-category-name',
             text: category?.label ?? t('defaultCategory.uncategorized'),
@@ -460,8 +460,7 @@ export class TaskDetailPanel extends FloatingPanel {
         const left = Math.min(Math.max(8, rect.right - width), window.innerWidth - width - 8);
         let top = rect.top - height - 6;
         if (top < 8) top = rect.bottom + 6;
-        tip.style.left = `${left}px`;
-        tip.style.top = `${top}px`;
+        tip.setCssStyles({ left: `${left}px`, top: `${top}px` });
     }
 
     /** 关闭删除确认浮层（移除元素与 document 监听） */
@@ -547,7 +546,7 @@ export class TaskDetailPanel extends FloatingPanel {
             const item = menu.createDiv({ cls: 'task-detail-category-item' });
             item.toggleClass('is-active', category.id === currentId);
             const itemDot = item.createSpan({ cls: 'task-detail-category-dot' });
-            itemDot.style.background = category.color ?? '#888888';
+            itemDot.setCssStyles({ background: category.color ?? '#888888' });
             item.createSpan({ cls: 'task-detail-category-name', text: category.label });
             item.addEventListener('click', (evt) => {
                 evt.stopPropagation();
@@ -564,8 +563,7 @@ export class TaskDetailPanel extends FloatingPanel {
         const top = rect.bottom + height > window.innerHeight - 8
             ? Math.max(8, rect.top - height - 4)
             : rect.bottom + 4;
-        menu.style.left = `${left}px`;
-        menu.style.top = `${top}px`;
+        menu.setCssStyles({ left: `${left}px`, top: `${top}px` });
 
         this.categoryMenuOutsideHandler = (evt: MouseEvent) => {
             const target = evt.target as Node | null;
@@ -591,7 +589,7 @@ export class TaskDetailPanel extends FloatingPanel {
         this.task.categoryId = categoryId;
         const target = this.tasks.find((item) => item.id === this.task.id);
         if (target) target.categoryId = categoryId;
-        dotEl.style.background = category?.color ?? '#888888';
+        dotEl.setCssStyles({ background: category?.color ?? '#888888' });
         nameEl.setText(category?.label ?? t('defaultCategory.uncategorized'));
         this.panelOptions.onUpdateTask?.(this.task.id, { categoryId });
     }
@@ -892,13 +890,13 @@ export class TaskDetailPanel extends FloatingPanel {
         if (visible) {
             this.hideAddForm();
         } else {
-            this.addFormEl.style.display = 'flex';
+            this.addFormEl.setCssStyles({ display: 'flex' });
             this.inputEl.focus();
         }
     }
 
     private hideAddForm(): void {
-        this.addFormEl.style.display = 'none';
+        this.addFormEl.setCssStyles({ display: 'none' });
         this.inputEl.value = '';
     }
 

@@ -36,7 +36,7 @@ interface DiskFs {
 function getRequire(): ((module: string) => unknown) | null {
     const win = window as unknown as { require?: (module: string) => unknown };
     if (typeof win.require === 'function') return win.require;
-    const globalReq = (globalThis as { require?: (module: string) => unknown }).require;
+    const globalReq = (window as { require?: (module: string) => unknown }).require;
     return typeof globalReq === 'function' ? globalReq : null;
 }
 

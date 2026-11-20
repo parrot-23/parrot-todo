@@ -18,7 +18,7 @@ export interface SectionDefinition {
     /** 载荷是否为空（空板块在界面中折叠展示） */
     isEmpty: (payload: unknown) => boolean;
     /** 解析持久化载荷（结构非法时返回 null；空载荷同样返回对象，由 isEmpty 判定） */
-    parsePayload: (raw: unknown) => unknown | null;
+    parsePayload: (raw: unknown) => unknown;
 }
 
 /** 解析任务清单条目 */

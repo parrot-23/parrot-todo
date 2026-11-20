@@ -199,7 +199,7 @@ export class HabitPanel extends FloatingPanel {
         const category = this.panelOptions.getCategories()
             .find((item) => item.id === task.categoryId);
         const dot = head.createSpan({ cls: 'plan-info-dot' });
-        dot.style.background = category?.color ?? '#888888';
+        dot.setCssStyles({ background: category?.color ?? '#888888' });
         head.createSpan({ cls: 'plan-info-name', text: task.name });
         head.createSpan({
             cls: 'plan-info-category',
@@ -260,9 +260,9 @@ export class HabitPanel extends FloatingPanel {
         // 习惯卡片按生效星期算出连续区段与所在行（泳道）
         const habitSegments = this.buildHabitSegments();
         const laneCount = habitSegments.reduce((max, item) => Math.max(max, item.lane + 1), 0);
-        columnsRow.style.gridTemplateRows = laneCount > 0
+        columnsRow.setCssStyles({ gridTemplateRows: laneCount > 0
             ? `repeat(${laneCount}, min-content) 1fr`
-            : '1fr';
+            : '1fr' });
         for (let col = 0; col < 7; col++) {
             const dayKey = makeDayKeyFromWeek(this.weekKey, col + 1);
             const header = headerRow.createDiv({ cls: 'plan-week-header-cell' });
@@ -278,8 +278,7 @@ export class HabitPanel extends FloatingPanel {
             });
             // 日列作为背景层，跨满所有行：负责分隔线与悬停反馈
             const column = columnsRow.createDiv({ cls: 'plan-week-column' });
-            column.style.gridColumn = String(col + 1);
-            column.style.gridRow = '1 / -1';
+            column.setCssStyles({ gridColumn: String(col + 1), gridRow: '1 / -1' });
             column.dataset.weekday = String(col + 1);
         }
         // 卡片层：与日列共用同一网格，按区段跨列显示
@@ -338,8 +337,7 @@ export class HabitPanel extends FloatingPanel {
         const { task, habit, start, end, lane } = segment;
         const span = end - start + 1;
         const chip = parentEl.createDiv({ cls: 'plan-week-task-chip plan-week-habit-chip' });
-        chip.style.gridColumn = `${start} / span ${span}`;
-        chip.style.gridRow = String(lane + 1);
+        chip.setCssStyles({ gridColumn: `${start} / span ${span}`, gridRow: String(lane + 1) });
         chip.title = `${habit.time} ${task.name}`;
         chip.createSpan({ cls: 'plan-week-habit-time', text: habit.time });
         chip.createSpan({ cls: 'plan-week-task-chip-name', text: task.name });

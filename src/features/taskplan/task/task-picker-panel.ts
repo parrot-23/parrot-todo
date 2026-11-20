@@ -69,7 +69,7 @@ export class TaskPickerPanel extends FloatingPanel {
             this.renderTree();
         });
         // 限定范围时不需要根任务下拉
-        if (this.pickerOptions.scopeTaskId) this.rootSelectEl.style.display = 'none';
+        if (this.pickerOptions.scopeTaskId) this.rootSelectEl.setCssStyles({ display: 'none' });
 
         this.treeEl = this.body.createDiv({ cls: 'task-picker-tree' });
         this.taskTree = new TaskTree(this.treeEl, {

@@ -232,7 +232,7 @@ export class TodayCard {
         // 常规视图：当日任务 + 额外任务（同一个滚动区）+ 计时器 + 按钮组（进入记录视图时整体隐藏）
         this.todayNormalEl = todayRight.createDiv({ cls: 'interface-today-normal' });
         this.todayNormalEl.addEventListener('click', (evt) => {
-            const row = (evt.target as HTMLElement).closest('.interface-today-task') as HTMLElement | null;
+            const row = (evt.target as HTMLElement).closest<HTMLElement>('.interface-today-task');
             const taskId = row?.dataset.taskId;
             if (taskId) {
                 this.selectedTodayTaskId = taskId;
@@ -766,10 +766,10 @@ export class TodayCard {
         const [nightEndX, nightEndY] = point(6, radius);
         add('path', {
             d: `M ${cx} ${cy} L ${nightStartX} ${nightStartY} A ${radius} ${radius} 0 0 1 ${nightEndX} ${nightEndY} Z`,
-        }).style.fill = 'rgba(128, 128, 128, 0.18)';
+        }).setCssStyles({ fill: 'rgba(128, 128, 128, 0.18)' });
 
         add('circle', { cx: String(cx), cy: String(cy), r: String(radius), fill: 'none' })
-            .style.stroke = 'var(--background-modifier-border)';
+            .setCssStyles({ stroke: 'var(--background-modifier-border)' });
 
         // 中心饼图：时间盒在该星期几的涂色分布，每个已涂色小时占 15°，未涂色的小时不绘制
         const pieRadius = 25;
@@ -786,7 +786,7 @@ export class TodayCard {
             const drawWedge = (startHour: number, endHour: number, color: string): void => {
                 if (startHour <= 0 && endHour >= 24) {
                     add('circle', { cx: String(cx), cy: String(cy), r: String(pieRadius) })
-                        .style.fill = color;
+                        .setCssStyles({ fill: color });
                     return;
                 }
                 const [sx, sy] = point(startHour, pieRadius);
@@ -794,7 +794,7 @@ export class TodayCard {
                 const largeArc = endHour - startHour > 12 ? 1 : 0;
                 add('path', {
                     d: `M ${cx} ${cy} L ${sx} ${sy} A ${pieRadius} ${pieRadius} 0 ${largeArc} 1 ${ex} ${ey} Z`,
-                }).style.fill = color;
+                }).setCssStyles({ fill: color });
             };
             // 相邻且分类相同的小时合并成一个扇区，避免同色出现接缝
             const paintedHours = Array.from(pieHours.keys()).sort((a, b) => a - b);
@@ -818,7 +818,7 @@ export class TodayCard {
             const [x1, y1] = point(hour, radius);
             const [x2, y2] = point(hour, radius - 6);
             add('line', { x1: String(x1), y1: String(y1), x2: String(x2), y2: String(y2) })
-                .style.stroke = 'var(--background-modifier-border)';
+                .setCssStyles({ stroke: 'var(--background-modifier-border)' });
 
             const [labelX, labelY] = point(hour, radius - 20);
             const isMajorHour = hour % 6 === 0;
@@ -830,7 +830,7 @@ export class TodayCard {
                 'font-size': isMajorHour ? '14' : '9',
                 'font-weight': isMajorHour ? '700' : '400',
             });
-            label.style.fill = 'var(--text-muted)';
+            label.setCssStyles({ fill: 'var(--text-muted)' });
             label.textContent = String(hour);
         }
 
@@ -844,7 +844,7 @@ export class TodayCard {
             'font-size': '18',
         });
         moon.textContent = '🌛';
-        moon.style.opacity = '0.85';
+        moon.setCssStyles({ opacity: '0.85' });
         const [sunX, sunY] = point(12, 50);
         const sun = add('text', {
             x: String(sunX),
@@ -854,7 +854,7 @@ export class TodayCard {
             'font-size': '18',
         });
         sun.textContent = '🌞';
-        sun.style.opacity = '0.85';
+        sun.setCssStyles({ opacity: '0.85' });
 
         // 时针：仅在查看今天时绘制，指向当前时:分（1 小时 = 15°）
         if (makeDayKey(new Date()) === makeDayKey(this.selectedDate)) {
@@ -873,13 +873,9 @@ export class TodayCard {
                 x2: String(tipX),
                 y2: String(tipY),
             });
-            hand.style.stroke = handColor;
-            hand.style.strokeWidth = '3.5';
-            hand.style.strokeLinecap = 'round';
-            hand.style.opacity = '0.8';
+            hand.setCssStyles({ stroke: handColor, strokeWidth: '3.5', strokeLinecap: 'round', opacity: '0.8' });
             const hub = add('circle', { cx: String(cx), cy: String(cy), r: '4' });
-            hub.style.fill = handColor;
-            hub.style.opacity = '0.8';
+            hub.setCssStyles({ fill: handColor, opacity: '0.8' });
         }
 
         // 外环：所选日期已保存的执行记录（按时长占比绘制弧段，重叠按开始时间覆盖）
@@ -902,13 +898,9 @@ export class TodayCard {
             const node: SVGElement = start === 0 && end === 24
                 ? add('circle', { cx: String(cx), cy: String(cy), r: String(ringRadius), fill: 'none' })
                 : add('path', { d: arcPath(start, end, ringRadius), fill: 'none' });
-            node.style.stroke = color;
-            node.style.strokeWidth = '10';
-            node.style.strokeLinecap = 'butt';
+            node.setCssStyles({ stroke: color, strokeWidth: '10', strokeLinecap: 'butt' });
             if (opacity !== 1) {
-                node.style.opacity = String(opacity);
-                // 半透明的进行中弧段不参与鼠标命中，避免遮挡下方记录的悬浮效果
-                node.style.pointerEvents = 'none';
+                node.setCssStyles({ opacity: String(opacity), pointerEvents: 'none' });
             }
             return node;
         };
@@ -934,11 +926,7 @@ export class TodayCard {
             let halo: SVGElement | null = null;
             if (withHalo && !isCircle) {
                 halo = add('path', { d: arcPath(startHour, endHour, ringRadius + 3), fill: 'none' });
-                halo.style.stroke = 'var(--interactive-accent)';
-                halo.style.strokeWidth = '18';
-                halo.style.strokeLinecap = 'butt';
-                halo.style.opacity = '0';
-                halo.style.pointerEvents = 'none';
+                halo.setCssStyles({ stroke: 'var(--interactive-accent)', strokeWidth: '18', strokeLinecap: 'butt', opacity: '0', pointerEvents: 'none' });
                 // 光晕置于弧段下方，悬浮时表现为边框高亮
                 node.parentNode?.insertBefore(halo, node);
             }
@@ -946,14 +934,14 @@ export class TodayCard {
             const applyActive = (): void => {
                 if (isCircle) node.setAttribute('r', String(ringRadius + 3));
                 else node.setAttribute('d', arcPath(startHour, endHour, ringRadius + 3));
-                node.style.strokeWidth = '14';
-                if (halo) halo.style.opacity = '1';
+                node.setCssStyles({ strokeWidth: '14' });
+                if (halo) halo.setCssStyles({ opacity: '1' });
             };
             const applyNormal = (): void => {
                 if (isCircle) node.setAttribute('r', String(ringRadius));
                 else node.setAttribute('d', arcPath(startHour, endHour, ringRadius));
-                node.style.strokeWidth = '10';
-                if (halo) halo.style.opacity = '0';
+                node.setCssStyles({ strokeWidth: '10' });
+                if (halo) halo.setCssStyles({ opacity: '0' });
             };
 
             if (selected) applyActive();
@@ -974,7 +962,7 @@ export class TodayCard {
                 // 整圈记录用 circle 绘制，同样参与整钟悬浮放大
                 attachArcHover(arc, startHour, endHour, isSelected, startHour === 0 && endHour === 24);
                 // 点击弧段：在记录视图中选中对应条目，并保持弧段选中态
-                arc.style.cursor = 'pointer';
+                arc.setCssStyles({ cursor: 'pointer' });
                 arc.addEventListener('click', (event: MouseEvent) => {
                     event.stopPropagation();
                     this.selectRecordFromArc(record.id);

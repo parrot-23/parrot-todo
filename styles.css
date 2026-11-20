@@ -873,13 +873,13 @@
 
 /* ===== 主视图（tab 容器）===== */
 /* 该元素就是 Obsidian 的 .view-content，主题常给它加内边距；
-   这里用更高的选择器权重 + !important 覆盖，让内容区铺满整个标签页 */
-.parrot-plan-main.view-content {
+   这里用更高的选择器权重覆盖，让内容区铺满整个标签页 */
+.workspace-leaf-content .parrot-plan-main.view-content {
     display: flex;
     flex-direction: column;
     height: 100%;
-    padding: 0 !important;
-    margin: 0 !important;
+    padding: 0;
+    margin: 0;
 }
 
 /* 插件视图为当前活动标签时：暂时隐藏 Obsidian 底部状态栏，切到其它标签自动恢复 */
@@ -12303,9 +12303,9 @@ button.task-record-dropdown-item.is-selected {
     display: inline-flex;
 }
 
-.time-picker .picker-trigger,
-.number-select .picker-trigger,
-.date-picker .picker-trigger {
+.time-picker button.picker-trigger,
+.number-select button.picker-trigger,
+.date-picker button.picker-trigger {
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -12315,7 +12315,7 @@ button.task-record-dropdown-item.is-selected {
     border: 1px solid var(--sdt-card-border, var(--background-modifier-border));
     border-radius: 6px;
     background: var(--sdt-control-bg, var(--background-primary));
-    box-shadow: none !important;
+    box-shadow: none;
     color: var(--sdt-text-primary, var(--text-normal));
     font-size: 12px;
     font-variant-numeric: tabular-nums;
@@ -12323,20 +12323,20 @@ button.task-record-dropdown-item.is-selected {
     transition: border-color 120ms ease;
 }
 
-.time-picker .picker-trigger:hover:not(:disabled),
-.number-select .picker-trigger:hover:not(:disabled),
-.date-picker .picker-trigger:hover:not(:disabled),
-.picker-trigger.is-open {
+.time-picker button.picker-trigger:hover:not(:disabled),
+.number-select button.picker-trigger:hover:not(:disabled),
+.date-picker button.picker-trigger:hover:not(:disabled),
+button.picker-trigger.is-open {
     border-color: var(--interactive-accent);
-    box-shadow: none !important;
+    box-shadow: none;
 }
 
-.time-picker .picker-trigger:focus-visible,
-.number-select .picker-trigger:focus-visible,
-.date-picker .picker-trigger:focus-visible {
+.time-picker button.picker-trigger:focus-visible,
+.number-select button.picker-trigger:focus-visible,
+.date-picker button.picker-trigger:focus-visible {
     border-color: var(--interactive-accent);
     outline: none;
-    box-shadow: none !important;
+    box-shadow: none;
 }
 
 .time-picker .picker-trigger:disabled,
@@ -12418,7 +12418,7 @@ button.task-record-dropdown-item.is-selected {
     color: var(--sdt-text-primary, var(--text-normal));
 }
 
-.time-picker-popover .time-picker-now {
+.time-picker-popover button.time-picker-now {
     height: auto;
     min-height: 0;
     margin-left: auto;
@@ -12426,15 +12426,15 @@ button.task-record-dropdown-item.is-selected {
     border: none;
     border-radius: 5px;
     background: transparent;
-    box-shadow: none !important;
+    box-shadow: none;
     color: var(--interactive-accent);
     font-size: 11px;
     cursor: pointer;
 }
 
-.time-picker-popover .time-picker-now:hover {
+.time-picker-popover button.time-picker-now:hover {
     background: var(--sdt-hover-bg, var(--background-modifier-hover));
-    box-shadow: none !important;
+    box-shadow: none;
 }
 
 /* 时 / 分两列，各自独立滚动 */
@@ -12475,16 +12475,16 @@ button.task-record-dropdown-item.is-selected {
 }
 
 /* 选项按钮：只保留选中/悬停底色，去掉全局按钮的边框与阴影 */
-.picker-popover .picker-option {
+.picker-popover button.picker-option {
     flex-shrink: 0;
     width: 100%;
     height: 28px;
     margin: 0;
     padding: 0;
-    border: none !important;
+    border: none;
     border-radius: 6px;
-    background: transparent !important;
-    box-shadow: none !important;
+    background: transparent;
+    box-shadow: none;
     color: var(--sdt-text-secondary, var(--text-muted));
     font-size: 12px;
     font-weight: 400;
@@ -12494,14 +12494,14 @@ button.task-record-dropdown-item.is-selected {
     transition: background 120ms ease, color 120ms ease;
 }
 
-.picker-popover .picker-option:hover {
-    background: var(--sdt-hover-bg, var(--background-modifier-hover)) !important;
+.picker-popover button.picker-option:hover {
+    background: var(--sdt-hover-bg, var(--background-modifier-hover));
     color: var(--sdt-text-primary, var(--text-normal));
 }
 
-.picker-popover .picker-option.is-active,
-.picker-popover .picker-option.is-active:hover {
-    background: var(--interactive-accent) !important;
+.picker-popover button.picker-option.is-active,
+.picker-popover button.picker-option.is-active:hover {
+    background: var(--interactive-accent);
     color: var(--text-on-accent);
     font-weight: 600;
 }
@@ -12515,7 +12515,7 @@ button.task-record-dropdown-item.is-selected {
     border-top: 1px solid var(--sdt-card-border, var(--background-modifier-border));
 }
 
-.picker-popover .picker-btn {
+.picker-popover button.picker-btn {
     height: 26px;
     min-height: 0;
     margin: 0;
@@ -12523,35 +12523,35 @@ button.task-record-dropdown-item.is-selected {
     border: 1px solid var(--sdt-card-border, var(--background-modifier-border));
     border-radius: 6px;
     background: transparent;
-    box-shadow: none !important;
+    box-shadow: none;
     color: var(--sdt-text-secondary, var(--text-muted));
     font-size: 12px;
     font-weight: 400;
     cursor: pointer;
 }
 
-.picker-popover .picker-btn:hover {
+.picker-popover button.picker-btn:hover {
     background: var(--sdt-hover-bg, var(--background-modifier-hover));
     color: var(--sdt-text-primary, var(--text-normal));
-    box-shadow: none !important;
+    box-shadow: none;
 }
 
-.picker-popover .picker-btn.is-primary {
+.picker-popover button.picker-btn.is-primary {
     border: 1px solid var(--interactive-accent);
     background: var(--interactive-accent);
     color: var(--text-on-accent);
     font-weight: 600;
-    box-shadow: none !important;
+    box-shadow: none;
 }
 
-.picker-popover .picker-btn.is-primary:hover {
+.picker-popover button.picker-btn.is-primary:hover {
     background: var(--interactive-accent-hover, var(--interactive-accent));
     color: var(--text-on-accent);
-    box-shadow: none !important;
+    box-shadow: none;
 }
 
 /* 弹层内的图标按钮（月份切换等） */
-.picker-popover .picker-icon-btn {
+.picker-popover button.picker-icon-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -12560,16 +12560,16 @@ button.task-record-dropdown-item.is-selected {
     min-height: 0;
     margin: 0;
     padding: 0;
-    border: none !important;
+    border: none;
     border-radius: 5px;
-    background: transparent !important;
-    box-shadow: none !important;
+    background: transparent;
+    box-shadow: none;
     color: var(--sdt-text-secondary, var(--text-muted));
     cursor: pointer;
 }
 
-.picker-popover .picker-icon-btn:hover {
-    background: var(--sdt-hover-bg, var(--background-modifier-hover)) !important;
+.picker-popover button.picker-icon-btn:hover {
+    background: var(--sdt-hover-bg, var(--background-modifier-hover));
     color: var(--sdt-text-primary, var(--text-normal));
 }
 
@@ -12706,14 +12706,14 @@ button.task-record-dropdown-item.is-selected {
     padding-bottom: 8px;
 }
 
-.picker-popover .date-picker-day {
+.picker-popover button.date-picker-day {
     height: 30px;
     margin: 0;
     padding: 0;
-    border: 1px solid transparent !important;
+    border: 1px solid transparent;
     border-radius: 6px;
-    background: transparent !important;
-    box-shadow: none !important;
+    background: transparent;
+    box-shadow: none;
     color: var(--sdt-text-primary, var(--text-normal));
     font-size: 12px;
     font-weight: 400;
@@ -12722,24 +12722,24 @@ button.task-record-dropdown-item.is-selected {
     transition: background 120ms ease;
 }
 
-.picker-popover .date-picker-day:hover {
-    background: var(--sdt-hover-bg, var(--background-modifier-hover)) !important;
+.picker-popover button.date-picker-day:hover {
+    background: var(--sdt-hover-bg, var(--background-modifier-hover));
 }
 
-.picker-popover .date-picker-day.is-outside {
+.picker-popover button.date-picker-day.is-outside {
     color: var(--sdt-text-secondary, var(--text-muted));
     opacity: 0.55;
 }
 
-.picker-popover .date-picker-day.is-today {
-    border-color: var(--interactive-accent) !important;
+.picker-popover button.date-picker-day.is-today {
+    border-color: var(--interactive-accent);
     color: var(--interactive-accent);
 }
 
-.picker-popover .date-picker-day.is-selected,
-.picker-popover .date-picker-day.is-selected:hover {
-    background: var(--interactive-accent) !important;
-    border-color: var(--interactive-accent) !important;
+.picker-popover button.date-picker-day.is-selected,
+.picker-popover button.date-picker-day.is-selected:hover {
+    background: var(--interactive-accent);
+    border-color: var(--interactive-accent);
     color: var(--text-on-accent);
     font-weight: 600;
 }
@@ -13366,8 +13366,7 @@ button.task-record-dropdown-item.is-selected {
     grid-template-columns: auto max-content auto max-content auto max-content;
     align-content: start;
     align-items: center;
-    column-gap: 4px;
-    row-gap: 2px;
+    gap: 2px 4px;
     padding: 6px 4px;
     overflow-y: auto;
     border-right: 1px solid var(--sdt-card-border, var(--background-modifier-border));
@@ -13387,7 +13386,13 @@ button.task-record-dropdown-item.is-selected {
 }
 
 .plan-week-daily-row {
-    display: contents;
+    /* 用自身网格替代 display: contents，避免该特性在部分环境下的兼容问题；
+       列模板与父级 .plan-week-daily-col 保持一致，保证各列严格对齐 */
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: auto max-content auto max-content auto max-content;
+    align-items: center;
+    gap: 0 4px;
     font-size: 10px;
     line-height: 1.4;
 }
@@ -14506,14 +14511,14 @@ body.plan-annual-dragging {
 
 /* 嵌入模式：铺满所在容器、隐藏自带标题栏（保留相对定位供面板内部浮层定位） */
 .floating-panel.is-embedded {
-    position: relative !important;
-    left: 0 !important;
-    top: 0 !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    max-height: none !important;
+    position: relative;
+    left: 0;
+    top: 0;
+    width: 100%;
+    max-width: 100%;
+    max-height: none;
     height: 100%;
-    z-index: auto !important;
+    z-index: auto;
     border: none;
     border-radius: 0;
     box-shadow: none;
@@ -15150,7 +15155,7 @@ body.plan-annual-dragging {
 }
 
 /* 兜底：即使 view-content 仍带有内边距，整块标签页区域也保持黑色 */
-.parrot-plan-main.view-content:has(.interface-view.is-theme-deepspace) {
+.parrot-plan-main.view-content.is-theme-deepspace {
     background-color: #000000;
 }
 
@@ -15219,7 +15224,7 @@ body.plan-annual-dragging {
 }
 
 /* 兜底：即使 view-content 仍带有内边距，整块标签页区域也保持暖青 */
-.parrot-plan-main.view-content:has(.interface-view.is-theme-pastoral) {
+.parrot-plan-main.view-content.is-theme-pastoral {
     background-color: #e3efd8;
 }
 
@@ -15255,7 +15260,7 @@ body.plan-annual-dragging {
 }
 
 /* 兜底：即使 view-content 仍带有内边距，整块标签页区域也保持浅灰白 */
-.parrot-plan-main.view-content:has(.interface-view.is-theme-snowfield) {
+.parrot-plan-main.view-content.is-theme-snowfield {
     background-color: #f6f6f6;
 }
 

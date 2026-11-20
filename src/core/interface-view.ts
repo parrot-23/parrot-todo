@@ -799,8 +799,12 @@ export class InterfaceView {
 
     /** 应用当前主题：注入颜色令牌并同步到卡片与所有浮动面板 */
     private applyTheme(container: HTMLElement): void {
-        // 清理上一次可能残留的主题类
-        for (const definition of THEME_DEFINITIONS) container.removeClass(`is-theme-${definition.id}`);
+        // 清理上一次可能残留的主题类（内容区与父级 .parrot-plan-main 同步清理）
+        const host = container.parentElement;
+        for (const definition of THEME_DEFINITIONS) {
+            container.removeClass(`is-theme-${definition.id}`);
+            host?.removeClass(`is-theme-${definition.id}`);
+        }
 
         const theme = getThemeDefinition(this.themeRepo.currentThemeId);
         // 注入主题颜色令牌（--sdt-* 与 Obsidian 原生变量），并同步到所有浮动面板
@@ -809,6 +813,8 @@ export class InterfaceView {
 
         if (!theme) return;
         container.addClass(`is-theme-${theme.id}`);
+        // 同步到父级 .parrot-plan-main，供 CSS 用类选择器（而非 :has）给整块标签页区域上底色
+        host?.addClass(`is-theme-${theme.id}`);
 
         // 合并主题变量：默认值 + 用户已保存值
         const variables: Record<string, number> = {};

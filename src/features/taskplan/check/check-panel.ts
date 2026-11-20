@@ -228,7 +228,7 @@ export class CheckPanel extends FloatingPanel {
         if (container.clientWidth > 0) {
             render(container.clientWidth);
         } else {
-            requestAnimationFrame(() => render(container.clientWidth || this.paneEl.clientWidth || 620));
+            window.requestAnimationFrame(() => render(container.clientWidth || this.paneEl.clientWidth || 620));
         }
     }
 

@@ -112,13 +112,13 @@ export function createStarfield(canvas: HTMLCanvasElement, host: HTMLElement, st
         ctx.clearRect(0, 0, width, height);
         drawStars(delta);
 
-        rafId = requestAnimationFrame(render);
+        rafId = window.requestAnimationFrame(render);
     };
 
     const observer = new ResizeObserver(() => resize());
     observer.observe(host);
     resize();
-    rafId = requestAnimationFrame(render);
+    rafId = window.requestAnimationFrame(render);
 
     return () => {
         disposed = true;

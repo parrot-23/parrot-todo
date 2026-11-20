@@ -324,9 +324,7 @@ export class FileEditorPanel extends FloatingPanel {
         const height = coords.bottom - coords.top;
 
         if (!this.caretEl || !this.caretEl.isConnected) {
-            this.caretEl = document.createElement('div');
-            this.caretEl.addClass('sdt-manual-caret');
-            scrollDOM.appendChild(this.caretEl);
+            this.caretEl = scrollDOM.createEl('div', { cls: 'sdt-manual-caret' });
         }
         // 只改位置，不重建元素：重建会让 CSS 动画从头开始，导致闪烁节奏错乱
         this.caretEl.style.left = `${left}px`;
@@ -392,9 +390,7 @@ export class FileEditorPanel extends FloatingPanel {
         const factory = registry?.embedByExtension?.md;
         if (!factory) return null;
 
-        const tempEl = document.createElement('div');
-        tempEl.addClass('file-editor-offscreen-host');
-        document.body.appendChild(tempEl);
+        const tempEl = document.body.createEl('div', { cls: 'file-editor-offscreen-host' });
         let temp: EmbeddedEditorViewLike | null = null;
         try {
             temp = factory(
@@ -559,7 +555,8 @@ export class FileEditorPanel extends FloatingPanel {
             // 已卸载时忽略
         }
         try {
-            editor.destroy?.();
+            const destroy = editor.destroy;
+            if (typeof destroy === 'function') destroy();
         } catch {
             // 已销毁时忽略
         }

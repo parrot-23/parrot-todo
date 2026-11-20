@@ -17,7 +17,7 @@ export class ConfirmModal extends Modal {
 
     onOpen() {
         // 悬浮面板 z-index 为 900，弹窗默认层级更低会被遮挡，这里显式提到面板之上
-        this.containerEl.style.zIndex = '1000';
+        this.containerEl.setCssStyles({ zIndex: '1000' });
 
         const { contentEl } = this;
         contentEl.createEl('h3', { text: this.message });

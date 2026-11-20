@@ -309,7 +309,7 @@ export class PlanAnnualPanel extends FloatingPanel {
         setIcon(addBtn, 'plus');
         addBtn.addEventListener('click', () => this.toggleAddForm());
         this.addFormEl = addWrap.createDiv({ cls: 'task-detail-add-form' });
-        this.addFormEl.style.display = 'none';
+        this.addFormEl.setCssStyles({ display: 'none' });
         this.addInputEl = this.addFormEl.createEl('input', { cls: 'task-detail-add-input' });
         this.addInputEl.type = 'text';
         this.addInputEl.placeholder = t('panel.subTaskName');
@@ -448,8 +448,7 @@ export class PlanAnnualPanel extends FloatingPanel {
         const top = rect.bottom + height > window.innerHeight - 8
             ? Math.max(8, rect.top - height - 4)
             : rect.bottom + 4;
-        menu.style.left = `${left}px`;
-        menu.style.top = `${top}px`;
+        menu.setCssStyles({ left: `${left}px`, top: `${top}px` });
         document.addEventListener('mousedown', this.onStatusMenuOutside, true);
         document.addEventListener('keydown', this.onStatusMenuKeyDown);
     }
@@ -530,12 +529,12 @@ export class PlanAnnualPanel extends FloatingPanel {
             this.hideAddForm();
             return;
         }
-        this.addFormEl.style.display = 'flex';
+        this.addFormEl.setCssStyles({ display: 'flex' });
         this.addInputEl.focus();
     }
 
     private hideAddForm(): void {
-        this.addFormEl.style.display = 'none';
+        this.addFormEl.setCssStyles({ display: 'none' });
         this.addInputEl.value = '';
     }
 
@@ -670,10 +669,9 @@ export class PlanAnnualPanel extends FloatingPanel {
             const color = categories.find((category) => category.id === task.categoryId)?.color ?? '#888888';
             const barEl = row.createDiv({ cls: 'plan-annual-bar' });
             barEl.dataset.taskId = task.id;
-            barEl.style.left = `${(bar.startIndex / this.quarterWeeks.length) * 100}%`;
-            barEl.style.width = `${((bar.endIndex - bar.startIndex + 1) / this.quarterWeeks.length) * 100}%`;
+            barEl.setCssStyles({ left: `${(bar.startIndex / this.quarterWeeks.length) * 100}%`, width: `${((bar.endIndex - bar.startIndex + 1) / this.quarterWeeks.length) * 100}%` });
             // 分类色作为基准色，具体填充方式由任务状态样式决定
-            barEl.style.setProperty('--plan-bar-color', color);
+            barEl.setCssProps({ '--plan-bar-color': color });
             const status = task.status ?? 'notStarted';
             barEl.toggleClass('is-in-progress', status === 'inProgress');
             barEl.toggleClass('is-done', status === 'done');
@@ -685,8 +683,7 @@ export class PlanAnnualPanel extends FloatingPanel {
             for (let offset = 0; offset < weekSpan; offset++) {
                 const weekKey = barWeeks[offset].weekKey;
                 const cell = barEl.createDiv({ cls: 'plan-annual-bar-cell' });
-                cell.style.left = `${(offset / weekSpan) * 100}%`;
-                cell.style.width = `${(1 / weekSpan) * 100}%`;
+                cell.setCssStyles({ left: `${(offset / weekSpan) * 100}%`, width: `${(1 / weekSpan) * 100}%` });
                 if (getWeekNote(task, weekKey).trim()) {
                     cell.addClass('has-week-goal');
                     cell.createSpan({ cls: 'plan-annual-bar-weekgoal-mark' });
@@ -761,8 +758,7 @@ export class PlanAnnualPanel extends FloatingPanel {
         const segments = this.buildAggregateSegments(task);
         for (const segment of segments) {
             const line = row.createDiv({ cls: 'plan-annual-agg-line' });
-            line.style.left = `${(segment.startIndex / this.quarterWeeks.length) * 100}%`;
-            line.style.width = `${((segment.endIndex - segment.startIndex + 1) / this.quarterWeeks.length) * 100}%`;
+            line.setCssStyles({ left: `${(segment.startIndex / this.quarterWeeks.length) * 100}%`, width: `${((segment.endIndex - segment.startIndex + 1) / this.quarterWeeks.length) * 100}%` });
         }
     }
 
@@ -906,7 +902,7 @@ export class PlanAnnualPanel extends FloatingPanel {
             tip.createDiv({ cls: 'plan-annual-weekgoal-tip-text', text: desc });
             this.weekGoalTipKey = key;
         }
-        tip.style.display = 'flex';
+        tip.setCssStyles({ display: 'flex' });
         const rootRect = this.element.getBoundingClientRect();
         const width = tip.offsetWidth;
         const height = tip.offsetHeight;
@@ -916,8 +912,7 @@ export class PlanAnnualPanel extends FloatingPanel {
         if (top + height > rootRect.height - 8) {
             top = cellRect.top - rootRect.top - height - 6;
         }
-        tip.style.left = `${Math.min(Math.max(rawLeft, 8), maxLeft)}px`;
-        tip.style.top = `${Math.max(8, top)}px`;
+        tip.setCssStyles({ left: `${Math.min(Math.max(rawLeft, 8), maxLeft)}px`, top: `${Math.max(8, top)}px` });
     }
 
     /** 关闭本周描述悬浮面板 */
@@ -975,8 +970,7 @@ export class PlanAnnualPanel extends FloatingPanel {
         if (top + height > rootRect.height - 8) {
             top = cellRect.top - rootRect.top - height - 6;
         }
-        editor.style.left = `${Math.min(Math.max(rawLeft, 8), maxLeft)}px`;
-        editor.style.top = `${Math.max(8, top)}px`;
+        editor.setCssStyles({ left: `${Math.min(Math.max(rawLeft, 8), maxLeft)}px`, top: `${Math.max(8, top)}px` });
         textarea.focus();
         textarea.setSelectionRange(textarea.value.length, textarea.value.length);
     }
@@ -1172,8 +1166,7 @@ export class PlanAnnualPanel extends FloatingPanel {
         if (!drag.previewEl) {
             drag.previewEl = drag.rowEl.createDiv({ cls: 'plan-annual-bar-preview' });
         }
-        drag.previewEl.style.left = `${(from / this.quarterWeeks.length) * 100}%`;
-        drag.previewEl.style.width = `${((to - from + 1) / this.quarterWeeks.length) * 100}%`;
+        drag.previewEl.setCssStyles({ left: `${(from / this.quarterWeeks.length) * 100}%`, width: `${((to - from + 1) / this.quarterWeeks.length) * 100}%` });
         if (!drag.tipEl) {
             drag.tipEl = document.body.createDiv({ cls: 'plan-annual-drag-tip' });
             applyThemeColors(drag.tipEl, getCurrentThemeColors());
@@ -1189,8 +1182,7 @@ export class PlanAnnualPanel extends FloatingPanel {
         const height = tip.offsetHeight;
         const left = Math.max(8, Math.min(clientX - width / 2, window.innerWidth - width - 8));
         const top = Math.max(8, clientY - height - 12);
-        tip.style.left = `${left}px`;
-        tip.style.top = `${top}px`;
+        tip.setCssStyles({ left: `${left}px`, top: `${top}px` });
     }
 
     /** 拖到季度页面左右边缘停留后自动翻页 */

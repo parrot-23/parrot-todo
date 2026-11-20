@@ -79,7 +79,7 @@ export class CollectPanel extends FloatingPanel {
 
     /** 设置面板宽度（保持当前定位） */
     private setWidth(width: number): void {
-        const root = this.body.closest('.floating-panel') as HTMLElement | null;
+        const root = this.body.closest<HTMLElement>('.floating-panel');
         if (root) root.style.width = `${width}px`;
     }
 

@@ -130,7 +130,7 @@ function renderBarChart(container: HTMLElement, data: ChartSeries['data'], optio
     }
 
     // 悬浮面板：鼠标移到柱子上时显示各任务时长
-    container.style.setProperty('position', 'relative');
+    container.setCssProps({ position: 'relative' });
     const tooltip = container.createDiv({ cls: 'wb-chart-tooltip' });
 
     for (let i = 0; i < data.length; i++) {
@@ -146,7 +146,7 @@ function renderBarChart(container: HTMLElement, data: ChartSeries['data'], optio
                 positionTooltip(tooltip, container, x, barW, barCenterY);
             });
             group.addEventListener('mouseleave', () => {
-                tooltip.style.display = 'none';
+                tooltip.setCssStyles({ display: 'none' });
             });
         } else {
             const h = (d.value / max) * chartH;
@@ -239,7 +239,7 @@ function drawStackedBar(
             height: String(Math.max(1, h)),
         });
         rect.setAttribute('class', 'wb-chart-bar wb-chart-seg');
-        if (seg.color) rect.style.setProperty('fill', seg.color);
+        if (seg.color) rect.setCssProps({ fill: seg.color });
         rect.setAttribute('data-value', String(seg.value));
         rect.setAttribute('data-label', seg.label);
         group.appendChild(rect);
@@ -287,11 +287,11 @@ function showTooltip(
         const seg = segs[i];
         const row = tooltip.createDiv({ cls: 'wb-chart-tooltip-row' });
         const dot = row.createSpan({ cls: 'wb-chart-tooltip-dot' });
-        if (seg.color) dot.style.background = seg.color;
+        if (seg.color) dot.setCssStyles({ background: seg.color });
         row.createSpan({ cls: 'wb-chart-tooltip-name', text: seg.label });
         row.createSpan({ cls: 'wb-chart-tooltip-val', text: formatAxisValue(seg.value, unit) });
     }
-    tooltip.style.display = 'block';
+    tooltip.setCssStyles({ display: 'block' });
 }
 
 /** 定位悬浮面板：优先在柱子右侧显示，右侧空间不足则放左侧；宽度保证单行文字完整显示 */
@@ -303,8 +303,7 @@ function positionTooltip(
     barCenterY: number,
 ) {
     // 先显示以测量面板尺寸
-    tooltip.style.visibility = 'hidden';
-    tooltip.style.display = 'block';
+    tooltip.setCssStyles({ visibility: 'hidden', display: 'block' });
     const panelW = tooltip.offsetWidth;
     const panelH = tooltip.offsetHeight;
     const containerW = container.clientWidth;
@@ -327,9 +326,7 @@ function positionTooltip(
     let top = barCenterY - panelH / 2;
     top = Math.max(0, Math.min(top, containerH - panelH));
 
-    tooltip.style.left = `${left}px`;
-    tooltip.style.top = `${top}px`;
-    tooltip.style.visibility = 'visible';
+    tooltip.setCssStyles({ left: `${left}px`, top: `${top}px`, visibility: 'visible' });
 }
 
 /** 绘制柱状图坐标轴：X 底部轴线 + Y 轴左侧轴线 + 均分刻度线与数值标签 */
@@ -718,7 +715,7 @@ function renderWordCloudView(container: HTMLElement, data: WordCloudSeries['data
         const ratio = d.value / max;
         const size = 12 + Math.round(ratio * 20); // 12px ~ 32px
         const span = wrap.createSpan({ cls: 'wb-wordcloud-word', text: d.text });
-        span.style.setProperty('font-size', `${size}px`);
+        span.setCssProps({ 'font-size': `${size}px` });
         span.setAttribute('data-value', String(d.value));
     }
 }

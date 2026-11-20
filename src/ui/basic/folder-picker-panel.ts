@@ -63,7 +63,7 @@ export class FolderPickerPanel extends FloatingPanel {
 
         this.listEl = this.body.createDiv({ cls: 'folder-picker-list' });
         this.listEl.addEventListener('click', (evt) => {
-            const row = (evt.target as HTMLElement).closest('.folder-picker-row') as HTMLElement | null;
+            const row = (evt.target as HTMLElement).closest<HTMLElement>('.folder-picker-row');
             const path = row?.dataset.path;
             if (!path) return;
             const folder = this.app.vault.getAbstractFileByPath(path);

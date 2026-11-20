@@ -22,11 +22,11 @@ const THEME_VARS = [
     '--text-on-accent',
 ];
 
-/** 全局只保留一个打开中的弹层 */
-let activePopover: PickerPopover | null = null;
-
 /** 选择器弹层：挂到 body 上，避免被面板 overflow 裁剪 */
 export class PickerPopover {
+    /** 全局只保留一个打开中的弹层 */
+    private static active: PickerPopover | null = null;
+
     private el: HTMLElement | null = null;
 
     constructor(
@@ -41,8 +41,8 @@ export class PickerPopover {
     /** 打开弹层并构建内容（构建完成后再定位，保证尺寸准确） */
     open(build: (el: HTMLElement) => void): HTMLElement | null {
         if (this.el) return this.el;
-        activePopover?.close();
-        activePopover = this;
+        PickerPopover.active?.close();
+        PickerPopover.active = this;
 
         const el = document.body.createDiv({ cls: `picker-popover ${this.options.cls}`, attr: { role: 'dialog' } });
         this.el = el;
@@ -66,7 +66,7 @@ export class PickerPopover {
         window.removeEventListener('scroll', this.handleReposition, true);
         this.el.remove();
         this.el = null;
-        if (activePopover === this) activePopover = null;
+        if (PickerPopover.active === this) PickerPopover.active = null;
         this.options.onClose?.();
     }
 

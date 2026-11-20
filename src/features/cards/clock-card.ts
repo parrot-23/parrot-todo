@@ -140,10 +140,10 @@ export class ClockCard {
         const [nightEndX, nightEndY] = point(6, radius);
         add('path', {
             d: `M ${cx} ${cy} L ${nightStartX} ${nightStartY} A ${radius} ${radius} 0 0 1 ${nightEndX} ${nightEndY} Z`,
-        }).style.fill = 'rgba(128, 128, 128, 0.18)';
+        }).setCssStyles({ fill: 'rgba(128, 128, 128, 0.18)' });
 
         add('circle', { cx: String(cx), cy: String(cy), r: String(radius), fill: 'none' })
-            .style.stroke = 'var(--background-modifier-border)';
+            .setCssStyles({ stroke: 'var(--background-modifier-border)' });
 
         // 中心饼图：今天的时间盒涂色分布，每个已涂色小时占 15°
         const pieRadius = 25;
@@ -159,7 +159,7 @@ export class ClockCard {
             const drawWedge = (startHour: number, endHour: number, color: string): void => {
                 if (startHour <= 0 && endHour >= 24) {
                     add('circle', { cx: String(cx), cy: String(cy), r: String(pieRadius) })
-                        .style.fill = color;
+                        .setCssStyles({ fill: color });
                     return;
                 }
                 const [sx, sy] = point(startHour, pieRadius);
@@ -167,7 +167,7 @@ export class ClockCard {
                 const largeArc = endHour - startHour > 12 ? 1 : 0;
                 add('path', {
                     d: `M ${cx} ${cy} L ${sx} ${sy} A ${pieRadius} ${pieRadius} 0 ${largeArc} 1 ${ex} ${ey} Z`,
-                }).style.fill = color;
+                }).setCssStyles({ fill: color });
             };
             // 相邻且分类相同的小时合并成一个扇区，避免同色出现接缝
             const paintedHours = Array.from(pieHours.keys()).sort((a, b) => a - b);
@@ -191,7 +191,7 @@ export class ClockCard {
             const [x1, y1] = point(hour, radius);
             const [x2, y2] = point(hour, radius - 6);
             add('line', { x1: String(x1), y1: String(y1), x2: String(x2), y2: String(y2) })
-                .style.stroke = 'var(--background-modifier-border)';
+                .setCssStyles({ stroke: 'var(--background-modifier-border)' });
 
             const [labelX, labelY] = point(hour, radius - 20);
             const isMajorHour = hour % 6 === 0;
@@ -203,7 +203,7 @@ export class ClockCard {
                 'font-size': isMajorHour ? '14' : '9',
                 'font-weight': isMajorHour ? '700' : '400',
             });
-            label.style.fill = 'var(--text-muted)';
+            label.setCssStyles({ fill: 'var(--text-muted)' });
             label.textContent = String(hour);
         }
 
@@ -217,7 +217,7 @@ export class ClockCard {
             'font-size': '18',
         });
         moon.textContent = '🌛';
-        moon.style.opacity = '0.85';
+        moon.setCssStyles({ opacity: '0.85' });
         const [sunX, sunY] = point(12, 50);
         const sun = add('text', {
             x: String(sunX),
@@ -227,7 +227,7 @@ export class ClockCard {
             'font-size': '18',
         });
         sun.textContent = '🌞';
-        sun.style.opacity = '0.85';
+        sun.setCssStyles({ opacity: '0.85' });
 
         // 时针：仅查看今天时指向当前时:分（历史日期没有「当前时刻」，不绘制时针）
         if (selectedDate.getTime() === startOfToday().getTime()) {
@@ -245,13 +245,9 @@ export class ClockCard {
                 x2: String(tipX),
                 y2: String(tipY),
             });
-            hand.style.stroke = handColor;
-            hand.style.strokeWidth = '3.5';
-            hand.style.strokeLinecap = 'round';
-            hand.style.opacity = '0.8';
+            hand.setCssStyles({ stroke: handColor, strokeWidth: '3.5', strokeLinecap: 'round', opacity: '0.8' });
             const hub = add('circle', { cx: String(cx), cy: String(cy), r: '4' });
-            hub.style.fill = handColor;
-            hub.style.opacity = '0.8';
+            hub.setCssStyles({ fill: handColor, opacity: '0.8' });
         }
 
         // 外环：所选日期已保存的执行记录（按时长占比绘制弧段）
@@ -273,12 +269,9 @@ export class ClockCard {
             const node: SVGElement = start === 0 && end === 24
                 ? add('circle', { cx: String(cx), cy: String(cy), r: String(ringRadius), fill: 'none' })
                 : add('path', { d: arcPath(start, end, ringRadius), fill: 'none' });
-            node.style.stroke = color;
-            node.style.strokeWidth = '10';
-            node.style.strokeLinecap = 'butt';
+            node.setCssStyles({ stroke: color, strokeWidth: '10', strokeLinecap: 'butt' });
             if (opacity !== 1) {
-                node.style.opacity = String(opacity);
-                node.style.pointerEvents = 'none';
+                node.setCssStyles({ opacity: String(opacity), pointerEvents: 'none' });
             }
             return node;
         };
