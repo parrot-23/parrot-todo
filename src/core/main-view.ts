@@ -214,7 +214,7 @@ export class MainView extends ItemView implements ThemeColorsConsumer {
         this.storyPanel.open();
     }
 
-    /** 渲染顶部工具栏左侧的「布局」按钮，以及位于顶部工具栏下方居中的扩展工具栏（添加 / 主题 / 退出） */
+    /** 渲染顶部工具栏左侧的「布局 / 主题」按钮，以及位于顶部工具栏下方居中的扩展工具栏（添加 / 退出） */
     private renderInterfaceTools(container: HTMLElement, nav: HTMLElement): void {
         const group = container.createDiv({ cls: 'interface-tool-group' });
 
@@ -226,18 +226,17 @@ export class MainView extends ItemView implements ThemeColorsConsumer {
             this.updateInterfaceTools();
         };
 
+        // 主题按钮：常驻顶部工具栏，位于布局按钮右侧（无需进入布局模式即可打开主题管理）
+        const themeBtn = group.createEl('button', { cls: 'interface-tool-btn', attr: { type: 'button' } });
+        setIcon(themeBtn, 'palette');
+        themeBtn.onclick = () => this.interfaceView.openThemePanel();
+
         // 扩展工具栏：绝对定位在顶部工具栏下方居中，作为浮层覆盖内容区，不挤压页面布局
         const toolbar = nav.createDiv({ cls: 'interface-tool-bar' });
 
         const addBtn = toolbar.createEl('button', { cls: 'interface-tool-btn', attr: { type: 'button' } });
         setIcon(addBtn, 'plus');
         addBtn.onclick = () => this.interfaceView.openCardPicker();
-
-        toolbar.createDiv({ cls: 'interface-tool-divider' });
-
-        const themeBtn = toolbar.createEl('button', { cls: 'interface-tool-btn', attr: { type: 'button' } });
-        setIcon(themeBtn, 'palette');
-        themeBtn.onclick = () => this.interfaceView.openThemePanel();
 
         toolbar.createDiv({ cls: 'interface-tool-divider' });
 

@@ -6926,6 +6926,7 @@ button.swimlane-section-card-settings {
     flex-shrink: 0;
     display: flex;
     align-items: center;
+    margin-left: 4px;
     margin-right: 2px;
 }
 
@@ -6933,6 +6934,7 @@ button.swimlane-section-card-settings {
     position: relative;
     display: inline-flex;
     align-items: center;
+    gap: 2px;
     padding: 0;
     border: 1px solid transparent;
     border-radius: 6px;
@@ -14860,43 +14862,43 @@ body.plan-annual-dragging {
     overflow: hidden;
 }
 
-/* ======================== 主题管理面板（panel/theme-panel：左右结构） ======================== */
+/* ======================== 主题管理面板（panel/theme-panel：选项卡 + 内容） ======================== */
 .floating-panel-body.theme-panel {
     display: flex;
-    flex-direction: row;
+    flex-direction: column;
     padding: 0;
     overflow: hidden;
 }
 
-.theme-panel-menu {
+/* 顶部居中的选项卡 */
+.theme-panel-tabs {
     flex-shrink: 0;
-    width: 120px;
     display: flex;
-    flex-direction: column;
-    gap: 2px;
-    padding: 8px;
-    border-right: 1px solid var(--sdt-card-border, var(--background-modifier-border));
-    background: var(--sdt-card-bg, var(--background-secondary));
+    justify-content: center;
+    gap: 4px;
+    padding: 10px 16px 0;
+    border-bottom: 1px solid var(--sdt-card-border, var(--background-modifier-border));
 }
 
-.theme-panel-menu-item {
-    padding: 8px 12px;
-    border-radius: 6px;
+.theme-panel-tab {
+    padding: 7px 16px;
+    border-radius: 8px 8px 0 0;
     font-size: 13px;
     color: var(--sdt-text-secondary, var(--text-muted));
     cursor: pointer;
     user-select: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
 }
 
-.theme-panel-menu-item:hover {
-    background: var(--sdt-hover-bg, var(--background-modifier-hover));
+.theme-panel-tab:hover {
     color: var(--sdt-text-primary, var(--text-normal));
 }
 
-.theme-panel-menu-item.is-active {
-    background: var(--sdt-hover-bg, var(--background-modifier-hover));
+.theme-panel-tab.is-active {
     color: var(--interactive-accent);
     font-weight: 600;
+    border-bottom-color: var(--interactive-accent);
 }
 
 .theme-panel-content {
@@ -14908,6 +14910,83 @@ body.plan-annual-dragging {
     gap: 12px;
     padding: 16px;
     overflow: auto;
+}
+
+/* 「当前主题」选项卡：纵向排列名称与配色 */
+.theme-panel-content.is-current {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-content: stretch;
+    gap: 20px;
+}
+
+.theme-current-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.theme-current-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--sdt-text-secondary, var(--text-muted));
+}
+
+.theme-current-name {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--sdt-text-primary, var(--text-normal));
+}
+
+.theme-current-empty {
+    font-size: 13px;
+    color: var(--sdt-text-secondary, var(--text-muted));
+}
+
+/* 关键配色网格 */
+.theme-color-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 10px;
+}
+
+.theme-color-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border: 1px solid var(--sdt-card-border, var(--background-modifier-border));
+    border-radius: 8px;
+    background: var(--sdt-control-bg, var(--background-primary));
+}
+
+.theme-color-swatch {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    border: 1px solid var(--sdt-card-border, var(--background-modifier-border));
+}
+
+.theme-color-meta {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.theme-color-label {
+    font-size: 12px;
+    color: var(--sdt-text-primary, var(--text-normal));
+}
+
+.theme-color-value {
+    font-size: 11px;
+    color: var(--sdt-text-secondary, var(--text-muted));
+    font-family: var(--font-monospace);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* 占位内容（本地菜单）：居中显示 */
@@ -15035,20 +15114,20 @@ body.plan-annual-dragging {
 }
 
 /* ======================== 田园主题（仅界面视图背景） ======================== */
-/* 视图底色：暖青暖橙的柔和渐变，营造温暖自然的氛围 */
+/* 视图底色：乡野青草清新的暖青渐变，营造自然清新的田园氛围 */
 .interface-view.is-theme-pastoral {
-    background-color: #f6e7cf;
-    background-image: linear-gradient(160deg, #f6e7cf 0%, #e8d5b5 45%, #d9c9a8 100%);
+    background-color: #e3efd8;
+    background-image: linear-gradient(160deg, #eef6e4 0%, #dcecd0 45%, #c9e0bd 100%);
 }
 
-/* 兜底：即使 view-content 仍带有内边距，整块标签页区域也保持暖色 */
+/* 兜底：即使 view-content 仍带有内边距，整块标签页区域也保持暖青 */
 .parrot-plan-main.view-content:has(.interface-view.is-theme-pastoral) {
-    background-color: #f6e7cf;
+    background-color: #e3efd8;
 }
 
-/* 编辑模式：网点叠加在暖色背景之上 */
+/* 编辑模式：网点叠加在暖青背景之上 */
 .interface-view.is-editing.is-theme-pastoral {
-    background-image: radial-gradient(circle at 0 0, rgba(120, 90, 50, 0.28) 1.4px, transparent 1.4px);
+    background-image: radial-gradient(circle at 0 0, rgba(70, 110, 70, 0.26) 1.4px, transparent 1.4px);
     background-size: 30px 30px;
     background-repeat: repeat;
 }

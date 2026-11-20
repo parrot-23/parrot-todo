@@ -315,6 +315,18 @@ export const en: I18nMessages = {
     'theme.blankNote': 'No theme applied',
     'theme.apply': 'Apply',
     'theme.inUse': 'In use',
+    'theme.tabCurrent': 'Current Theme',
+    'theme.tabMore': 'More Themes',
+    'theme.currentName': 'Theme Name',
+    'theme.currentColors': 'Key Colors',
+    'theme.colorCardBg': 'Card Background',
+    'theme.colorCardBorder': 'Card Border',
+    'theme.colorTextPrimary': 'Primary Text',
+    'theme.colorTextSecondary': 'Secondary Text',
+    'theme.colorHover': 'Hover Highlight',
+    'theme.colorInteractive': 'Button Background',
+    'theme.colorControl': 'Control Background',
+    'theme.noColors': 'This theme uses default colors',
 
     // Top toolbar and status bar
     'nav.data': 'Data',

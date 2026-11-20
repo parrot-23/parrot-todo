@@ -51,6 +51,8 @@ export interface ThemeDefinition {
     assets: ThemeAsset[];
     /** 缩略图占位文案 key（无图片素材时显示，如空白主题） */
     noteKey?: keyof I18nMessages;
+    /** 缩略图封面底色（无图片素材时作为封面背景，跟随主题配色） */
+    previewColor?: string;
     /** 卡片与文字的配色令牌（未设置时回退 Obsidian 默认） */
     colors?: ThemeColors;
     /** 在容器内绘制代码层（星空 / 光晕 / 星云），可返回清理函数用于停止动画 */

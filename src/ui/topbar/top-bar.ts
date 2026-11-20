@@ -83,6 +83,14 @@ export class TopBar {
         setIcon(collectBtn, 'inbox');
         collectBtn.onclick = () => this.options.onOpenCollectPanel?.();
 
+        // 剧本按钮：位于收集按钮右侧
+        const storyBtn = dateBar.createEl('button', {
+            cls: 'parrot-plan-topbar-calendar-btn',
+            attr: { 'aria-label': t('story.title') },
+        });
+        setIcon(storyBtn, 'book-open');
+        storyBtn.onclick = () => this.options.onOpenStory?.();
+
         // 周历按钮：位于日期切换左侧
         const calendarBtn = dateBar.createEl('button', {
             cls: 'parrot-plan-topbar-calendar-btn',
@@ -121,14 +129,6 @@ export class TopBar {
         });
         setIcon(settingsBtn, 'settings');
         settingsBtn.onclick = () => this.options.onOpenSettings?.();
-
-        // 剧本按钮：紧贴设置按钮右侧
-        const storyBtn = dateBar.createEl('button', {
-            cls: 'parrot-plan-topbar-settings-btn',
-            attr: { 'aria-label': t('story.title') },
-        });
-        setIcon(storyBtn, 'book-open');
-        storyBtn.onclick = () => this.options.onOpenStory?.();
 
         // 帮助按钮：紧贴设置按钮右侧
         const helpBtn = dateBar.createEl('button', {

@@ -6,6 +6,7 @@ export const deepspaceTheme: ThemeDefinition = {
     id: 'deepspace',
     nameKey: 'theme.nameDeepSpace',
     assets: [],
+    previewColor: '#000000',
     colors: {
         cardBackground: 'rgba(22, 26, 40, 0.55)',
         cardBorder: 'rgba(255, 255, 255, 0.14)',

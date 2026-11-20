@@ -313,6 +313,18 @@ export const zh = {
     'theme.blankNote': '不使用任何主题',
     'theme.apply': '应用',
     'theme.inUse': '使用中',
+    'theme.tabCurrent': '当前主题',
+    'theme.tabMore': '更多主题',
+    'theme.currentName': '主题名称',
+    'theme.currentColors': '关键配色',
+    'theme.colorCardBg': '卡片背景',
+    'theme.colorCardBorder': '卡片边框',
+    'theme.colorTextPrimary': '主要文字',
+    'theme.colorTextSecondary': '次要文字',
+    'theme.colorHover': '悬停高亮',
+    'theme.colorInteractive': '按钮背景',
+    'theme.colorControl': '控件背景',
+    'theme.noColors': '该主题使用默认配色',
 
     // 顶部工具栏与状态栏
     'nav.data': '数据',

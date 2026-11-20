@@ -1,11 +1,32 @@
 ﻿// 主题管理面板：界面视图编辑模式下从「主题」按钮打开。
-// 仅展示官方主题预览卡片（已去除左侧「官方 / 本地」菜单）；
+// 顶部居中两个选项卡：「当前主题」展示当前主题名称与关键配色；「更多主题」展示官方主题预览卡片。
 // 预览卡片的数据来自 src/themes 下由代码定义的主题（代码绘制层 + 图片素材）。
 import type { App } from 'obsidian';
 
 import { t } from '../../core/i18n';
-import { THEME_DEFINITIONS } from '../../theme/registry';
+import { THEME_DEFINITIONS, getThemeDefinition } from '../../theme/registry';
+import type { ThemeColors } from '../../theme/theme-definition';
 import { FloatingPanel, type FloatingPanelOptions } from '../basic/floating-panel';
+
+/** 选项卡标识 */
+type ThemeTabKey = 'current' | 'more';
+
+/** 选项卡定义：key + 文案 key */
+const TABS: { key: ThemeTabKey; labelKey: Parameters<typeof t>[0] }[] = [
+    { key: 'current', labelKey: 'theme.tabCurrent' },
+    { key: 'more', labelKey: 'theme.tabMore' },
+];
+
+/** 关键配色项：颜色令牌字段 + 文案 key */
+const COLOR_ITEMS: { key: keyof ThemeColors; labelKey: Parameters<typeof t>[0] }[] = [
+    { key: 'cardBackground', labelKey: 'theme.colorCardBg' },
+    { key: 'cardBorder', labelKey: 'theme.colorCardBorder' },
+    { key: 'textPrimary', labelKey: 'theme.colorTextPrimary' },
+    { key: 'textSecondary', labelKey: 'theme.colorTextSecondary' },
+    { key: 'hoverBackground', labelKey: 'theme.colorHover' },
+    { key: 'interactiveBackground', labelKey: 'theme.colorInteractive' },
+    { key: 'controlBackground', labelKey: 'theme.colorControl' },
+];
 
 /** 主题管理面板配置 */
 export interface ThemePanelOptions extends Pick<FloatingPanelOptions, 'container'> {
@@ -21,6 +42,10 @@ export interface ThemePanelOptions extends Pick<FloatingPanelOptions, 'container
 
 export class ThemePanel extends FloatingPanel {
     private readonly panelOptions: ThemePanelOptions;
+    /** 当前选中的选项卡 */
+    private activeTab: ThemeTabKey = 'current';
+    /** 选项卡按钮容器 */
+    private tabsEl: HTMLElement | null = null;
     /** 内容容器 */
     private contentEl: HTMLElement | null = null;
 
@@ -35,7 +60,16 @@ export class ThemePanel extends FloatingPanel {
         this.setContent((body) => {
             body.addClass('theme-panel');
 
-            // 内容（仅官方主题预览卡片）
+            // 顶部居中的选项卡
+            this.tabsEl = body.createDiv({ cls: 'theme-panel-tabs' });
+            for (const { key, labelKey } of TABS) {
+                const tab = this.tabsEl.createDiv({ cls: 'theme-panel-tab' });
+                tab.setText(t(labelKey));
+                tab.toggleClass('is-active', key === this.activeTab);
+                tab.addEventListener('click', () => this.selectTab(key));
+            }
+
+            // 内容区
             this.contentEl = body.createDiv({ cls: 'theme-panel-content' });
             this.renderContent();
         });
@@ -46,12 +80,59 @@ export class ThemePanel extends FloatingPanel {
         this.renderContent();
     }
 
-    /** 渲染官方主题预览卡片 */
+    /** 切换选项卡 */
+    private selectTab(key: ThemeTabKey): void {
+        if (this.activeTab === key) return;
+        this.activeTab = key;
+        this.tabsEl?.querySelectorAll('.theme-panel-tab').forEach((el, index) => {
+            el.toggleClass('is-active', TABS[index].key === key);
+        });
+        this.renderContent();
+    }
+
+    /** 按当前选项卡渲染内容 */
     private renderContent(): void {
         const contentEl = this.contentEl;
         if (!contentEl) return;
         contentEl.empty();
+        contentEl.toggleClass('is-current', this.activeTab === 'current');
+        if (this.activeTab === 'current') this.renderCurrentTheme(contentEl);
+        else this.renderThemeCards(contentEl);
+    }
 
+    /** 「当前主题」选项卡：展示主题名称与关键配色 */
+    private renderCurrentTheme(contentEl: HTMLElement): void {
+        const theme = getThemeDefinition(this.panelOptions.getCurrentThemeId());
+        const name = theme ? t(theme.nameKey) : t('theme.blank');
+
+        // 主题名称
+        const nameSection = contentEl.createDiv({ cls: 'theme-current-section' });
+        nameSection.createDiv({ cls: 'theme-current-label', text: t('theme.currentName') });
+        nameSection.createDiv({ cls: 'theme-current-name', text: name });
+
+        // 关键配色
+        const colorSection = contentEl.createDiv({ cls: 'theme-current-section' });
+        colorSection.createDiv({ cls: 'theme-current-label', text: t('theme.currentColors') });
+        const colors = theme?.colors;
+        if (!colors) {
+            colorSection.createDiv({ cls: 'theme-current-empty', text: t('theme.noColors') });
+            return;
+        }
+        const grid = colorSection.createDiv({ cls: 'theme-color-grid' });
+        for (const { key, labelKey } of COLOR_ITEMS) {
+            const value = colors[key];
+            if (!value) continue;
+            const item = grid.createDiv({ cls: 'theme-color-item' });
+            const swatch = item.createDiv({ cls: 'theme-color-swatch' });
+            swatch.style.backgroundColor = value;
+            const meta = item.createDiv({ cls: 'theme-color-meta' });
+            meta.createDiv({ cls: 'theme-color-label', text: t(labelKey) });
+            meta.createDiv({ cls: 'theme-color-value', text: value });
+        }
+    }
+
+    /** 「更多主题」选项卡：渲染官方主题预览卡片 */
+    private renderThemeCards(contentEl: HTMLElement): void {
         const currentThemeId = this.panelOptions.getCurrentThemeId();
         for (const theme of THEME_DEFINITIONS) {
             const isActive = theme.id === currentThemeId;
@@ -71,6 +152,8 @@ export class ThemePanel extends FloatingPanel {
                 thumb.createSpan({ cls: 'theme-preview-thumb-note', text: t(theme.noteKey) });
             } else {
                 thumb.addClass('is-plain');
+                // 封面底色跟随主题配色（如田园主题的暖色），未设置时回退默认黑色
+                if (theme.previewColor) thumb.style.backgroundColor = theme.previewColor;
             }
 
             const info = card.createDiv({ cls: 'theme-preview-info' });
