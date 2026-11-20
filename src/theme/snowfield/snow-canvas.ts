@@ -132,7 +132,7 @@ export function createSnowfall(
         // 最大扩散半径：覆盖整个画面
         const maxRadius = Math.hypot(width * 0.5, height * 0.85);
         // 密度上限对应的最小间距（相对帐篷尺寸）：小于它就算「放不下」
-        const minGap = baseH * 1.5;
+        const minGap = baseH * 1.95;
         // 环距：相邻两圈的半径差
         const ringStep = minGap * 0.9;
 
