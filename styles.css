@@ -15075,22 +15075,6 @@ button.interface-today-tasks-add {
     background: var(--sdt-card-border, var(--background-modifier-border));
 }
 
-.goal-board-config-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 2px 0;
-}
-
-.goal-board-config-label {
-    flex: 1 1 auto;
-    font-size: 12px;
-}
-
-.goal-board-config-placeholder {
-    font-size: 11px;
-    color: var(--text-faint);
-}
 /* 补回：清单区容器 / 习惯时间输入 / 任务详情右侧滚动 */
 .task-section-checklist {
     display: flex;
@@ -15120,37 +15104,19 @@ button.interface-today-tasks-add {
     flex: 1;
     min-width: 0;
     box-sizing: border-box;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    gap: 1px;
-    padding: 2px 3px;
     pointer-events: none;
 }
 
-.plan-annual-week-hit.is-clickable {
-    pointer-events: auto;
-    cursor: pointer;
-}
-
-.plan-annual-week-hit.is-clickable:hover {
-    background: rgba(255, 255, 255, 0.12);
-}
-
-/* 周格上的阶段目标：每条一行，target 图标 + 名称 */
-.goal-board-weekgoal-list {
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-    min-width: 0;
-    pointer-events: none;
-}
-
+/* 周格上的目标：每个目标独占一行（绝对定位到自己的行），不截断，超出周列时向右溢出显示 */
 .goal-board-weekgoal-item {
-    display: flex;
+    position: absolute;
+    left: 3px;
+    z-index: 2;
+    width: max-content;
+    max-width: none;
+    display: inline-flex;
     align-items: center;
     gap: 2px;
-    min-width: 0;
     padding: 0 2px;
     border-radius: 3px;
     background: rgba(0, 0, 0, 0.45);
@@ -15174,148 +15140,18 @@ button.interface-today-tasks-add {
 }
 
 .goal-board-weekgoal-name {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    flex: 0 0 auto;
     white-space: nowrap;
+    overflow: visible;
 }
 
 .goal-board-panel {
     position: relative;
 }
 
-.goal-board-goal-tip {
-    position: absolute;
-    z-index: 30;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    padding: 8px;
-    box-sizing: border-box;
-    border: 1px solid var(--sdt-card-border, var(--background-modifier-border));
-    border-radius: 6px;
-    background: var(--sdt-card-bg, var(--background-primary));
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
-}
-
-.goal-board-goal-tip-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    font-size: 12px;
-    font-weight: 600;
-}
-
-.goal-board-goal-tip-close,
-.goal-board-goal-tip-delete {
-    border: none;
-    background: transparent;
-    box-shadow: none;
-    padding: 0 2px;
-    color: var(--text-muted);
-    cursor: pointer;
-}
-
-.goal-board-goal-tip-hint {
-    font-size: 11px;
-    line-height: 1.4;
-    color: var(--text-muted);
-}
-
-.goal-board-goal-tip-list {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    max-height: 160px;
-    overflow-y: auto;
-}
-
-.goal-board-goal-tip-empty {
-    font-size: 11px;
-    color: var(--text-faint);
-}
-
-.goal-board-goal-tip-item {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 12px;
-}
-
-.goal-board-goal-tip-item.is-done .goal-board-goal-tip-text {
-    text-decoration: line-through;
-    color: var(--text-faint);
-}
-
-.goal-board-goal-tip-text {
-    flex: 1 1 auto;
-    word-break: break-word;
-}
-
-.goal-board-goal-tip-input-row {
-    display: flex;
-}
-
-.goal-board-goal-tip-input {
-    width: 100%;
-    font-size: 12px;
-}
-
-/* 周格下方的目标时长区：一行标题 + 按周列对齐的子任务卡片 */
-.goal-board-duration {
-    margin-top: 26px;
-    padding-bottom: 12px;
-}
-
-.goal-board-duration-title {
-    padding: 0 4px 6px;
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--text-muted);
-}
-
-.goal-board-duration-columns {
-    display: flex;
-    align-items: flex-start;
-}
-
-.goal-board-duration-column {
-    flex: 1;
-    min-width: 0;
-    box-sizing: border-box;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    padding: 0 2px;
-}
-
-.goal-board-duration-card {
-    display: flex;
-    align-items: center;
-    gap: 3px;
-    min-width: 0;
-    padding: 2px 4px;
-    box-sizing: border-box;
-    border: 1px solid var(--sdt-card-border, var(--background-modifier-border));
-    border-radius: 4px;
-    background: var(--sdt-card-bg, var(--background-primary));
-    font-size: 10px;
-    line-height: 1.3;
-}
-
-.goal-board-duration-dot {
-    flex: 0 0 auto;
-    width: 5px;
-    height: 5px;
-    border-radius: 50%;
-    background: var(--goal-board-duration-color, #888888);
-}
-
-.goal-board-duration-name {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+/* 目标面板：允许周格内目标文字溢出到相邻列，仅在面板边缘裁切，不产生横向滚动 */
+.goal-board-right .plan-annual-lanes {
+    overflow-x: hidden;
 }
 
 /* 左侧阶段目标列表 */
@@ -15334,16 +15170,14 @@ button.interface-today-tasks-add {
     padding: 2px 4px;
     border-radius: 4px;
     font-size: 12px;
+}
+
+.goal-board-goal-item.is-clickable {
     cursor: pointer;
 }
 
-.goal-board-goal-item:hover {
+.goal-board-goal-item.is-clickable:hover {
     background: var(--background-modifier-hover);
-}
-
-.goal-board-goal-item.is-done .goal-board-goal-text {
-    color: var(--text-muted);
-    text-decoration: line-through;
 }
 
 .goal-board-goal-text {
@@ -15358,22 +15192,6 @@ button.interface-today-tasks-add {
     flex: 0 0 auto;
     font-size: 10px;
     color: var(--text-muted);
-}
-
-.goal-board-goal-delete {
-    flex: 0 0 auto;
-    padding: 0 2px;
-    border: none;
-    background: transparent;
-    box-shadow: none;
-    color: var(--text-muted);
-    font-size: 12px;
-    line-height: 1;
-    cursor: pointer;
-}
-
-.goal-board-goal-delete:hover {
-    color: var(--text-error);
 }
 
 .goal-board-goal-empty {
