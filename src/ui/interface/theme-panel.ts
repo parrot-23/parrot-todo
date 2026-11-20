@@ -38,6 +38,10 @@ export interface ThemePanelOptions extends Pick<FloatingPanelOptions, 'container
     getCurrentThemeId: () => string;
     /** 应用主题 */
     onApply: (themeId: string) => void;
+    /** 读取某主题已保存的变量值 */
+    getThemeVariables: (themeId: string) => Record<string, number>;
+    /** 变量值变化（拖动滑块时触发） */
+    onVariableChange: (themeId: string, key: string, value: number) => void;
 }
 
 export class ThemePanel extends FloatingPanel {
@@ -100,7 +104,7 @@ export class ThemePanel extends FloatingPanel {
         else this.renderThemeCards(contentEl);
     }
 
-    /** 「当前主题」选项卡：展示主题名称与关键配色 */
+    /** 「当前主题」选项卡：展示主题名称、关键配色与关键变量 */
     private renderCurrentTheme(contentEl: HTMLElement): void {
         const theme = getThemeDefinition(this.panelOptions.getCurrentThemeId());
         const name = theme ? t(theme.nameKey) : t('theme.blank');
@@ -116,18 +120,80 @@ export class ThemePanel extends FloatingPanel {
         const colors = theme?.colors;
         if (!colors) {
             colorSection.createDiv({ cls: 'theme-current-empty', text: t('theme.noColors') });
-            return;
+        } else {
+            const grid = colorSection.createDiv({ cls: 'theme-color-grid' });
+            for (const { key, labelKey } of COLOR_ITEMS) {
+                const value = colors[key];
+                if (!value) continue;
+                const item = grid.createDiv({ cls: 'theme-color-item' });
+                const swatch = item.createDiv({ cls: 'theme-color-swatch' });
+                swatch.style.backgroundColor = value;
+                const meta = item.createDiv({ cls: 'theme-color-meta' });
+                meta.createDiv({ cls: 'theme-color-label', text: t(labelKey) });
+                meta.createDiv({ cls: 'theme-color-value', text: value });
+            }
         }
-        const grid = colorSection.createDiv({ cls: 'theme-color-grid' });
-        for (const { key, labelKey } of COLOR_ITEMS) {
-            const value = colors[key];
-            if (!value) continue;
-            const item = grid.createDiv({ cls: 'theme-color-item' });
-            const swatch = item.createDiv({ cls: 'theme-color-swatch' });
-            swatch.style.backgroundColor = value;
-            const meta = item.createDiv({ cls: 'theme-color-meta' });
-            meta.createDiv({ cls: 'theme-color-label', text: t(labelKey) });
-            meta.createDiv({ cls: 'theme-color-value', text: value });
+
+        // 关键变量：可拖动滑块调节
+        const variables = theme?.variables ?? [];
+        if (variables.length === 0) return;
+        const varSection = contentEl.createDiv({ cls: 'theme-current-section' });
+        varSection.createDiv({ cls: 'theme-current-label', text: t('theme.currentVariables') });
+        const saved = theme ? this.panelOptions.getThemeVariables(theme.id) : {};
+        const list = varSection.createDiv({ cls: 'theme-var-list' });
+        for (const variable of variables) {
+            const current = saved[variable.key] ?? variable.defaultValue;
+            const row = list.createDiv({ cls: 'theme-var-item' });
+            const head = row.createDiv({ cls: 'theme-var-head' });
+            head.createSpan({ cls: 'theme-var-label', text: t(variable.labelKey) });
+            // 数值输入框：与滑块双向联动
+            const valueInput = head.createEl('input', {
+                cls: 'theme-var-value',
+                attr: {
+                    type: 'number',
+                    min: String(variable.min),
+                    max: String(variable.max),
+                    step: String(variable.step),
+                    value: String(current),
+                },
+            });
+
+            const slider = row.createEl('input', {
+                cls: 'theme-var-slider',
+                attr: {
+                    type: 'range',
+                    min: String(variable.min),
+                    max: String(variable.max),
+                    step: String(variable.step),
+                    value: String(current),
+                },
+            });
+
+            /** 夹取到合法范围并按步长取整 */
+            const clamp = (raw: number): number => {
+                const stepped = Math.round(raw / variable.step) * variable.step;
+                return Math.max(variable.min, Math.min(variable.max, stepped));
+            };
+
+            // 拖动滑块：同步输入框并应用
+            slider.addEventListener('input', () => {
+                const value = Number(slider.value);
+                valueInput.value = String(value);
+                if (!theme) return;
+                this.panelOptions.onVariableChange(theme.id, variable.key, value);
+            });
+
+            // 输入框修改：失焦或回车时夹取、同步滑块并应用
+            const commitInput = (): void => {
+                const raw = Number(valueInput.value);
+                const value = Number.isFinite(raw) ? clamp(raw) : current;
+                valueInput.value = String(value);
+                slider.value = String(value);
+                if (!theme) return;
+                this.panelOptions.onVariableChange(theme.id, variable.key, value);
+            };
+            valueInput.addEventListener('change', commitInput);
+            valueInput.addEventListener('blur', commitInput);
         }
     }
 

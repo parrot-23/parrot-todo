@@ -810,7 +810,12 @@ export class InterfaceView {
         if (!theme) return;
         container.addClass(`is-theme-${theme.id}`);
 
-        const dispose = theme.mount(container, { app: this.app, pluginDir: this.pluginDir });
+        // 合并主题变量：默认值 + 用户已保存值
+        const variables: Record<string, number> = {};
+        for (const variable of theme.variables ?? []) variables[variable.key] = variable.defaultValue;
+        Object.assign(variables, this.themeRepo.getThemeVariables(theme.id));
+
+        const dispose = theme.mount(container, { app: this.app, pluginDir: this.pluginDir, variables });
         this.themeDispose = typeof dispose === 'function' ? dispose : null;
     }
 
@@ -888,6 +893,13 @@ export class InterfaceView {
                     this.themeRepo.setCurrentTheme(themeId);
                     void (this.plugin as Plugin & { saveAll: () => Promise<void> }).saveAll();
                     // 仅重应用主题，不重绘卡片与面板，保持主题面板打开
+                    this.reapplyTheme();
+                },
+                getThemeVariables: (themeId) => this.themeRepo.getThemeVariables(themeId),
+                onVariableChange: (themeId, key, value) => {
+                    this.themeRepo.setThemeVariable(themeId, key, value);
+                    void (this.plugin as Plugin & { saveAll: () => Promise<void> }).saveAll();
+                    // 变量变化后重应用主题（重建场景层），保持面板打开
                     this.reapplyTheme();
                 },
             });

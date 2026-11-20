@@ -24,10 +24,16 @@ export const pastoralTheme: ThemeDefinition = {
         interactiveHover: 'rgba(168, 206, 148, 0.34)',
         controlBackground: 'rgba(240, 248, 232, 0.95)',
     },
-    mount(container) {
+    // 可调变量：动物数量（主题管理面板中可拖动调节）
+    variables: [
+        { key: 'animalCount', labelKey: 'theme.varAnimalCount', min: 0, max: 999, step: 1, defaultValue: 6 },
+    ],
+    mount(container, ctx) {
         // 场景层：承载猫狗画布，位于内容之下且不拦截交互
         const scene = container.createDiv({ cls: 'interface-theme-scene' });
         const canvasEl = scene.createEl('canvas', { cls: 'interface-theme-canvas' });
-        return createPastoralScene(canvasEl, scene);
+        // 动物数量取自主题变量，未设置时回退默认值
+        const animalCount = ctx.variables.animalCount ?? 6;
+        return createPastoralScene(canvasEl, scene, animalCount);
     },
 };

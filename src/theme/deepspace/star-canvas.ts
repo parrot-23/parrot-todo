@@ -19,10 +19,10 @@ const MAX_DPR = 2;
 const APPROACH_SPEED = 0.04;
 /** 最近处深度，到达后重新回到最远处 */
 const NEAREST_Z = 0.06;
-/** 星点数量上限 */
-const MAX_STARS = 240;
-/** 平均多少画布像素分布一颗星 */
-const PIXELS_PER_STAR = 12000;
+/** 星点数量上限（变量可调范围的上界） */
+const MAX_STARS = 999;
+/** 星点数量下限 */
+const MIN_STARS = 0;
 /** 星点出场后越过画布边界的额外余量（像素） */
 const EDGE_MARGIN = 60;
 
@@ -34,11 +34,15 @@ function randomBetween(min: number, max: number): number {
  * 在 canvas 上绘制迎面移动的星点。
  * @param canvas 画布元素
  * @param host 尺寸参照容器
+ * @param starCount 星点数量（由主题变量传入，超出范围时夹取）
  * @returns 清理函数
  */
-export function createStarfield(canvas: HTMLCanvasElement, host: HTMLElement): () => void {
+export function createStarfield(canvas: HTMLCanvasElement, host: HTMLElement, starCount: number): () => void {
     const ctx = canvas.getContext('2d');
     if (!ctx) return () => undefined;
+
+    // 夹取星点数量到合法范围
+    const count = Math.max(MIN_STARS, Math.min(MAX_STARS, Math.round(starCount)));
 
     let width = 1;
     let height = 1;
@@ -55,7 +59,6 @@ export function createStarfield(canvas: HTMLCanvasElement, host: HTMLElement): (
     });
 
     const buildStars = (): void => {
-        const count = Math.round(Math.min(MAX_STARS, Math.max(90, (width * height) / PIXELS_PER_STAR)));
         stars = Array.from({ length: count }, () => spawn(false));
     };
 

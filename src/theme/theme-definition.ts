@@ -19,6 +19,24 @@ export interface ThemeMountContext {
     app: App;
     /** 插件目录（vault 相对路径） */
     pluginDir: string;
+    /** 当前主题的可调变量值（key → 数值），未设置时使用变量默认值 */
+    variables: Record<string, number>;
+}
+
+/** 主题可调变量声明（如田园主题的动物数量），在主题管理面板中可拖动调节 */
+export interface ThemeVariable {
+    /** 变量标识（同一主题内唯一） */
+    key: string;
+    /** 变量名文案 key */
+    labelKey: keyof I18nMessages;
+    /** 最小值 */
+    min: number;
+    /** 最大值 */
+    max: number;
+    /** 步长 */
+    step: number;
+    /** 默认值 */
+    defaultValue: number;
 }
 
 /** 主题颜色令牌：控制卡片与文字的配色。未设置时回退 Obsidian 默认变量。 */
@@ -55,6 +73,8 @@ export interface ThemeDefinition {
     previewColor?: string;
     /** 卡片与文字的配色令牌（未设置时回退 Obsidian 默认） */
     colors?: ThemeColors;
+    /** 可调变量声明（如动物数量），在主题管理面板中可拖动调节 */
+    variables?: ThemeVariable[];
     /** 在容器内绘制代码层（星空 / 光晕 / 星云），可返回清理函数用于停止动画 */
     mount: (container: HTMLElement, ctx: ThemeMountContext) => (() => void) | void;
 }

@@ -727,11 +727,12 @@ function parseRunningTask(raw: unknown): RunningTask | undefined {
 function parseThemeData(raw: unknown): ThemeData {
     const officialThemes: ThemeData['officialThemes'] = [];
     const localThemes: ThemeData['localThemes'] = [];
+    const themeVariables: ThemeData['themeVariables'] = {};
     const currentThemeId = raw && typeof raw === 'object'
         && typeof (raw as { currentThemeId?: unknown }).currentThemeId === 'string'
         ? (raw as { currentThemeId: string }).currentThemeId
         : DEFAULT_THEME_ID;
-    if (!raw || typeof raw !== 'object') return { currentThemeId, officialThemes, localThemes };
+    if (!raw || typeof raw !== 'object') return { currentThemeId, officialThemes, localThemes, themeVariables };
     const rawOfficial = (raw as { officialThemes?: unknown }).officialThemes;
     if (Array.isArray(rawOfficial)) {
         for (const item of rawOfficial) {
@@ -746,7 +747,19 @@ function parseThemeData(raw: unknown): ThemeData {
             if (theme) localThemes.push(theme);
         }
     }
-    return { currentThemeId, officialThemes, localThemes };
+    // 主题可调变量（兼容旧数据：默认空）
+    const rawVars = (raw as { themeVariables?: unknown }).themeVariables;
+    if (rawVars && typeof rawVars === 'object') {
+        for (const [themeId, vars] of Object.entries(rawVars as Record<string, unknown>)) {
+            if (!vars || typeof vars !== 'object') continue;
+            const parsed: Record<string, number> = {};
+            for (const [key, value] of Object.entries(vars as Record<string, unknown>)) {
+                if (typeof value === 'number' && Number.isFinite(value)) parsed[key] = value;
+            }
+            themeVariables[themeId] = parsed;
+        }
+    }
+    return { currentThemeId, officialThemes, localThemes, themeVariables };
 }
 
 /** 解析单个主题（非法数据返回 null） */

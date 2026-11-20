@@ -25,9 +25,11 @@ export interface ThemeData {
     officialThemes: Theme[];
     /** 本地主题列表 */
     localThemes: Theme[];
+    /** 各主题的可调变量值：主题 id → (变量 key → 数值) */
+    themeVariables: Record<string, Record<string, number>>;
 }
 
 /** 默认主题数据（默认应用深空，列表为空占位） */
 export function defaultThemeData(): ThemeData {
-    return { currentThemeId: DEFAULT_THEME_ID, officialThemes: [], localThemes: [] };
+    return { currentThemeId: DEFAULT_THEME_ID, officialThemes: [], localThemes: [], themeVariables: {} };
 }

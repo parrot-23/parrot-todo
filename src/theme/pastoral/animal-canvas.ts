@@ -36,10 +36,10 @@ interface Animal {
 
 /** 设备像素比上限（避免高分屏绘制压力过大） */
 const MAX_DPR = 2;
-/** 动物数量上限 */
-const MAX_ANIMALS = 8;
-/** 平均多少画布像素分布一只动物 */
-const PIXELS_PER_ANIMAL = 78000;
+/** 动物数量上限（变量可调范围的上界） */
+const MAX_ANIMALS = 999;
+/** 动物数量下限 */
+const MIN_ANIMALS = 0;
 /** 出场后越过画布边界的额外余量（像素） */
 const EDGE_MARGIN = 140;
 
@@ -81,11 +81,15 @@ function pickKind(): AnimalKind {
  * 在 canvas 上绘制田园中走动的动物（简笔风格）。
  * @param canvas 画布元素
  * @param host 尺寸参照容器
+ * @param animalCount 动物数量（由主题变量传入，超出范围时夹取）
  * @returns 清理函数
  */
-export function createPastoralScene(canvas: HTMLCanvasElement, host: HTMLElement): () => void {
+export function createPastoralScene(canvas: HTMLCanvasElement, host: HTMLElement, animalCount: number): () => void {
     const ctx = canvas.getContext('2d');
     if (!ctx) return () => undefined;
+
+    // 夹取动物数量到合法范围
+    const count = Math.max(MIN_ANIMALS, Math.min(MAX_ANIMALS, Math.round(animalCount)));
 
     let width = 1;
     let height = 1;
@@ -130,7 +134,6 @@ export function createPastoralScene(canvas: HTMLCanvasElement, host: HTMLElement
     };
 
     const buildAnimals = (): void => {
-        const count = Math.round(Math.min(MAX_ANIMALS, Math.max(4, (width * height) / PIXELS_PER_ANIMAL)));
         animals = Array.from({ length: count }, () => spawn(false));
     };
 

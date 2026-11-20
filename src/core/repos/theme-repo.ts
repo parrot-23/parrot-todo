@@ -38,4 +38,15 @@ export class ThemeRepo {
     setCurrentTheme(themeId: string): void {
         this.data.currentThemeId = themeId;
     }
+
+    /** 读取某主题的可调变量值（未设置时返回空对象，由调用方回退默认值） */
+    getThemeVariables(themeId: string): Record<string, number> {
+        return this.data.themeVariables[themeId] ?? {};
+    }
+
+    /** 写入某主题的单个变量值（写操作后由调用方触发 baseRepo.saveAll()） */
+    setThemeVariable(themeId: string, key: string, value: number): void {
+        const vars = this.data.themeVariables[themeId] ?? (this.data.themeVariables[themeId] = {});
+        vars[key] = value;
+    }
 }
