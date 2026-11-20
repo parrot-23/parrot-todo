@@ -70,8 +70,8 @@ function parseRow(row: Record<string, unknown>): OkrRecordEntry {
 let storeInstance: RecordStore | null = null;
 
 /** 获取进程内唯一的记录存储实例（懒加载，首次使用时初始化） */
-export function getRecordStore(app: App, pluginId: string): RecordStore {
-    if (!storeInstance) storeInstance = new RecordStore(app, pluginId);
+export function getRecordStore(app: App, pluginDir: string): RecordStore {
+    if (!storeInstance) storeInstance = new RecordStore(app, pluginDir);
     return storeInstance;
 }
 
@@ -79,8 +79,8 @@ export function getRecordStore(app: App, pluginId: string): RecordStore {
  * 旧版单库迁移入口：仅当检测到旧路径的 .db 文件时才初始化并迁移，
  * 避免每次启动都加载 wasm。迁移完成后删除旧文件。
  */
-export async function migrateLegacyRecordDb(app: App, pluginId: string): Promise<void> {
-    const store = getRecordStore(app, pluginId);
+export async function migrateLegacyRecordDb(app: App, pluginDir: string): Promise<void> {
+    const store = getRecordStore(app, pluginDir);
     if (await store.hasLegacyDb()) await store.init();
 }
 
@@ -96,8 +96,8 @@ export class RecordStore {
     /** 插件目录（vault 相对路径） */
     private readonly pluginDir: string;
 
-    constructor(private app: App, pluginId: string) {
-        this.pluginDir = `${app.vault.configDir}/plugins/${pluginId}`;
+    constructor(private app: App, pluginDir: string) {
+        this.pluginDir = pluginDir;
     }
 
     /** 初始化（幂等）：加载 wasm，并把旧版单库迁移为年度库 */

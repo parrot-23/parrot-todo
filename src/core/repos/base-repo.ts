@@ -22,6 +22,7 @@ import type { ThemeData, Theme } from '../datatypes/theme';
 import { DEFAULT_THEME_ID } from '../datatypes/theme';
 import { parseSectionDisplay, parseTaskSections } from '../shared/task-sections';
 import { log } from '../shared/logger';
+import { getPluginDir } from '../shared/plugin-dir';
 import { t } from '../i18n';
 
 /** 插件持有的全量数据（唯一数据源） */
@@ -374,7 +375,7 @@ export class BaseRepo {
 
     /** 插件目录（vault 相对路径，与 data.json 同级） */
     private get pluginDir(): string {
-        return `${this.plugin.app.vault.configDir}/plugins/${this.plugin.manifest.id}`;
+        return getPluginDir(this.plugin.app, this.plugin);
     }
 
     /** 列出已存在的年度 JSON 文件的年份 */

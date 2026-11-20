@@ -6,10 +6,8 @@ import type { App } from 'obsidian';
  * - 之后调用 log() 追加写入。
  */
 
-/** 日志文件相对 vault 根目录的路径（配置目录由用户自定义，需用 configDir） */
-function getLogFile(app: App): string {
-    return `${app.vault.configDir}/plugins/parrot-plan/parrot-plan.log`;
-}
+/** 日志文件相对 vault 根目录的路径（由插件实际目录决定，不依赖 manifest.id） */
+let logFile: string | null = null;
 
 let appRef: App | null = null;
 
@@ -26,15 +24,17 @@ function formatArg(arg: unknown): string {
 
 /**
  * 初始化日志：清空旧日志文件内容。
- * 应在插件 onload 时调用一次。
+ * 应在插件 onload 时调用一次；pluginDir 为插件实际目录（见 getPluginDir）。
  */
-export async function initLogger(app: App): Promise<void> {
+export async function initLogger(app: App, pluginDir: string): Promise<void> {
     appRef = app;
+    logFile = `${pluginDir}/run.log`;
     try {
-        await app.vault.adapter.write(getLogFile(app), '');
+        await app.vault.adapter.write(logFile, '');
     } catch {
         // 写入失败时静默降级，不影响插件运行
         appRef = null;
+        logFile = null;
     }
 }
 
@@ -43,11 +43,11 @@ export async function initLogger(app: App): Promise<void> {
  * 自动附加时间戳。
  */
 export function log(...args: unknown[]): void {
-    if (!appRef) return;
+    if (!appRef || !logFile) return;
     const time = new Date().toISOString();
     const line = `[${time}] ${args.map(formatArg).join(' ')}\n`;
     // 异步追加，不阻塞调用方
-    appRef.vault.adapter.append(getLogFile(appRef), line).catch(() => {
+    appRef.vault.adapter.append(logFile, line).catch(() => {
         // 忽略写入错误
     });
 }

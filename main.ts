@@ -18,6 +18,7 @@ import { initI18n, t, getLangDebugInfo } from './src/core/i18n';
 import { getCurrentWeekKey } from './src/core/shared/plan-data';
 import { initLogger, log } from './src/core/shared/logger';
 import { migrateLegacyRecordDb, getRecordStore } from './src/core/db/record-store';
+import { getPluginDir } from './src/core/shared/plugin-dir';
 import { ParrotPlanSettingTab } from './src/ui/ob/setting-tab';
 import { RunningTaskStatusBar } from './src/ui/ob/status-bar';
 
@@ -123,7 +124,7 @@ export default class ParrotPlanPlugin extends Plugin {
         initI18n();
 
         // 初始化日志（清空上一次的日志内容）
-        await initLogger(this.app);
+        await initLogger(this.app, getPluginDir(this.app, this));
         log('插件 onload 开始');
         // 记录语言检测的原始信息，便于排查 i18n 显示问题
         log('i18n 语言检测:', getLangDebugInfo());
@@ -133,7 +134,7 @@ export default class ParrotPlanPlugin extends Plugin {
         this.repo = new BaseRepo(this);
         await this.repo.load();
         // 后台迁移旧版单文件记录库（无旧库时不加载 wasm，不阻塞启动）
-        void migrateLegacyRecordDb(this.app, this.manifest.id);
+        void migrateLegacyRecordDb(this.app, getPluginDir(this.app, this));
         this.gtdRepo = new GtdRepo(this.repo);
         this.pdcaRepo = new PdcaRepo(this.repo);
         this.workbenchRepo = new WorkbenchRepo(this.repo);
@@ -306,7 +307,7 @@ export default class ParrotPlanPlugin extends Plugin {
     async clearAllData(): Promise<void> {
         await this.repo.clearAll();
         // 同时删除按年度拆分的记录库文件
-        await getRecordStore(this.app, this.manifest.id).clearAll();
+        await getRecordStore(this.app, getPluginDir(this.app, this)).clearAll();
         const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_MAIN);
         for (const leaf of leaves) {
             if (leaf.view instanceof MainView) {
