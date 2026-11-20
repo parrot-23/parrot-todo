@@ -1,6 +1,5 @@
 // 帮助面板：顶部工具栏「帮助」按钮与首次打开插件时自动打开，基于 FloatingPanel。
 // 内容：多页功能说明（概览 / 任务 / 计划 / 检查 / 数据），底部提供「不再提示」勾选。
-import type { App } from 'obsidian';
 import { setIcon } from 'obsidian';
 
 import { t } from '../../core/i18n';
@@ -11,10 +10,6 @@ type HelpPageId = 'overview' | 'tasks' | 'plans' | 'check' | 'data';
 
 /** 帮助面板配置 */
 export interface HelpPanelOptions extends Omit<FloatingPanelOptions, 'title'> {
-    /** Obsidian App（概览页图片通过 vault 引用） */
-    app: App;
-    /** 缓存目录名称（概览页说明图片所在目录） */
-    cacheDirName: string;
     /** 读取「不再提示」勾选状态 */
     getDismissed: () => boolean;
     /** 保存「不再提示」勾选状态 */
@@ -124,7 +119,6 @@ export class HelpPanel extends FloatingPanel {
 
         this.pageEl = this.body.createDiv({ cls: 'help-panel-page' });
         const current = pages.find((page) => page.id === this.activePage) ?? pages[0];
-        if (current.id === 'overview') this.renderOverviewImage();
 
         this.pageEl.createDiv({ cls: 'help-panel-intro', text: current.intro });
         const list = this.pageEl.createEl('ul', { cls: 'help-panel-list' });
@@ -141,15 +135,5 @@ export class HelpPanel extends FloatingPanel {
         checkbox.addEventListener('change', () => {
             void this.panelOptions.saveDismissed(checkbox.checked);
         });
-    }
-
-    /** 概览页顶部展示缓存中的说明图片（图片缺失时自动隐藏） */
-    private renderOverviewImage(): void {
-        const imgPath = `${this.panelOptions.cacheDirName}/说明.png`;
-        const wrapper = this.pageEl.createDiv({ cls: 'help-panel-image' });
-        const img = wrapper.createEl('img', {
-            attr: { src: this.panelOptions.app.vault.adapter.getResourcePath(imgPath), alt: t('help.title') },
-        });
-        img.addEventListener('error', () => wrapper.remove());
     }
 }

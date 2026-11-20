@@ -2,7 +2,6 @@
 import { Notice, PluginSettingTab, type App, type SettingDefinitionItem } from 'obsidian';
 
 import { t } from '../../core/i18n';
-import { DEFAULT_CACHE_DIR_NAME } from '../../core/repos/base-repo';
 import type ParrotPlanPlugin from '../../../main';
 import { ConfirmModal } from './confirm-modal';
 
@@ -15,11 +14,6 @@ export class ParrotPlanSettingTab extends PluginSettingTab {
         this.plugin = plugin;
     }
 
-    /** 刷新设置页 */
-    private refresh(): void {
-        this.update();
-    }
-
     getSettingDefinitions(): SettingDefinitionItem[] {
         return [
             {
@@ -28,52 +22,6 @@ export class ParrotPlanSettingTab extends PluginSettingTab {
                 render: (setting) => {
                     setting.setName(t('settings.title'));
                     setting.setDesc(t('settings.about'));
-                },
-            },
-            {
-                name: t('settings.cache'),
-                searchable: false,
-                render: (setting) => {
-                    setting.setName(t('settings.cache')).setHeading();
-                },
-            },
-            {
-                name: t('settings.cacheEnabled'),
-                desc: t('settings.cacheEnabledDesc'),
-                render: (setting) => {
-                    setting
-                        .setName(t('settings.cacheEnabled'))
-                        .setDesc(t('settings.cacheEnabledDesc'))
-                        .addToggle((toggle) => {
-                            toggle.setValue(this.plugin.cacheEnabled).onChange(async (value) => {
-                                await this.plugin.saveCacheEnabled(value);
-                                // 刷新设置页，更新下方缓存目录名称的禁用状态
-                                this.refresh();
-                            });
-                        });
-                },
-            },
-            {
-                name: t('settings.cacheDirName'),
-                desc: t('settings.cacheDirNameDesc'),
-                render: (setting) => {
-                    setting
-                        .setName(t('settings.cacheDirName'))
-                        .setDesc(t('settings.cacheDirNameDesc'))
-                        .addText((text) => {
-                            text.setPlaceholder(DEFAULT_CACHE_DIR_NAME)
-                                .setValue(this.plugin.cacheDirName)
-                                .onChange(async (value) => {
-                                    const name = value.trim() || DEFAULT_CACHE_DIR_NAME;
-                                    await this.plugin.saveCacheDirName(name);
-                                });
-                            // 缓存关闭时禁用输入框
-                            text.setDisabled(!this.plugin.cacheEnabled);
-                        });
-                    // 缓存关闭时整行置灰
-                    if (!this.plugin.cacheEnabled) {
-                        setting.settingEl.addClass('parrot-setting-disabled');
-                    }
                 },
             },
             {

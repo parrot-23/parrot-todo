@@ -7106,6 +7106,15 @@ button.swimlane-section-card-settings {
     min-height: 100%;
 }
 
+/* 嵌入时高度交给功能面板内容区：覆盖各面板自身的固定高度（60vh / 620px 等），
+   避免面板高于宿主导致外层滚动或底部被裁切 */
+.interface-function-embed-host > .floating-panel.is-embedded > .floating-panel-body {
+    flex: 1 1 auto;
+    height: auto;
+    min-height: 0;
+    max-height: none;
+}
+
 /* 任务详情嵌入时的顶部行 */
 .interface-function-detail-bar {
     display: flex;
@@ -8813,18 +8822,6 @@ button.swimlane-section-card-settings {
     padding: 14px 16px;
 }
 
-.help-panel-image {
-    margin-bottom: 12px;
-    border-radius: 6px;
-    overflow: hidden;
-}
-
-.help-panel-image img {
-    display: block;
-    width: 100%;
-    height: auto;
-}
-
 .help-panel-intro {
     margin-bottom: 10px;
     font-size: 13px;
@@ -10230,6 +10227,8 @@ button.swimlane-section-card-settings {
     padding: 0;
     /* 固定行高，与计划年度任务树/泳道行严格一致 */
     height: 26px;
+    /* 不随父容器高度收缩：空间不足时由任务树自身滚动，避免行被压扁 */
+    flex: 0 0 26px;
     box-sizing: border-box;
     border-radius: 4px;
     font-size: 13px;

@@ -538,11 +538,6 @@ export const zh = {
     // 设置页
     'settings.title': 'Parrot Plan 设置',
     'settings.about': '一个周日程规划插件：时间区块规划、事件排布与执行追踪。',
-    'settings.cache': '缓存',
-    'settings.cacheEnabled': '启用缓存',
-    'settings.cacheEnabledDesc': '关闭后将不再使用缓存功能。',
-    'settings.cacheDirName': '缓存目录名称',
-    'settings.cacheDirNameDesc': '用于存放插件缓存文件的目录名称，默认为 .parrot-plan/cache。',
     'settings.scriptMode': '剧本模式',
     'settings.scriptModeEnabled': '启用剧本模式',
     'settings.scriptModeEnabledDesc': '关闭后，「剧本场景」与「剧本管理」两个二级视图将被隐藏。',

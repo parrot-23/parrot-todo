@@ -592,11 +592,6 @@ export const en: I18nMessages = {
     // Settings
     'settings.title': 'Parrot Plan Settings',
     'settings.about': 'A weekly schedule planner: time block planning, event scheduling, and execution tracking.',
-    'settings.cache': 'Cache',
-    'settings.cacheEnabled': 'Enable cache',
-    'settings.cacheEnabledDesc': 'When disabled, the cache feature will no longer be used.',
-    'settings.cacheDirName': 'Cache folder name',
-    'settings.cacheDirNameDesc': 'Name of the folder used to store plugin cache files. Defaults to .parrot-plan/cache.',
     'settings.scriptMode': 'Script mode',
     'settings.scriptModeEnabled': 'Enable script mode',
     'settings.scriptModeEnabledDesc': 'When disabled, the "Scene" and "Script management" secondary views will be hidden.',

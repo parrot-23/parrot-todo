@@ -17,7 +17,6 @@ import { ThemeRepo } from './src/core/repos/theme-repo';
 import { initI18n, t, getLangDebugInfo } from './src/core/i18n';
 import { getCurrentWeekKey } from './src/core/shared/plan-data';
 import { initLogger, log } from './src/core/shared/logger';
-import { downloadImageToCache } from './src/core/helper/cache-image';
 import { ParrotPlanSettingTab } from './src/ui/ob/setting-tab';
 import { RunningTaskStatusBar } from './src/ui/ob/status-bar';
 
@@ -70,16 +69,6 @@ export default class ParrotPlanPlugin extends Plugin {
         return this.repo.data;
     }
 
-    /** 缓存目录名称（随主数据一起持久化） */
-    get cacheDirName(): string {
-        return this.repo.cacheDirName;
-    }
-
-    /** 是否启用缓存（随主数据一起持久化） */
-    get cacheEnabled(): boolean {
-        return this.repo.cacheEnabled;
-    }
-
     /** 是否已勾选「不再提示」帮助弹窗（随主数据一起持久化） */
     get helpDismissed(): boolean {
         return this.repo.helpDismissed;
@@ -106,16 +95,6 @@ export default class ParrotPlanPlugin extends Plugin {
      */
     async saveAll(): Promise<void> {
         await this.repo.saveAll();
-    }
-
-    /** 保存缓存目录名称 */
-    async saveCacheDirName(name: string): Promise<void> {
-        await this.repo.saveCacheDirName(name);
-    }
-
-    /** 保存是否启用缓存 */
-    async saveCacheEnabled(enabled: boolean): Promise<void> {
-        await this.repo.saveCacheEnabled(enabled);
     }
 
     /** 保存「不再提示」帮助弹窗标记 */
@@ -181,7 +160,6 @@ export default class ParrotPlanPlugin extends Plugin {
                 });
                 return new MainView(leaf, this, d.categoryData,
                     d.events, d.executions, d.inboxData, d.plannedWeeks,
-                    this.cacheDirName,
                 );
             }
         );
@@ -213,9 +191,6 @@ export default class ParrotPlanPlugin extends Plugin {
                 void this.handleVaultRename(oldPath, file.path);
             }),
         );
-
-        // 缓存启用时，把说明图片下载到缓存目录
-        void downloadImageToCache(this.app, this.cacheDirName, this.cacheEnabled);
     }
 
     /**

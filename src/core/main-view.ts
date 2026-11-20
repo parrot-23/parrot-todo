@@ -43,8 +43,6 @@ export class MainView extends ItemView implements ThemeColorsConsumer {
     private plannedWeeks: string[];
     private interfaceView: InterfaceView;
     private contentRoot!: HTMLElement;
-    /** 缓存目录名称（用于帮助弹窗引用缓存图片） */
-    private cacheDirName: string;
     /** 顶部工具栏右侧的「进行中任务」卡片容器 */
     private runningCardEl?: HTMLElement;
     /** 进行中任务卡片已用时长的刷新定时器（每分钟更新） */
@@ -78,11 +76,9 @@ export class MainView extends ItemView implements ThemeColorsConsumer {
         executions: ExecutionRecord[],
         inboxData: InboxData,
         plannedWeeks: string[],
-        cacheDirName: string,
     ) {
         super(leaf);
         this.plugin = plugin;
-        this.cacheDirName = cacheDirName;
         log('MainView 构造', {
             events: events.length,
             executions: executions.length,
@@ -189,8 +185,6 @@ export class MainView extends ItemView implements ThemeColorsConsumer {
                 saveHelpDismissed?: (dismissed: boolean) => Promise<void>;
             };
             this.helpPanel = new HelpPanel({
-                app: this.app,
-                cacheDirName: this.cacheDirName,
                 getDismissed: () => plugin.helpDismissed === true,
                 saveDismissed: (dismissed) => plugin.saveHelpDismissed?.(dismissed) ?? Promise.resolve(),
             });

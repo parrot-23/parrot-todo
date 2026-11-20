@@ -12,18 +12,21 @@ import { getRecordStore } from '../db/record-store';
  */
 export class RecordRepo {
     private app: App;
+    /** 插件 id（用于定位插件目录下的 db 文件） */
+    private pluginId: string;
 
-    constructor(app: App) {
+    constructor(app: App, pluginId: string) {
         this.app = app;
+        this.pluginId = pluginId;
     }
 
     /** 写入一条填写记录（INSERT OR REPLACE 幂等），并立即持久化到 .db 文件 */
     async insert(entry: OkrRecordEntry): Promise<void> {
-        await getRecordStore(this.app).insertEntry(entry);
+        await getRecordStore(this.app, this.pluginId).insertEntry(entry);
     }
 
     /** 按任务 id 查询该任务的全部填写记录（日期 / 创建时间倒序，最新在前） */
     async listByInbox(inboxId: string): Promise<OkrRecordEntry[]> {
-        return getRecordStore(this.app).listEntriesByInbox(inboxId);
+        return getRecordStore(this.app, this.pluginId).listEntriesByInbox(inboxId);
     }
 }

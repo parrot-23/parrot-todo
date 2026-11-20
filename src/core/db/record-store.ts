@@ -1,5 +1,5 @@
 // 记录卡片填写结果的数据存储层：基于 sql.js（SQLite 编译为 WASM）读写 .db 文件。
-// .db 文件落在 vault 内的隐藏目录 .parrot-plan/db/parrot-plan.db，随 Obsidian Sync / git 同步。
+// .db 文件落在插件目录下的 db/parrot-plan.db，与 data.json 同目录，随 Obsidian Sync / git 同步。
 import type { App } from 'obsidian';
 // 使用浏览器构建（无 node:fs/node:crypto 顶层 require，避免插件加载时报错）
 import initSqlJs from 'sql.js/dist/sql-wasm-browser.js';
@@ -8,10 +8,8 @@ import wasmUrl from 'sql.js/dist/sql-wasm-browser.wasm';
 
 import type { OkrRecordEntry } from '../datatypes/domain';
 
-/** .db 文件在 vault 内的相对路径（隐藏目录，随 vault 同步） */
-const DB_PATH = '.parrot-plan/db/parrot-plan.db';
-/** .db 文件所在目录（Obsidian 的 writeBinary 不会自动建目录，需先 mkdir） */
-const DB_DIR = '.parrot-plan/db';
+/** .db 文件名（存放在插件目录的 db 子目录下） */
+const DB_FILE_NAME = 'parrot-plan.db';
 
 /** 建表语句：记录卡片填写结果表 + 按任务/日期索引（为后续聚合查询预留） */
 const SCHEMA = `
@@ -43,8 +41,8 @@ function decodeWasm(dataUrl: string): ArrayBuffer {
 let storeInstance: RecordStore | null = null;
 
 /** 获取进程内唯一的记录存储实例（懒加载，首次使用时初始化） */
-export function getRecordStore(app: App): RecordStore {
-    if (!storeInstance) storeInstance = new RecordStore(app);
+export function getRecordStore(app: App, pluginId: string): RecordStore {
+    if (!storeInstance) storeInstance = new RecordStore(app, pluginId);
     return storeInstance;
 }
 
@@ -55,8 +53,15 @@ export function getRecordStore(app: App): RecordStore {
 export class RecordStore {
     private db: SqlDatabase | null = null;
     private initPromise: Promise<void> | null = null;
+    /** .db 文件所在目录（插件目录下的 db 子目录，随插件一起同步） */
+    private readonly dbDir: string;
+    /** .db 文件在 vault 内的相对路径 */
+    private readonly dbPath: string;
 
-    constructor(private app: App) {}
+    constructor(private app: App, pluginId: string) {
+        this.dbDir = `${app.vault.configDir}/plugins/${pluginId}/db`;
+        this.dbPath = `${this.dbDir}/${DB_FILE_NAME}`;
+    }
 
     /** 初始化（幂等）：加载 wasm、读入或新建 .db、确保表结构存在 */
     init(): Promise<void> {
@@ -69,8 +74,8 @@ export class RecordStore {
         const SQL = await initSqlJs({ wasmBinary: decodeWasm(wasmUrl) });
         const adapter = this.app.vault.adapter;
         let db: SqlDatabase;
-        if (await adapter.exists(DB_PATH)) {
-            const buf = await adapter.readBinary(DB_PATH);
+        if (await adapter.exists(this.dbPath)) {
+            const buf = await adapter.readBinary(this.dbPath);
             db = new SQL.Database(new Uint8Array(buf));
         } else {
             db = new SQL.Database();
@@ -129,10 +134,10 @@ export class RecordStore {
     private async persist(): Promise<void> {
         const adapter = this.app.vault.adapter;
         // Obsidian 的 writeBinary 不会自动创建父目录，需先确保目录存在
-        if (!(await adapter.exists(DB_DIR))) {
-            await adapter.mkdir(DB_DIR);
+        if (!(await adapter.exists(this.dbDir))) {
+            await adapter.mkdir(this.dbDir);
         }
         const bytes = this.db!.export();
-        await adapter.writeBinary(DB_PATH, bytes);
+        await adapter.writeBinary(this.dbPath, bytes);
     }
 }

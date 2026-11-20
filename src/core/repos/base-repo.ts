@@ -24,9 +24,6 @@ import { parseSectionDisplay, parseTaskSections } from '../shared/task-sections'
 import { log } from '../shared/logger';
 import { t } from '../i18n';
 
-/** 缓存目录默认名称 */
-export const DEFAULT_CACHE_DIR_NAME = '.parrot-plan/cache';
-
 /** 插件持有的全量数据（唯一数据源） */
 export interface PluginData {
     templateData: DayTemplateData;
@@ -68,12 +65,6 @@ export class BaseRepo {
 
     /** 插件持有的唯一数据源（视图重建时从这里读取最新数据） */
     data: PluginData | null = null;
-
-    /** 缓存目录名称（随主数据一起持久化） */
-    cacheDirName = DEFAULT_CACHE_DIR_NAME;
-
-    /** 是否启用缓存（随主数据一起持久化） */
-    cacheEnabled = true;
 
     /** 是否已勾选「不再提示」帮助弹窗（随主数据一起持久化） */
     helpDismissed = false;
@@ -124,8 +115,6 @@ export class BaseRepo {
             themeData: d.themeData,
             recordEntries: d.recordEntries,
             runningTask: d.runningTask,
-            cacheDirName: this.cacheDirName,
-            cacheEnabled: this.cacheEnabled,
             helpDismissed: this.helpDismissed,
             scriptModeEnabled: this.scriptModeEnabled,
             taskLibraryRoot: this.taskLibraryRoot,
@@ -133,18 +122,6 @@ export class BaseRepo {
             storyLocalDirMode: this.storyLocalDirMode,
             storyLocalDirPath: this.storyLocalDirPath,
         });
-    }
-
-    /** 保存缓存目录名称 */
-    async saveCacheDirName(name: string): Promise<void> {
-        this.cacheDirName = name;
-        await this.saveAll();
-    }
-
-    /** 保存是否启用缓存 */
-    async saveCacheEnabled(enabled: boolean): Promise<void> {
-        this.cacheEnabled = enabled;
-        await this.saveAll();
     }
 
     /** 保存「不再提示」帮助弹窗标记 */
@@ -186,17 +163,6 @@ export class BaseRepo {
         const rawData: unknown = await this.plugin.loadData();
         let savedData: Record<string, unknown> =
             rawData && typeof rawData === 'object' ? rawData as Record<string, unknown> : {};
-
-        // 读取缓存目录名称（随主数据一起存储，空值时使用默认目录）
-        const savedCacheDirName = typeof savedData.cacheDirName === 'string' && savedData.cacheDirName
-            ? savedData.cacheDirName
-            : '';
-        this.cacheDirName = savedCacheDirName || DEFAULT_CACHE_DIR_NAME;
-
-        // 读取是否启用缓存（兼容旧数据：默认启用）
-        this.cacheEnabled = typeof savedData.cacheEnabled === 'boolean'
-            ? savedData.cacheEnabled
-            : true;
 
         // 读取「不再提示」帮助弹窗标记（兼容旧数据：默认未勾选）
         this.helpDismissed = typeof savedData.helpDismissed === 'boolean'
