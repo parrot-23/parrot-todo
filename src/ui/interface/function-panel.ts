@@ -60,6 +60,8 @@ export class FunctionPanel extends FloatingPanel {
     private readonly groups: FunctionGroup[];
     private activeGroupId: FunctionGroupId;
     private activeItemId: FunctionItemId;
+    /** 一级菜单 → 上次选中的二级菜单（当前会话内保留，切换一级菜单不重置） */
+    private readonly lastItemByGroup = new Map<FunctionGroupId, FunctionItemId>();
     private groupTabsEl!: HTMLElement;
     private itemTabsEl!: HTMLElement;
     private contentEl!: HTMLElement;
@@ -153,7 +155,15 @@ export class FunctionPanel extends FloatingPanel {
         return group.items.find((item) => item.id === this.activeItemId) ?? group.items[0];
     }
 
-    /** 渲染两级菜单（一级切换时二级默认选中第一项） */
+    /** 一级组要选中的二级项：优先恢复该组上次的选择，否则取第一项 */
+    private resolveGroupItem(group: FunctionGroup): FunctionItemId {
+        if (group.directItem) return group.directItem;
+        const saved = this.lastItemByGroup.get(group.id);
+        if (saved && group.items.some((item) => item.id === saved)) return saved;
+        return group.items[0].id;
+    }
+
+    /** 渲染两级菜单（一级切换时恢复该组上次选中的二级项，首次进入为第一项） */
     private renderMenu(): void {
         this.groupTabsEl.empty();
         for (const group of this.groups) {
@@ -166,7 +176,7 @@ export class FunctionPanel extends FloatingPanel {
             btn.onclick = () => {
                 if (this.activeGroupId === group.id) return;
                 this.activeGroupId = group.id;
-                this.activeItemId = group.directItem ?? group.items[0].id;
+                this.activeItemId = this.resolveGroupItem(group);
                 this.detailTask = undefined;
                 this.renderMenu();
                 this.renderContent();
@@ -188,6 +198,7 @@ export class FunctionPanel extends FloatingPanel {
             btn.onclick = () => {
                 if (this.activeItemId === item.id) return;
                 this.activeItemId = item.id;
+                this.lastItemByGroup.set(this.activeGroupId, item.id);
                 this.detailTask = undefined;
                 this.renderMenu();
                 this.renderContent();
@@ -233,6 +244,7 @@ export class FunctionPanel extends FloatingPanel {
         if (!group || !this.isOpen) return;
         this.activeGroupId = group.id;
         this.activeItemId = itemId;
+        this.lastItemByGroup.set(group.id, itemId);
         this.detailTask = undefined;
         this.renderMenu();
         this.renderContent();

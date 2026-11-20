@@ -10064,7 +10064,7 @@ button.swimlane-section-card-settings {
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 10px;
     padding-right: 16px;
     border-right: 1px solid var(--sdt-card-border, var(--background-modifier-border));
 }
@@ -10081,6 +10081,8 @@ button.swimlane-section-card-settings {
     flex: 1;
     min-width: 0;
     width: auto;
+    height: 34px;
+    box-sizing: border-box;
 }
 
 .task-detail-config-btn {
@@ -10106,12 +10108,14 @@ button.swimlane-section-card-settings {
     height: 15px;
 }
 
-/* 标题行：类型 + 添加按钮 */
+/* 标题行：类型 + 添加按钮（高度与计划年度类型行一致） */
 .task-detail-header {
     display: flex;
     flex-direction: row;
     align-items: center;
     gap: 8px;
+    height: 28px;
+    box-sizing: border-box;
 }
 
 .task-detail-type {
@@ -10180,14 +10184,14 @@ button.swimlane-section-card-settings {
     outline: none;
 }
 
-/* 后代任务树 */
+/* 后代任务树（行间距为 0，与计划年度任务树一致） */
 .task-detail-tree {
     flex: 1;
     min-height: 0;
     position: relative;
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 0;
     overflow-y: auto;
 }
 
@@ -10224,7 +10228,9 @@ button.swimlane-section-card-settings {
     align-items: center;
     gap: 6px;
     padding: 0;
-    min-height: 26px;
+    /* 固定行高，与计划年度任务树/泳道行严格一致 */
+    height: 26px;
+    box-sizing: border-box;
     border-radius: 4px;
     font-size: 13px;
     color: var(--sdt-text-primary, var(--text-normal));
@@ -11516,6 +11522,8 @@ button.task-record-dropdown-item.is-selected {
 .task-picker-search,
 .task-picker-root {
     width: 100%;
+    height: 34px;
+    box-sizing: border-box;
     flex-shrink: 0;
 }
 
@@ -12084,6 +12092,8 @@ button.task-record-dropdown-item.is-selected {
 
 .habit-root-select {
     width: 100%;
+    height: 34px;
+    box-sizing: border-box;
 }
 
 .habit-tree {
@@ -12548,6 +12558,11 @@ button.task-record-dropdown-item.is-selected {
     min-width: 0;
 }
 
+/* 预估 / 执行等分项靠右排列，与行首完成状态之间留白 */
+.plan-week-day-meta-item.is-tail {
+    margin-left: auto;
+}
+
 /* 未设置预估时长时的空占位，保证后续分项位置稳定 */
 .plan-week-day-meta-item.is-empty {
     min-width: 12px;
@@ -12569,8 +12584,7 @@ button.task-record-dropdown-item.is-selected {
 }
 
 .plan-week-day-meta-status {
-    /* 完成状态固定在该天所在行的末尾 */
-    margin-left: auto;
+    /* 完成状态固定在该天所在行的开头 */
     cursor: pointer;
     pointer-events: auto;
     color: var(--sdt-text-secondary, var(--text-muted));
@@ -12747,7 +12761,7 @@ button.task-record-dropdown-item.is-selected {
     max-height: 132px;
     display: grid;
     /* 整列共用一个网格，各条目宽度按内容自适应，分隔符严格对齐且不浪费宽度 */
-    grid-template-columns: auto max-content auto max-content;
+    grid-template-columns: auto max-content auto max-content auto max-content;
     align-content: start;
     align-items: center;
     column-gap: 4px;
@@ -12762,6 +12776,14 @@ button.task-record-dropdown-item.is-selected {
 }
 
 /* 每天分类条目：圆点 / 总时长 / 分隔符 / 已分配时长 按列对齐 */
+.plan-week-daily-legend {
+    grid-column: 1 / -1;
+    padding: 4px 4px 0;
+    font-size: 10px;
+    line-height: 1.4;
+    color: var(--text-faint);
+}
+
 .plan-week-daily-row {
     display: contents;
     font-size: 10px;
@@ -12780,6 +12802,12 @@ button.task-record-dropdown-item.is-selected {
 }
 
 .plan-week-daily-estimate {
+    color: var(--sdt-text-secondary, var(--text-muted));
+    font-variant-numeric: tabular-nums;
+    text-align: left;
+}
+
+.plan-week-daily-executed {
     color: var(--sdt-text-secondary, var(--text-muted));
     font-variant-numeric: tabular-nums;
     text-align: left;

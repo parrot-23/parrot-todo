@@ -401,39 +401,68 @@ export class PlanWeekPanel extends FloatingPanel {
         }
         // 汇总每天已排布任务的预估时长（按任务分类归属）
         const estimateByDay = this.buildDayEstimateByCategory(knownIds);
+        // 汇总每天任务的执行时长（按任务分类归属）
+        const executedByDay = this.buildDayExecutedSecondsByCategory(knownIds);
         // 按分类表顺序排列，未分类统一放在最后
         const ordered = [
             ...cats.filter((cat) => cat.id !== UNCATEGORIZED_CATEGORY_ID),
             ...cats.filter((cat) => cat.id === UNCATEGORIZED_CATEGORY_ID),
         ];
+        // 表头图例仅在左侧显示一次
+        wrap.createDiv({
+            cls: 'plan-week-daily-legend',
+            text: [
+                t('panel.planWeekDailyAvailable'),
+                t('panel.planWeekDailyEstimate'),
+                t('panel.planWeekDailyExecuted'),
+            ].join(' | '),
+        });
         for (let weekday = 1; weekday <= 7; weekday += 1) {
             const colEl = wrap.createDiv({ cls: 'plan-week-daily-col' });
             const byCat = minutesByDay.get(weekday);
             if (!byCat) continue;
             const estimateByCat = estimateByDay.get(weekday);
+            const executedByCat = executedByDay.get(weekday);
+            const executedMinutes = (catId: string): number =>
+                Math.round((executedByCat?.get(catId) ?? 0) / 60);
             const rows = ordered
                 .map((cat) => ({
                     label: cat.label,
                     color: cat.color,
                     minutes: byCat.get(cat.id) ?? 0,
                     estimate: estimateByCat?.get(cat.id) ?? 0,
+                    executed: executedMinutes(cat.id),
                 }))
-                .filter((row) => row.minutes > 0 || row.estimate > 0);
+                .filter((row) => row.minutes > 0 || row.estimate > 0 || row.executed > 0);
             // 分类表缺少内置未分类时补一行，避免时长丢失
             if (!knownIds.has(UNCATEGORIZED_CATEGORY_ID)) {
                 const minutes = byCat.get(UNCATEGORIZED_CATEGORY_ID) ?? 0;
                 const estimate = estimateByCat?.get(UNCATEGORIZED_CATEGORY_ID) ?? 0;
-                if (minutes > 0 || estimate > 0) {
-                    rows.push({ label: t('defaultCategory.uncategorized'), color: '#888888', minutes, estimate });
+                const executed = executedMinutes(UNCATEGORIZED_CATEGORY_ID);
+                if (minutes > 0 || estimate > 0 || executed > 0) {
+                    rows.push({
+                        label: t('defaultCategory.uncategorized'),
+                        color: '#888888',
+                        minutes,
+                        estimate,
+                        executed,
+                    });
                 }
             }
             for (const row of rows) {
                 const rowEl = colEl.createDiv({ cls: 'plan-week-daily-row' });
-                rowEl.title = `${row.label} ${this.formatMinutesLong(row.minutes)} | ${this.formatMinutesLong(row.estimate)}`;
+                rowEl.title = [
+                    row.label,
+                    `${t('panel.planWeekDailyAvailable')} ${this.formatMinutesLong(row.minutes)}`,
+                    `${t('panel.planWeekDailyEstimate')} ${this.formatMinutesLong(row.estimate)}`,
+                    `${t('panel.planWeekDailyExecuted')} ${this.formatMinutesLong(row.executed)}`,
+                ].join(' | ');
                 rowEl.createSpan({ cls: 'plan-week-daily-dot' }).style.background = row.color ?? '#888888';
                 rowEl.createSpan({ cls: 'plan-week-daily-value', text: this.formatMinutesLong(row.minutes) });
                 rowEl.createSpan({ cls: 'plan-week-daily-sep', text: '|' });
                 rowEl.createSpan({ cls: 'plan-week-daily-estimate', text: this.formatMinutesLong(row.estimate) });
+                rowEl.createSpan({ cls: 'plan-week-daily-sep', text: '|' });
+                rowEl.createSpan({ cls: 'plan-week-daily-executed', text: this.formatMinutesLong(row.executed) });
             }
         }
     }
@@ -456,6 +485,36 @@ export class PlanWeekPanel extends FloatingPanel {
                 byCat.set(catId, (byCat.get(catId) ?? 0) + minutes);
                 result.set(weekday, byCat);
             }
+        }
+        return result;
+    }
+
+    /** 汇总每天各分类任务的执行时长（秒），按执行记录 startAt 归属到当天与任务分类，无效分类归入未分类 */
+    private buildDayExecutedSecondsByCategory(knownIds: Set<string>): Map<number, Map<string, number>> {
+        const tasks = new Map(this.panelOptions.getTasks().map((task) => [task.id, task]));
+        const dayStarts: number[] = [];
+        for (let weekday = 1; weekday <= 7; weekday += 1) {
+            dayStarts.push(new Date(`${makeDayKeyFromWeek(this.weekKey, weekday)}T00:00:00`).getTime());
+        }
+        const result = new Map<number, Map<string, number>>();
+        for (const record of this.panelOptions.taskExecutionRepo.records) {
+            const task = tasks.get(record.taskId);
+            if (!task) continue;
+            let weekday = 0;
+            for (let index = 0; index < dayStarts.length; index += 1) {
+                const dayStart = dayStarts[index];
+                if (record.startAt >= dayStart && record.startAt < dayStart + 24 * 60 * 60 * 1000) {
+                    weekday = index + 1;
+                    break;
+                }
+            }
+            if (!weekday) continue;
+            const catId = task.categoryId && knownIds.has(task.categoryId)
+                ? task.categoryId
+                : UNCATEGORIZED_CATEGORY_ID;
+            const byCat = result.get(weekday) ?? new Map<string, number>();
+            byCat.set(catId, (byCat.get(catId) ?? 0) + record.durationSeconds);
+            result.set(weekday, byCat);
         }
         return result;
     }
@@ -535,21 +594,7 @@ export class PlanWeekPanel extends FloatingPanel {
             const weekday = start + offset;
             const dayKey = makeDayKeyFromWeek(this.weekKey, weekday);
             const cell = metaRow.createDiv({ cls: 'plan-week-day-meta' });
-            const estimate = this.dayEstimate(task, weekday);
-            // 预估时长：未设置时留空占位，不显示内容；有值时从与任务名称对齐的位置开始
-            const estimateItem = cell.createSpan({ cls: 'plan-week-day-meta-item' });
-            if (estimate) {
-                estimateItem.title = `${t('panel.weekGoalEstimateLabel')} ${this.formatMinutesShort(estimate)}`;
-                setIcon(estimateItem.createSpan({ cls: 'plan-week-day-meta-icon' }), 'clock');
-                estimateItem.createSpan({ cls: 'plan-week-day-meta-text', text: this.formatMinutesShort(estimate) });
-            } else {
-                estimateItem.addClass('is-empty');
-            }
-            const executed = this.dayExecutedMinutes(task, dayKey);
-            const executedItem = cell.createSpan({ cls: 'plan-week-day-meta-item' });
-            executedItem.title = `${t('panel.dayExecutedLabel')} ${this.formatMinutesShort(executed)}`;
-            setIcon(executedItem.createSpan({ cls: 'plan-week-day-meta-icon' }), 'play');
-            executedItem.createSpan({ cls: 'plan-week-day-meta-text', text: this.formatMinutesShort(executed) });
+            // 第二行开头：完成状态（勾选 / 未完成）
             const completed = this.isDayCompleted(task, dayKey);
             const statusItem = cell.createSpan({
                 cls: 'plan-week-day-meta-item plan-week-day-meta-status',
@@ -563,13 +608,29 @@ export class PlanWeekPanel extends FloatingPanel {
                 this.hideDayGoalTip();
                 void this.toggleDayCompletion(task, dayKey);
             });
-            // 该天已填写日描述：白点位于任务名称行内，纵向居中于文字，横向与该天列下方完成状态图标中心对齐
+            const estimate = this.dayEstimate(task, weekday);
+            // 预估时长：未设置时留空占位，不显示内容；有值时从与任务名称对齐的位置开始
+            // 靠右排列：与行首完成状态之间留出空白
+            const estimateItem = cell.createSpan({ cls: 'plan-week-day-meta-item is-tail' });
+            if (estimate) {
+                estimateItem.title = `${t('panel.weekGoalEstimateLabel')} ${this.formatMinutesShort(estimate)}`;
+                setIcon(estimateItem.createSpan({ cls: 'plan-week-day-meta-icon' }), 'clock');
+                estimateItem.createSpan({ cls: 'plan-week-day-meta-text', text: this.formatMinutesShort(estimate) });
+            } else {
+                estimateItem.addClass('is-empty');
+            }
+            const executed = this.dayExecutedMinutes(task, dayKey);
+            const executedItem = cell.createSpan({ cls: 'plan-week-day-meta-item' });
+            executedItem.title = `${t('panel.dayExecutedLabel')} ${this.formatMinutesShort(executed)}`;
+            setIcon(executedItem.createSpan({ cls: 'plan-week-day-meta-icon' }), 'play');
+            executedItem.createSpan({ cls: 'plan-week-day-meta-text', text: this.formatMinutesShort(executed) });
+            // 该天已填写日描述：白点位于任务名称行内，纵向居中于文字，横向与该天列开头完成状态图标中心对齐
             const hasDescription = getDayGoalEntries(task, dayKey).length > 0;
             if (hasDescription) {
                 nameRow.addClass('has-desc-dot');
                 const dot = nameRow.createSpan({ cls: 'plan-week-day-desc-dot' });
-                // 状态图标宽 11px，中心距列右边缘 5.5px；白点宽 4px，右偏移 3.5px 即中心对齐
-                dot.style.right = `calc(${((span - offset - 1) * 100) / span}% + 3.5px)`;
+                // 状态图标宽 11px，中心距列左边缘 5.5px；白点宽 4px，左偏移 3.5px 即中心对齐
+                dot.style.left = `calc(${(offset * 100) / span}% + 3.5px)`;
             }
         }
         // 左键：同步选中该任务，并在点击的这一天旁打开日描述编辑浮层（阻止冒泡，避免触发列的排布）
