@@ -716,7 +716,7 @@ function renderWordCloudView(container: HTMLElement, data: WordCloudSeries['data
         const ratio = d.value / max;
         const size = 12 + Math.round(ratio * 20); // 12px ~ 32px
         const span = wrap.createSpan({ cls: 'wb-wordcloud-word', text: d.text });
-        span.setCssStyles({ fontSize: `${size}px` });
+        span.setCssProps({ 'font-size': `${size}px` });
         span.setAttribute('data-value', String(d.value));
     }
 }
