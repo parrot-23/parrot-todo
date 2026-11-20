@@ -1,5 +1,11 @@
 // 田园主题：乡野青草清新的暖青色调（青绿主色 + 暖黄点缀），营造自然、清新的田园氛围。
 // 代码绘制层：Canvas 上简笔风格的猫狗在田园中跑动；不使用图片素材。
+//
+// 背景花纹（见 styles.css 中 .interface-view.is-theme-pastoral）：
+// - 底层：青草清新的暖青渐变（#eef6e4 → #dcecd0 → #c9e0bd）。
+// - 草地色块：3 团极淡的青绿椭圆晕染（透明度 0.12~0.16），模拟草地明暗起伏，无规则边界。
+// - 稀疏小花：5 个错位分布的暖黄 / 淡白小圆点，自然点缀。
+// - 刻意不使用 repeating-linear-gradient 斜纹，避免大面积重复图案破坏和谐感。
 import type { ThemeDefinition } from '../theme-definition';
 import { createPastoralScene } from './animal-canvas';
 

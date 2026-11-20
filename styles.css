@@ -15114,10 +15114,43 @@ body.plan-annual-dragging {
 }
 
 /* ======================== 田园主题（仅界面视图背景） ======================== */
-/* 视图底色：乡野青草清新的暖青渐变，营造自然清新的田园氛围 */
+/* 视图底色：乡野青草清新的暖青渐变 + 柔和自然的田园质感（草地色块 + 稀疏小花点缀） */
 .interface-view.is-theme-pastoral {
     background-color: #e3efd8;
-    background-image: linear-gradient(160deg, #eef6e4 0%, #dcecd0 45%, #c9e0bd 100%);
+    background-image:
+        /* 稀疏的小花（暖黄 / 淡白点），错位分布，自然不规律 */
+        radial-gradient(circle at 16% 24%, rgba(240, 214, 140, 0.55) 0 2px, transparent 2.6px),
+        radial-gradient(circle at 68% 34%, rgba(255, 255, 255, 0.6) 0 1.8px, transparent 2.4px),
+        radial-gradient(circle at 38% 72%, rgba(240, 214, 140, 0.45) 0 2px, transparent 2.6px),
+        radial-gradient(circle at 84% 80%, rgba(255, 255, 255, 0.5) 0 1.6px, transparent 2.2px),
+        radial-gradient(circle at 52% 12%, rgba(240, 214, 140, 0.4) 0 1.8px, transparent 2.4px),
+        /* 柔和的草地色块：几团极淡的青绿晕染，模拟草地明暗起伏 */
+        radial-gradient(ellipse 60% 45% at 22% 30%, rgba(150, 196, 138, 0.16), transparent 70%),
+        radial-gradient(ellipse 55% 40% at 78% 62%, rgba(168, 206, 148, 0.14), transparent 70%),
+        radial-gradient(ellipse 50% 38% at 45% 88%, rgba(140, 186, 128, 0.12), transparent 70%),
+        /* 底层青草渐变 */
+        linear-gradient(160deg, #eef6e4 0%, #dcecd0 45%, #c9e0bd 100%);
+    background-size:
+        240px 240px,
+        280px 280px,
+        320px 320px,
+        360px 360px,
+        300px 300px,
+        100% 100%,
+        100% 100%,
+        100% 100%,
+        100% 100%;
+    background-position:
+        0 0,
+        70px 100px,
+        150px 50px,
+        210px 170px,
+        120px 200px,
+        0 0,
+        0 0,
+        0 0,
+        0 0;
+    background-repeat: repeat, repeat, repeat, repeat, repeat, no-repeat, no-repeat, no-repeat, no-repeat;
 }
 
 /* 兜底：即使 view-content 仍带有内边距，整块标签页区域也保持暖青 */
