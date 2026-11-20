@@ -324,7 +324,7 @@ export class FileEditorPanel extends FloatingPanel {
         const height = coords.bottom - coords.top;
 
         if (!this.caretEl || !this.caretEl.isConnected) {
-            this.caretEl = scrollDOM.createEl('div', { cls: 'sdt-manual-caret' });
+            this.caretEl = scrollDOM.createDiv({ cls: 'sdt-manual-caret' });
         }
         // 只改位置，不重建元素：重建会让 CSS 动画从头开始，导致闪烁节奏错乱
         this.caretEl.setCssStyles({ left: `${left}px`, top: `${top}px`, height: `${height}px` });
@@ -388,7 +388,7 @@ export class FileEditorPanel extends FloatingPanel {
         const factory = registry?.embedByExtension?.md;
         if (!factory) return null;
 
-        const tempEl = document.body.createEl('div', { cls: 'file-editor-offscreen-host' });
+        const tempEl = document.body.createDiv({ cls: 'file-editor-offscreen-host' });
         let temp: EmbeddedEditorViewLike | null = null;
         try {
             temp = factory(
