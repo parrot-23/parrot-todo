@@ -15,12 +15,41 @@ import {
 } from '../../libs/story-engine/dist/api.js';
 import { FloatingPanel, type FloatingPanelOptions } from '../../ui/basic/floating-panel';
 import {
+    isExistingDirectory,
     isStoryDiskAvailable,
     loadStoryProject,
     resolveAssetUrl,
     scanStoryProjects,
     type StoryEntry,
 } from './story-catalog';
+
+/** 本地剧本目录类型：vault 目录（vault 相对路径）/ 本地目录（绝对路径） */
+type StoryLocalDirMode = 'vault' | 'local';
+
+/** 剧本面板配置 */
+export interface StoryPanelOptions extends Omit<FloatingPanelOptions, 'title'> {
+    /** 官方剧本目录（绝对路径） */
+    officialDir?: string;
+    /** vault 根目录绝对路径（解析 vault 相对路径用） */
+    vaultBasePath?: string;
+    /** 读取本地剧本目录配置 */
+    getLocalDir?: () => { mode: StoryLocalDirMode; path: string };
+    /** 保存本地剧本目录配置 */
+    saveLocalDir?: (mode: StoryLocalDirMode, path: string) => Promise<void>;
+}
+
+/** Obsidian 渲染进程里的 require（桌面端才有） */
+function getNodeRequire(): ((module: string) => unknown) | null {
+    const win = window as unknown as { require?: (module: string) => unknown };
+    if (typeof win.require === 'function') return win.require;
+    const globalReq = (globalThis as { require?: (module: string) => unknown }).require;
+    return typeof globalReq === 'function' ? globalReq : null;
+}
+
+/** 是否为绝对路径（Windows 盘符 / 以斜杠开头） */
+function isAbsolutePath(path: string): boolean {
+    return /^([a-zA-Z]:[\\/]|\/)/.test(path);
+}
 
 /** 剧本菜单标识 */
 type StoryMenuId = 'history' | 'official' | 'local';
@@ -83,12 +112,22 @@ function normalizeSpritePosition(raw: string | undefined): SpritePosition | null
 
 /** 剧本面板 */
 export class StoryPanel extends FloatingPanel {
+    /** 面板配置 */
+    private readonly panelOptions: StoryPanelOptions;
     /** 当前激活的菜单（配置未激活时生效） */
     private activeMenu: StoryMenuId = 'history';
     /** 左下角「配置」是否激活 */
     private configActive = false;
     /** 官方剧本目录（默认插件目录下的 story 子目录） */
     private readonly officialDir: string;
+    /** vault 根目录绝对路径 */
+    private readonly vaultBasePath: string;
+    /** 本地剧本目录类型 */
+    private localDirMode: StoryLocalDirMode = 'vault';
+    /** 本地剧本目录路径（空表示未配置） */
+    private localDirPath = '';
+    /** 本地剧本目录配置浮层 */
+    private localDirConfigPanel: FloatingPanel | null = null;
 
     /** 历史列表（本次会话内有效，最近预览的排在最前） */
     private history: StoryHistoryItem[] = [];
@@ -110,14 +149,21 @@ export class StoryPanel extends FloatingPanel {
     private itemTimer: number | null = null;
     private itemSeq = 0;
 
-    constructor(options: Omit<FloatingPanelOptions, 'title'> & { officialDir?: string } = {}) {
+    constructor(options: StoryPanelOptions = {}) {
         super({
             width: 900,
             title: t('story.title'),
             closeOnBlur: true,
             ...options,
         });
+        this.panelOptions = options;
         this.officialDir = options.officialDir ?? '';
+        this.vaultBasePath = options.vaultBasePath ?? '';
+        const localDir = options.getLocalDir?.();
+        if (localDir) {
+            this.localDirMode = localDir.mode;
+            this.localDirPath = localDir.path;
+        }
         this.body.addClass('story-panel');
         this.renderContent();
     }
@@ -131,6 +177,7 @@ export class StoryPanel extends FloatingPanel {
 
     /** 关闭面板时释放播放器订阅与定时器 */
     close(): void {
+        this.localDirConfigPanel?.close();
         this.disposePlayer();
         this.clearItemTimer();
         super.close();
@@ -348,29 +395,36 @@ export class StoryPanel extends FloatingPanel {
         return '';
     }
 
-    /** 官方 / 本地页：官方页扫描官方剧本目录，本地页暂为占位 */
+    /** 官方 / 本地页：扫描对应目录下的剧本项目 */
     private renderList(content: HTMLElement, menu: Exclude<StoryMenuId, 'history'>): void {
         const list = content.createDiv({ cls: 'story-panel-list' });
-        if (menu === 'local') {
-            list.createDiv({ cls: 'story-panel-empty', text: t('story.localPlaceholder') });
-            return;
-        }
-
         if (!isStoryDiskAvailable()) {
             list.createDiv({ cls: 'story-panel-empty', text: t('story.scanUnsupported') });
             return;
         }
 
+        const root = menu === 'official' ? this.officialDir : this.resolveLocalDirAbs();
+        if (!root) {
+            list.createDiv({
+                cls: 'story-panel-empty',
+                text: menu === 'official' ? t('story.officialEmpty') : t('story.localNotConfigured'),
+            });
+            return;
+        }
+
         let entries: StoryEntry[] = [];
         try {
-            entries = scanStoryProjects(this.officialDir);
+            entries = scanStoryProjects(root);
         } catch (err) {
-            console.error('扫描官方剧本目录失败', err);
+            console.error('扫描剧本目录失败', root, err);
         }
 
         if (entries.length === 0) {
-            list.createDiv({ cls: 'story-panel-empty', text: t('story.officialEmpty') });
-            list.createDiv({ cls: 'story-panel-empty-path', text: this.officialDir });
+            list.createDiv({
+                cls: 'story-panel-empty',
+                text: menu === 'official' ? t('story.officialEmpty') : t('story.localEmpty'),
+            });
+            list.createDiv({ cls: 'story-panel-empty-path', text: root });
             return;
         }
 
@@ -398,41 +452,292 @@ export class StoryPanel extends FloatingPanel {
         return parts.join(' · ');
     }
 
-    /** 配置页：官方剧本目录 / 本地剧本目录 / 联动当天任务（当前为占位说明） */
+    /** 配置页：官方剧本目录 / 本地剧本目录（可配置）/ 联动当天任务（当前为占位说明） */
     private renderConfig(content: HTMLElement): void {
         const config = content.createDiv({ cls: 'story-panel-config' });
-        const rows: { label: string; value: string; openable?: boolean }[] = [
-            { label: t('story.configOfficialDir'), value: this.officialDir || t('story.configUnset'), openable: true },
-            { label: t('story.configLocalDir'), value: t('story.configUnset') },
-            { label: t('story.configLinkTasks'), value: t('story.configLinkTasksDesc') },
-        ];
-        for (const row of rows) {
-            const rowEl = config.createDiv({ cls: 'story-panel-config-row' });
-            rowEl.createSpan({ cls: 'story-panel-config-label', text: row.label });
-            rowEl.createSpan({ cls: 'story-panel-config-value', text: row.value });
-            if (row.openable && this.officialDir) {
-                const btn = rowEl.createEl('button', {
-                    cls: 'story-panel-config-folder-btn',
-                    attr: { type: 'button', 'aria-label': t('story.openFolder') },
-                });
-                setIcon(btn, 'folder');
-                btn.addEventListener('click', () => this.openOfficialDir());
-            }
+
+        const officialRow = config.createDiv({ cls: 'story-panel-config-row' });
+        officialRow.createSpan({ cls: 'story-panel-config-label', text: t('story.configOfficialDir') });
+        officialRow.createSpan({
+            cls: 'story-panel-config-value',
+            text: this.officialDir || t('story.configUnset'),
+        });
+        if (this.officialDir) {
+            this.createConfigAction(officialRow, 'folder', t('story.openFolder'), () => this.openDir(this.officialDir));
         }
+
+        // 本地剧本目录：路径 + 文件夹（配置后显示）+ 配置按钮
+        const localRow = config.createDiv({ cls: 'story-panel-config-row' });
+        localRow.createSpan({ cls: 'story-panel-config-label', text: t('story.configLocalDir') });
+        localRow.createSpan({
+            cls: 'story-panel-config-value',
+            text: this.localDirPath || t('story.configUnset'),
+        });
+        const localAbs = this.resolveLocalDirAbs();
+        if (this.localDirPath && localAbs) {
+            this.createConfigAction(localRow, 'folder', t('story.openFolder'), () => this.openDir(localAbs));
+        }
+        this.createConfigAction(localRow, 'settings', t('story.configTitle'), () => this.openLocalDirConfig());
+
+        const linkRow = config.createDiv({ cls: 'story-panel-config-row' });
+        linkRow.createSpan({ cls: 'story-panel-config-label', text: t('story.configLinkTasks') });
+        linkRow.createSpan({ cls: 'story-panel-config-value', text: t('story.configLinkTasksDesc') });
     }
 
-    /** 在系统资源管理器中打开官方剧本目录（不存在时先创建） */
-    private openOfficialDir(): void {
-        if (!this.officialDir) return;
-        const req = (window as unknown as { require?: (module: string) => unknown }).require;
+    /** 配置行末尾的图标按钮 */
+    private createConfigAction(row: HTMLElement, icon: string, label: string, onClick: () => void): void {
+        const btn = row.createEl('button', {
+            cls: 'story-panel-config-folder-btn',
+            attr: { type: 'button', 'aria-label': label, title: label },
+        });
+        setIcon(btn, icon);
+        btn.addEventListener('click', onClick);
+    }
+
+    /** 在系统资源管理器中打开目录（不存在时先创建） */
+    private openDir(dir: string): void {
+        if (!dir) return;
+        const req = getNodeRequire();
         if (!req) return;
         try {
             const fs = req('fs') as { mkdirSync: (p: string, o: { recursive: boolean }) => void };
-            fs.mkdirSync(this.officialDir, { recursive: true });
+            fs.mkdirSync(dir, { recursive: true });
             const electron = req('electron') as { shell: { openPath: (p: string) => Promise<string> } };
-            void electron.shell.openPath(this.officialDir);
+            void electron.shell.openPath(dir);
         } catch (err) {
-            console.error('打开官方剧本目录失败', err);
+            console.error('打开剧本目录失败', err);
+        }
+    }
+
+    /* ==================== 本地剧本目录配置 ==================== */
+
+    /** 打开本地剧本目录配置浮层 */
+    private openLocalDirConfig(): void {
+        if (!this.localDirConfigPanel) {
+            this.localDirConfigPanel = new FloatingPanel({
+                width: 440,
+                title: t('story.localDirConfigTitle'),
+                closeOnBlur: true,
+            });
+            this.localDirConfigPanel.body.addClass('story-local-dir-config');
+            // 配置浮层内的点击不触发剧本面板的失焦关闭
+            this.addIgnoreElement(this.localDirConfigPanel.element);
+        }
+        this.renderLocalDirConfigContent(this.localDirConfigPanel);
+        this.localDirConfigPanel.open();
+    }
+
+    /** 渲染配置浮层内容：目录类型下拉 + 路径输入 + 浏览 + 取消 / 确定 */
+    private renderLocalDirConfigContent(panel: FloatingPanel): void {
+        const body = panel.body;
+        body.empty();
+        let mode: StoryLocalDirMode = this.localDirMode;
+        let path = this.localDirPath;
+
+        // 目录类型：vault 目录 / 本地目录
+        const typeRow = body.createDiv({ cls: 'story-local-dir-config-row' });
+        typeRow.createSpan({ cls: 'story-local-dir-config-label', text: t('story.configDirType') });
+        const select = typeRow.createEl('select', { cls: 'dropdown story-local-dir-config-select' });
+        const typeOptions: { value: StoryLocalDirMode; label: string }[] = [
+            { value: 'vault', label: t('story.configDirTypeVault') },
+            { value: 'local', label: t('story.configDirTypeLocal') },
+        ];
+        for (const item of typeOptions) {
+            const optionEl = select.createEl('option', { text: item.label, attr: { value: item.value } });
+            optionEl.selected = item.value === mode;
+        }
+
+        // 具体路径：输入框 + 系统浏览按钮
+        const pathRow = body.createDiv({ cls: 'story-local-dir-config-row' });
+        pathRow.createSpan({ cls: 'story-local-dir-config-label', text: t('story.configDirPath') });
+        const input = pathRow.createEl('input', {
+            cls: 'story-local-dir-config-input',
+            attr: { type: 'text', placeholder: t('story.configDirPathPlaceholder') },
+        });
+        input.value = path;
+        const browseBtn = pathRow.createEl('button', {
+            cls: 'story-local-dir-config-browse',
+            attr: { type: 'button' },
+            text: t('story.configBrowse'),
+        });
+
+        const errorEl = body.createDiv({ cls: 'story-local-dir-config-error' });
+        select.addEventListener('change', () => {
+            mode = select.value === 'local' ? 'local' : 'vault';
+            errorEl.setText('');
+        });
+        input.addEventListener('input', () => errorEl.setText(''));
+        browseBtn.addEventListener('click', () => {
+            const picked = this.pickDirectory();
+            if (!picked) return;
+            if (mode === 'vault') {
+                const rel = this.toVaultRelative(picked);
+                if (rel === null) {
+                    errorEl.setText(t('story.configErrOutsideVault'));
+                    return;
+                }
+                if (rel === '') {
+                    errorEl.setText(t('story.configErrVaultRoot'));
+                    return;
+                }
+                path = rel;
+            } else {
+                path = picked;
+            }
+            input.value = path;
+            errorEl.setText('');
+        });
+
+        const footer = body.createDiv({ cls: 'story-local-dir-config-footer' });
+        const cancelBtn = footer.createEl('button', {
+            cls: 'story-local-dir-config-btn',
+            attr: { type: 'button' },
+            text: t('common.cancel'),
+        });
+        cancelBtn.addEventListener('click', () => panel.close());
+        const confirmBtn = footer.createEl('button', {
+            cls: 'story-local-dir-config-btn mod-cta',
+            attr: { type: 'button' },
+            text: t('common.confirm'),
+        });
+        confirmBtn.addEventListener('click', () => {
+            void this.confirmLocalDirConfig(mode, input.value, errorEl, panel);
+        });
+    }
+
+    /** 校验并保存本地剧本目录配置 */
+    private async confirmLocalDirConfig(
+        mode: StoryLocalDirMode,
+        rawPath: string,
+        errorEl: HTMLElement,
+        panel: FloatingPanel,
+    ): Promise<void> {
+        let path = rawPath.trim();
+        if (mode === 'vault') {
+            if (isAbsolutePath(path)) {
+                const rel = this.toVaultRelative(path);
+                if (rel === null) {
+                    errorEl.setText(t('story.configErrOutsideVault'));
+                    return;
+                }
+                if (rel === '') {
+                    errorEl.setText(t('story.configErrVaultRoot'));
+                    return;
+                }
+                path = rel;
+            } else {
+                path = this.normalizeSlashes(path).replace(/^\/+|\/+$/g, '');
+            }
+        }
+        const error = this.validateLocalDir(mode, path);
+        if (error) {
+            errorEl.setText(error);
+            return;
+        }
+
+        const savedPath = mode === 'vault'
+            ? this.toVaultRelative(this.resolveDirAbs(mode, path)) ?? path
+            : path;
+        this.localDirMode = mode;
+        this.localDirPath = savedPath;
+        try {
+            await this.panelOptions.saveLocalDir?.(mode, savedPath);
+        } catch (err) {
+            console.error('保存本地剧本目录配置失败', err);
+            errorEl.setText(t('story.configErrSave'));
+            return;
+        }
+        panel.close();
+        this.renderContent();
+    }
+
+    /** 校验目录配置；返回空字符串表示通过 */
+    private validateLocalDir(mode: StoryLocalDirMode, path: string): string {
+        if (!path) return t('story.configErrRequired');
+        if (mode === 'local') {
+            if (!isAbsolutePath(path)) return t('story.configErrAbsolute');
+            return isExistingDirectory(path) ? '' : t('story.configErrNotFound');
+        }
+        const abs = this.resolveDirAbs(mode, path);
+        if (!abs) return t('story.configErrVaultUnavailable');
+        const rel = this.toVaultRelative(abs);
+        if (rel === null) return t('story.configErrOutsideVault');
+        if (rel === '') return t('story.configErrVaultRoot');
+        return isExistingDirectory(abs) ? '' : t('story.configErrNotFound');
+    }
+
+    /** 把路径统一成正斜杠 */
+    private normalizeSlashes(path: string): string {
+        return path.replace(/\\/g, '/');
+    }
+
+    /** 把配置路径解析成绝对路径（vault 目录以 vault 根目录为基准） */
+    private resolveDirAbs(mode: StoryLocalDirMode, path: string): string {
+        if (!path) return '';
+        if (mode === 'local') return path;
+        if (!this.vaultBasePath) return '';
+        const clean = this.normalizeSlashes(path).replace(/^\/+|\/+$/g, '');
+        if (!clean) return '';
+        const req = getNodeRequire();
+        try {
+            const nodePath = req?.('path') as { join: (...parts: string[]) => string } | undefined;
+            if (nodePath) return nodePath.join(this.vaultBasePath, ...clean.split('/'));
+        } catch {
+            // 忽略，走下面的字符串拼接兜底
+        }
+        return `${this.vaultBasePath.replace(/[\\/]+$/, '')}/${clean}`;
+    }
+
+    /** 当前配置的本地剧本目录绝对路径（未配置 / 无法解析时为空） */
+    private resolveLocalDirAbs(): string {
+        if (!this.localDirPath) return '';
+        return this.resolveDirAbs(this.localDirMode, this.localDirPath);
+    }
+
+    /** 绝对路径转 vault 相对路径：null = 不在 vault 内，'' = vault 根目录 */
+    private toVaultRelative(abs: string): string | null {
+        if (!this.vaultBasePath || !abs) return null;
+        let rel = '';
+        const req = getNodeRequire();
+        try {
+            const nodePath = req?.('path') as { relative: (from: string, to: string) => string } | undefined;
+            if (nodePath) rel = nodePath.relative(this.vaultBasePath, abs);
+        } catch {
+            // 忽略，走下面的字符串兜底
+        }
+        if (!rel) {
+            const base = this.normalizeSlashes(this.vaultBasePath).replace(/\/+$/, '');
+            const target = this.normalizeSlashes(abs);
+            if (target.toLowerCase() === base.toLowerCase()) return '';
+            if (target.toLowerCase().startsWith(`${base.toLowerCase()}/`)) {
+                rel = target.slice(base.length + 1);
+            } else {
+                return null;
+            }
+        }
+        rel = this.normalizeSlashes(rel).replace(/^\/+|\/+$/g, '');
+        if (rel === '' || rel === '.') return '';
+        if (rel === '..' || rel.startsWith('../')) return null;
+        return rel;
+    }
+
+    /** 调用系统目录选择框，取消 / 不可用时返回 null */
+    private pickDirectory(): string | null {
+        const req = getNodeRequire();
+        if (!req) return null;
+        try {
+            const electron = req('electron') as {
+                remote?: { dialog?: { showOpenDialogSync?: (options: unknown) => string[] | undefined } };
+                dialog?: { showOpenDialogSync?: (options: unknown) => string[] | undefined };
+            };
+            const dialog = electron.remote?.dialog ?? electron.dialog;
+            const picked = dialog?.showOpenDialogSync?.({
+                properties: ['openDirectory', 'createDirectory'],
+            });
+            return picked && picked.length > 0 ? picked[0] : null;
+        } catch (err) {
+            console.error('打开系统目录选择框失败', err);
+            return null;
         }
     }
 

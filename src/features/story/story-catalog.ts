@@ -53,6 +53,21 @@ export function isStoryDiskAvailable(): boolean {
     }
 }
 
+/** 判断绝对路径是否为已存在的目录 */
+export function isExistingDirectory(dir: string): boolean {
+    const req = getRequire();
+    if (!req || !dir) return false;
+    try {
+        const fs = req('fs') as {
+            existsSync: (p: string) => boolean;
+            statSync: (p: string) => { isDirectory(): boolean };
+        };
+        return fs.existsSync(dir) && fs.statSync(dir).isDirectory();
+    } catch {
+        return false;
+    }
+}
+
 /** 统一成相对项目根的 "/" 路径（去掉首尾分隔符） */
 function normRel(rel: string): string {
     return rel.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');

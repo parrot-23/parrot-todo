@@ -65,9 +65,11 @@ export class TaskSectionsPanel extends FloatingPanel {
         }
     }
 
-    /** 打开并展示指定任务 */
-    openForTask(taskId: string): void {
+    /** 打开并展示指定任务；pinned 为 true 时面板默认钉住（点击面板外不关闭） */
+    openForTask(taskId: string, options?: { pinned?: boolean }): void {
         this.taskId = taskId;
+        // 每次打开都按入口重置钉住状态：仅「进行中任务」入口默认钉住
+        this.setPinned(options?.pinned ?? false);
         this.sectionHost.reset();
         this.render();
         this.open();

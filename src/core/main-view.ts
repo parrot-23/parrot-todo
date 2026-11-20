@@ -206,8 +206,15 @@ export class MainView extends ItemView implements ThemeColorsConsumer {
             const pluginDir = basePath
                 ? `${basePath}/${this.app.vault.configDir}/plugins/${this.plugin.manifest.id}`
                 : '';
+            const plugin = this.plugin as Plugin & {
+                storyLocalDir: { mode: 'vault' | 'local'; path: string };
+                saveStoryLocalDir: (mode: 'vault' | 'local', path: string) => Promise<void>;
+            };
             this.storyPanel = new StoryPanel({
                 officialDir: pluginDir ? `${pluginDir}/story` : '',
+                vaultBasePath: basePath,
+                getLocalDir: () => plugin.storyLocalDir,
+                saveLocalDir: (mode, path) => plugin.saveStoryLocalDir(mode, path),
             });
         }
         this.storyPanel.open();

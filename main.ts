@@ -95,6 +95,11 @@ export default class ParrotPlanPlugin extends Plugin {
         return this.repo.taskLibraryRoot;
     }
 
+    /** 本地剧本目录配置（随主数据一起持久化） */
+    get storyLocalDir(): { mode: 'vault' | 'local'; path: string } {
+        return { mode: this.repo.storyLocalDirMode, path: this.repo.storyLocalDirPath };
+    }
+
     /**
      * 唯一的数据保存出口（委托给 BaseRepo）。
      * 所有视图与设置项都通过此方法保存。
@@ -126,6 +131,11 @@ export default class ParrotPlanPlugin extends Plugin {
     /** 保存任务库根目录 */
     async saveTaskLibraryRoot(path: string): Promise<void> {
         await this.repo.saveTaskLibraryRoot(path);
+    }
+
+    /** 保存本地剧本目录配置 */
+    async saveStoryLocalDir(mode: 'vault' | 'local', path: string): Promise<void> {
+        await this.repo.saveStoryLocalDir(mode, path);
     }
 
     async onload() {

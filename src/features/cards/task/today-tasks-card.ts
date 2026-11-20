@@ -58,8 +58,8 @@ export interface TodayTasksCardOptions {
     onExecutionChanged?: () => void;
     /** 额外任务变化后通知，用于刷新今日时钟的任务列表 */
     onTasksChanged?: () => void;
-    /** 点击任务条目：打开任务板块面板 */
-    onOpenTaskBoard?: (taskId: string) => void;
+    /** 点击任务条目：打开任务板块面板（进行中任务入口默认钉住） */
+    onOpenTaskBoard?: (taskId: string, options?: { pinned?: boolean }) => void;
 }
 
 export class TodayTasksCard {
@@ -180,7 +180,7 @@ export class TodayTasksCard {
         const list = section.createDiv({ cls: 'interface-today-tasks-list' });
         const row = list.createDiv({ cls: 'interface-today-tasks-item interface-today-tasks-running-item' });
         row.title = task.name;
-        row.addEventListener('click', () => this.options.onOpenTaskBoard?.(task.id));
+        row.addEventListener('click', () => this.options.onOpenTaskBoard?.(task.id, { pinned: true }));
         row.createSpan({ cls: 'interface-today-tasks-item-name', text: task.name });
         row.createSpan({
             cls: 'interface-today-tasks-running-start',

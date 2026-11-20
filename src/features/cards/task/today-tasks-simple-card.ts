@@ -46,8 +46,8 @@ export interface TodayTasksSimpleCardOptions {
     onExecutionChanged?: () => void;
     /** 额外任务变化后通知，用于刷新今日时钟的任务列表 */
     onTasksChanged?: () => void;
-    /** 点击任务条目：打开任务板块面板 */
-    onOpenTaskBoard?: (taskId: string) => void;
+    /** 点击任务条目：打开任务板块面板（进行中任务入口默认钉住） */
+    onOpenTaskBoard?: (taskId: string, options?: { pinned?: boolean }) => void;
 }
 
 export class TodayTasksSimpleCard {
@@ -221,8 +221,8 @@ export class TodayTasksSimpleCard {
             const completed = this.taskExecutionRepo.isTaskCompleted(dayKey, task.id);
             // 「所有任务」模式：全部显示（完成 / 跳过置灰）
             if (this.showAllTasks) return true;
-            // 已跳过的习惯保持常显（置灰，可取消跳过）
-            if (skipped) return true;
+            // 已跳过的习惯默认隐藏（「所有任务」模式下仍可见，可取消跳过）
+            if (skipped) return false;
             // 已完成的不再显示
             if (completed) return false;
             // 「所有习惯」模式：不做时间范围过滤
@@ -361,7 +361,7 @@ export class TodayTasksSimpleCard {
         const list = section.createDiv({ cls: 'interface-today-tasks-list' });
         const row = list.createDiv({ cls: 'interface-today-tasks-item interface-today-tasks-running-item' });
         row.title = task.name;
-        row.addEventListener('click', () => this.options.onOpenTaskBoard?.(task.id));
+        row.addEventListener('click', () => this.options.onOpenTaskBoard?.(task.id, { pinned: true }));
         row.createSpan({ cls: 'interface-today-tasks-item-name', text: task.name });
         row.createSpan({
             cls: 'interface-today-tasks-running-start',

@@ -724,7 +724,7 @@ export class InterfaceView {
                     this.todayCard?.refreshTasks();
                     this.todayTasksSimpleCard?.refresh();
                 },
-                onOpenTaskBoard: (taskId) => this.openTaskBoard(taskId),
+                onOpenTaskBoard: (taskId, options) => this.openTaskBoard(taskId, options),
             });
             const tasksBody = this.mountCard(main, 'today-tasks', 'card-today-tasks', () => this.setCardAdded('today-tasks', false));
             this.todayTasksCard.render(tasksBody);
@@ -749,7 +749,7 @@ export class InterfaceView {
                     this.todayCard?.refreshTasks();
                     this.todayTasksCard?.refresh();
                 },
-                onOpenTaskBoard: (taskId) => this.openTaskBoard(taskId),
+                onOpenTaskBoard: (taskId, options) => this.openTaskBoard(taskId, options),
             });
             const simpleBody = this.mountCard(
                 main,
@@ -1039,7 +1039,7 @@ export class InterfaceView {
     }
 
     /** 打开任务板块信息面板：展示指定任务的收集篮子 / 待办改进 / 文件目录 */
-    private openTaskBoard(taskId: string): void {
+    private openTaskBoard(taskId: string, options?: { pinned?: boolean }): void {
         this.taskSectionsPanel ??= new TaskSectionsPanel({
             container: this.panelContainer,
             app: this.app,
@@ -1056,7 +1056,7 @@ export class InterfaceView {
                 this.taskSectionsPanel?.addIgnoreElement(panel.element);
             },
         });
-        this.taskSectionsPanel.openForTask(taskId);
+        this.taskSectionsPanel.openForTask(taskId, options);
     }
 }
 

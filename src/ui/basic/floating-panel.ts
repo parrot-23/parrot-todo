@@ -241,11 +241,16 @@ export class FloatingPanel {
 
     /** 切换钉住状态：钉住后点击面板外不再关闭 */
     private togglePin(): void {
-        this.pinned = !this.pinned;
-        this.setCloseOnBlur(!this.pinned);
+        this.setPinned(!this.pinned);
+    }
+
+    /** 设置钉住状态（供外部按入口控制默认钉住；面板未打开时记录到下次打开） */
+    setPinned(pinned: boolean): void {
+        this.pinned = pinned;
+        this.setCloseOnBlur(!pinned);
         if (!this.pinButtonEl) return;
-        this.pinButtonEl.toggleClass('is-active', this.pinned);
-        const label = t(this.pinned ? 'panel.unpin' : 'panel.pin');
+        this.pinButtonEl.toggleClass('is-active', pinned);
+        const label = t(pinned ? 'panel.unpin' : 'panel.pin');
         this.pinButtonEl.title = label;
         this.pinButtonEl.setAttribute('aria-label', label);
     }

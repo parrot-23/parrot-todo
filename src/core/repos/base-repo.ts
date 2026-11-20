@@ -93,6 +93,12 @@ export class BaseRepo {
     /** 计划一周面板是否展开显示所有任务的本周描述（随主数据一起持久化，默认关闭） */
     planWeekNotesExpanded = false;
 
+    /** 本地剧本目录类型：vault 目录（vault 相对路径）/ 本地目录（绝对路径） */
+    storyLocalDirMode: 'vault' | 'local' = 'vault';
+
+    /** 本地剧本目录路径（空表示未配置） */
+    storyLocalDirPath = '';
+
     constructor(plugin: Plugin) {
         this.plugin = plugin;
     }
@@ -133,6 +139,8 @@ export class BaseRepo {
             scriptModeEnabled: this.scriptModeEnabled,
             taskLibraryRoot: this.taskLibraryRoot,
             planWeekNotesExpanded: this.planWeekNotesExpanded,
+            storyLocalDirMode: this.storyLocalDirMode,
+            storyLocalDirPath: this.storyLocalDirPath,
         });
     }
 
@@ -163,6 +171,13 @@ export class BaseRepo {
     /** 保存任务库根目录 */
     async saveTaskLibraryRoot(path: string): Promise<void> {
         this.taskLibraryRoot = path;
+        await this.saveAll();
+    }
+
+    /** 保存本地剧本目录配置（类型 + 路径） */
+    async saveStoryLocalDir(mode: 'vault' | 'local', path: string): Promise<void> {
+        this.storyLocalDirMode = mode;
+        this.storyLocalDirPath = path;
         await this.saveAll();
     }
 
@@ -214,6 +229,12 @@ export class BaseRepo {
         this.planWeekNotesExpanded = typeof savedData.planWeekNotesExpanded === 'boolean'
             ? savedData.planWeekNotesExpanded
             : false;
+
+        // 读取本地剧本目录配置（兼容旧数据：默认 vault 目录、未配置）
+        this.storyLocalDirMode = savedData.storyLocalDirMode === 'local' ? 'local' : 'vault';
+        this.storyLocalDirPath = typeof savedData.storyLocalDirPath === 'string'
+            ? savedData.storyLocalDirPath
+            : '';
 
         const defaultCategories: PlanCategoryData = {
             categories: [

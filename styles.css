@@ -15565,6 +15565,61 @@ button.interface-today-tasks-add {
     height: 14px;
 }
 
+/* 本地剧本目录配置浮层 */
+.floating-panel-body.story-local-dir-config {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.story-local-dir-config-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.story-local-dir-config-label {
+    flex: 0 0 70px;
+    font-size: 12px;
+    color: var(--sdt-text-primary, var(--text-normal));
+}
+
+.story-local-dir-config-select,
+.story-local-dir-config-input {
+    flex: 1;
+    min-width: 0;
+    height: 30px;
+    font-size: 12px;
+}
+
+.story-local-dir-config-browse {
+    flex: 0 0 auto;
+    height: 30px;
+    padding: 0 10px;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.story-local-dir-config-error {
+    min-height: 16px;
+    font-size: 12px;
+    line-height: 16px;
+    color: var(--sdt-danger, var(--text-error));
+}
+
+.story-local-dir-config-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.story-local-dir-config-btn {
+    height: 30px;
+    padding: 0 14px;
+    font-size: 12px;
+    cursor: pointer;
+}
+
 /* 卡片右侧「预览」按钮 */
 .story-panel-card-btn {
     display: flex;
