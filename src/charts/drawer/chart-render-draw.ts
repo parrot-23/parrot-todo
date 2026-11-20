@@ -10,6 +10,7 @@ import type {
     WordCloudSeries,
 } from '../../core/datatypes/chart';
 import { makeDayKeyFromWeek } from '../../core/shared/plan-data';
+import { t } from '../../core/i18n';
 
 /** 图表渲染配置 */
 export interface ChartRenderOptions {
@@ -30,7 +31,7 @@ export function renderChart(
 ): void {
     const data = series.data;
     if (data.length === 0) {
-        container.createDiv({ cls: 'wb-chart-empty', text: '暂无数据' });
+        container.createDiv({ cls: 'wb-chart-empty', text: t('chart.empty') });
         return;
     }
 
@@ -62,7 +63,7 @@ export function renderChart(
 export function renderRadar(container: HTMLElement, series: RadarSeries, options: ChartRenderOptions = {}): void {
     const data = series.data;
     if (data.length === 0) {
-        container.createDiv({ cls: 'wb-chart-empty', text: '暂无数据' });
+        container.createDiv({ cls: 'wb-chart-empty', text: t('chart.empty') });
         return;
     }
     renderRadarChart(container, data, options);
@@ -72,7 +73,7 @@ export function renderRadar(container: HTMLElement, series: RadarSeries, options
 export function renderScatter(container: HTMLElement, series: ScatterSeries, options: ChartRenderOptions = {}): void {
     const data = series.data;
     if (data.length === 0) {
-        container.createDiv({ cls: 'wb-chart-empty', text: '暂无数据' });
+        container.createDiv({ cls: 'wb-chart-empty', text: t('chart.empty') });
         return;
     }
     renderScatterChart(container, data, series.xLabel, series.yLabel, options);
@@ -82,7 +83,7 @@ export function renderScatter(container: HTMLElement, series: ScatterSeries, opt
 export function renderFunnel(container: HTMLElement, series: FunnelSeries, options: ChartRenderOptions = {}): void {
     const data = series.data;
     if (data.length === 0) {
-        container.createDiv({ cls: 'wb-chart-empty', text: '暂无数据' });
+        container.createDiv({ cls: 'wb-chart-empty', text: t('chart.empty') });
         return;
     }
     renderFunnelChart(container, data, options);
@@ -92,7 +93,7 @@ export function renderFunnel(container: HTMLElement, series: FunnelSeries, optio
 export function renderWordCloud(container: HTMLElement, series: WordCloudSeries): void {
     const data = series.data;
     if (data.length === 0) {
-        container.createDiv({ cls: 'wb-chart-empty', text: '暂无数据' });
+        container.createDiv({ cls: 'wb-chart-empty', text: t('chart.empty') });
         return;
     }
     renderWordCloudView(container, data);
@@ -735,7 +736,7 @@ function renderPieChart(
 
     const total = data.reduce((s, d) => s + d.value, 0);
     if (total <= 0) {
-        container.createDiv({ cls: 'wb-chart-empty', text: '暂无数据' });
+        container.createDiv({ cls: 'wb-chart-empty', text: t('chart.empty') });
         return;
     }
 
@@ -812,7 +813,7 @@ function truncate(text: string, max: number): string {
 export function renderHeatmap(container: HTMLElement, series: HeatmapSeries): void {
     const data = series.data;
     if (data.length === 0) {
-        container.createDiv({ cls: 'wb-chart-empty', text: '暂无数据' });
+        container.createDiv({ cls: 'wb-chart-empty', text: t('chart.empty') });
         return;
     }
 
@@ -859,7 +860,7 @@ export function renderHeatmap(container: HTMLElement, series: HeatmapSeries): vo
 
     // 星期标签列
     const dayLabels = body.createDiv({ cls: 'wb-heatmap-days' });
-    const dayNames = ['', '一', '', '三', '', '五', ''];
+    const dayNames = ['', t('chart.weekdayMon'), '', t('chart.weekdayWed'), '', t('chart.weekdayFri'), ''];
     for (const name of dayNames) {
         dayLabels.createDiv({ cls: 'wb-heatmap-day', text: name });
     }
@@ -883,7 +884,7 @@ export function renderHeatmap(container: HTMLElement, series: HeatmapSeries): vo
                 cell.addClass(`is-level-${level}`);
                 cell.setAttribute('data-value', String(value));
                 cell.setAttribute('data-date', key);
-                cell.setAttribute('title', `${key}: ${value} 分钟`);
+                cell.setAttribute('title', `${key}: ${value} ${t('chart.minutes')}`);
             }
         }
         cursor.setDate(cursor.getDate() + 7);
@@ -891,11 +892,11 @@ export function renderHeatmap(container: HTMLElement, series: HeatmapSeries): vo
 
     // 图例
     const legend = grid.createDiv({ cls: 'wb-heatmap-legend' });
-    legend.createSpan({ cls: 'wb-heatmap-legend-label', text: '少' });
+    legend.createSpan({ cls: 'wb-heatmap-legend-label', text: t('chart.heatmapLess') });
     for (let i = 1; i <= 4; i++) {
         legend.createSpan({ cls: `wb-heatmap-cell is-level-${i}` });
     }
-    legend.createSpan({ cls: 'wb-heatmap-legend-label', text: '多' });
+    legend.createSpan({ cls: 'wb-heatmap-legend-label', text: t('chart.heatmapMore') });
 }
 
 /** 根据活跃度值分档（1-4 档） */

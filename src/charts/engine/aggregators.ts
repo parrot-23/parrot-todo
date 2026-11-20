@@ -18,6 +18,7 @@ import type {
 import { executionDuration, getEventStatus } from '../../core/datatypes/domain';
 import { makeDayKeyFromWeek, getCurrentWeekKey, shiftWeekKey, parseWeekKey } from '../../core/shared/plan-data';
 import { UNCATEGORIZED_CATEGORY_COLOR } from '../../core/shared/plan-category-manager';
+import { t } from '../../core/i18n';
 
 /** 聚合结果：数字指标 + 可选图表序列 */
 export interface AggregationResult {
@@ -108,7 +109,7 @@ export function aggregate(source: CardSource, provider: DataProvider): Aggregati
 /** 任务总数（收集盒未移除任务） */
 function aggregateTaskCount(provider: DataProvider): AggregationResult {
     const total = provider.getTasks().filter((i) => !i.removed).length;
-    return { stats: [{ label: '任务总数', value: total }] };
+    return { stats: [{ label: t('chart.statTaskTotal'), value: total }] };
 }
 
 /** 事件完成率：计划事件总数 / 已完成 / 完成率 */
@@ -119,9 +120,9 @@ function aggregateEventCompletion(provider: DataProvider): AggregationResult {
     const done = events.filter((e) => getEventStatus(e, executions) === 'executed').length;
     return {
         stats: [
-            { label: '计划事件', value: total },
-            { label: '已完成', value: done },
-            { label: '完成率', value: total > 0 ? Math.round((done / total) * 100) : 0 },
+            { label: t('chart.statPlanEvent'), value: total },
+            { label: t('chart.statDone'), value: done },
+            { label: t('chart.statCompletionRate'), value: total > 0 ? Math.round((done / total) * 100) : 0 },
         ],
     };
 }
@@ -129,13 +130,13 @@ function aggregateEventCompletion(provider: DataProvider): AggregationResult {
 /** 执行记录总数 */
 function aggregateExecutionCount(provider: DataProvider): AggregationResult {
     const count = provider.getExecutions().length;
-    return { stats: [{ label: '执行记录', value: count }] };
+    return { stats: [{ label: t('chart.statExecRecord'), value: count }] };
 }
 
 /** 计划事件总数 */
 function aggregateEventCount(provider: DataProvider): AggregationResult {
     const count = provider.getEvents().length;
-    return { stats: [{ label: '计划事件', value: count }] };
+    return { stats: [{ label: t('chart.statPlanEvent'), value: count }] };
 }
 
 /**
@@ -201,7 +202,7 @@ function aggregateExecutionsByDimension(provider: DataProvider, dimension: 'day'
                     // 从柱顶到柱底：时长大的在上方
                     datum.segments = Array.from(byTask.entries())
                         .map(([inboxId, segVal]) => ({
-                            label: taskTitle.get(inboxId) ?? (inboxId || '未分类'),
+                            label: taskTitle.get(inboxId) ?? (inboxId || t('chart.uncategorized')),
                             value: Math.round(segVal),
                             color: resolveCategoryColor(taskCategoryId.get(inboxId), provider),
                         }))
@@ -221,11 +222,11 @@ function aggregateExecutionsByDimension(provider: DataProvider, dimension: 'day'
 
         return {
             stats: [metric === 'duration'
-                ? { label: `总执行时长：${totalHours}小时${totalRemainMinutes}分钟`, value: '' }
-                : { label: '执行总量', value: totalValue }],
+                ? { label: t('chart.statExecTotalDuration', { hours: totalHours, minutes: totalRemainMinutes }), value: '' }
+                : { label: t('chart.statExecTotal'), value: totalValue }],
             series: {
                 data,
-                metricLabel: metric === 'duration' ? '时长(分钟)' : '次数',
+                metricLabel: metric === 'duration' ? t('chart.metricDuration') : t('chart.metricTimes'),
                 ...(showAxes ? { axes: { show: true, yUnit } } : {}),
             },
         };
@@ -245,8 +246,8 @@ function aggregateExecutionsByDimension(provider: DataProvider, dimension: 'day'
         .sort((a, b) => a.label.localeCompare(b.label));
 
     return {
-        stats: [{ label: '执行总量', value: data.reduce((s, d) => s + d.value, 0) }],
-        series: { data, metricLabel: metric === 'duration' ? '时长(分钟)' : '次数' },
+        stats: [{ label: t('chart.statExecTotal'), value: data.reduce((s, d) => s + d.value, 0) }],
+        series: { data, metricLabel: metric === 'duration' ? t('chart.metricDuration') : t('chart.metricTimes') },
     };
 }
 
@@ -271,8 +272,8 @@ function aggregateEventsByDimension(provider: DataProvider, dimension: 'day' | '
         .sort((a, b) => a.label.localeCompare(b.label));
 
     return {
-        stats: [{ label: '计划总量', value: data.reduce((s, d) => s + d.value, 0) }],
-        series: { data, metricLabel: metric === 'duration' ? '时长(分钟)' : '次数' },
+        stats: [{ label: t('chart.statPlanTotal'), value: data.reduce((s, d) => s + d.value, 0) }],
+        series: { data, metricLabel: metric === 'duration' ? t('chart.metricDuration') : t('chart.metricTimes') },
     };
 }
 
@@ -292,8 +293,8 @@ function aggregateExecutionsByCategory(provider: DataProvider, source: CardSourc
         .sort((a, b) => b.value - a.value);
 
     return {
-        stats: [{ label: '分类总数', value: data.length }],
-        series: { data, metricLabel: metric === 'duration' ? '时长(分钟)' : '次数' },
+        stats: [{ label: t('chart.statCategoryTotal'), value: data.length }],
+        series: { data, metricLabel: metric === 'duration' ? t('chart.metricDuration') : t('chart.metricTimes') },
     };
 }
 
@@ -314,8 +315,8 @@ function aggregateEventsByCategory(provider: DataProvider, source: CardSource): 
         .sort((a, b) => b.value - a.value);
 
     return {
-        stats: [{ label: '分类总数', value: data.length }],
-        series: { data, metricLabel: metric === 'duration' ? '时长(分钟)' : '次数' },
+        stats: [{ label: t('chart.statCategoryTotal'), value: data.length }],
+        series: { data, metricLabel: metric === 'duration' ? t('chart.metricDuration') : t('chart.metricTimes') },
     };
 }
 
@@ -342,13 +343,13 @@ function resolveCategoryColor(categoryId: string | undefined, provider: DataProv
 /** 计算执行记录在指定维度下的键 */
 function dimensionKey(ex: { weekKey?: string; day?: number }, dimension: string): string {
     if (dimension === 'week') {
-        return ex.weekKey ?? '未知周';
+        return ex.weekKey ?? t('chart.unknownWeek');
     }
     // 默认按天：由周键 + 星期几换算日期键
     if (ex.weekKey && ex.day) {
         return makeDayKeyFromWeek(ex.weekKey, ex.day);
     }
-    return '未知日期';
+    return t('chart.unknownDate');
 }
 
 /**
@@ -391,8 +392,8 @@ function aggregateActivityHeatmap(source: CardSource, provider: DataProvider): A
 
     const total = data.reduce((s, d) => s + d.value, 0);
     return {
-        stats: [{ label: '活跃总量', value: total }],
-        heatmap: { data, metricLabel: metric === 'duration' ? '时长(分钟)' : '次数' },
+        stats: [{ label: t('chart.statActiveTotal'), value: total }],
+        heatmap: { data, metricLabel: metric === 'duration' ? t('chart.metricDuration') : t('chart.metricTimes') },
     };
 }
 
@@ -404,7 +405,7 @@ function aggregateUsageDays(provider: DataProvider): AggregationResult {
             days.add(makeDayKeyFromWeek(ex.weekKey, ex.day));
         }
     }
-    return { stats: [{ label: '累计使用天数', value: days.size }] };
+    return { stats: [{ label: t('chart.statActiveDays'), value: days.size }] };
 }
 
 /** 执行的任务总数：有执行记录的不同任务数（按 inboxId 去重） */
@@ -413,7 +414,7 @@ function aggregateExecutedTaskCount(provider: DataProvider): AggregationResult {
     for (const ex of provider.getExecutions()) {
         if (ex.inboxId) tasks.add(ex.inboxId);
     }
-    return { stats: [{ label: '执行任务总数', value: tasks.size }] };
+    return { stats: [{ label: t('chart.statExecTaskTotal'), value: tasks.size }] };
 }
 
 /** 执行总时长：全部执行记录的时长之和（分钟） */
@@ -422,7 +423,7 @@ function aggregateExecutionTotalDuration(provider: DataProvider): AggregationRes
     for (const ex of provider.getExecutions()) {
         total += executionDuration(ex);
     }
-    return { stats: [{ label: '执行总时长', value: total }] };
+    return { stats: [{ label: t('chart.statExecDuration'), value: total }] };
 }
 
 /**
@@ -450,17 +451,17 @@ function aggregateRadarOverview(provider: DataProvider): AggregationResult {
     for (const t of tasks) if (t.categoryId) categories.add(t.categoryId);
 
     const data = [
-        { label: '任务数', value: taskCount },
-        { label: '执行数', value: execCount },
-        { label: '完成率', value: completionRate },
-        { label: '使用天数', value: days.size },
-        { label: '执行时长', value: totalDuration },
-        { label: '分类数', value: categories.size },
+        { label: t('chart.statTaskCount'), value: taskCount },
+        { label: t('chart.statExecCount'), value: execCount },
+        { label: t('chart.statCompletionRate'), value: completionRate },
+        { label: t('chart.statUsedDays'), value: days.size },
+        { label: t('chart.statExecDuration'), value: totalDuration },
+        { label: t('chart.statCategoryCount'), value: categories.size },
     ];
 
     return {
-        stats: [{ label: '综合维度', value: data.length }],
-        radar: { data, metricLabel: '综合指标' },
+        stats: [{ label: t('chart.statCompositeDimension'), value: data.length }],
+        radar: { data, metricLabel: t('chart.metricComposite') },
     };
 }
 
@@ -479,8 +480,8 @@ function aggregateScatterDuration(provider: DataProvider): AggregationResult {
         }));
 
     return {
-        stats: [{ label: '执行记录', value: data.length }],
-        scatter: { data, xLabel: '开始时间(分钟)', yLabel: '时长(分钟)' },
+        stats: [{ label: t('chart.statExecRecord'), value: data.length }],
+        scatter: { data, xLabel: t('chart.scatterStartTime'), yLabel: t('chart.metricDuration') },
     };
 }
 
@@ -494,14 +495,14 @@ function aggregateFunnelStatus(provider: DataProvider): AggregationResult {
     const done = tasks.filter((t) => t.status === 'done').length;
 
     const data = [
-        { label: '未开始', value: notStarted },
-        { label: '进行中', value: inProgress },
-        { label: '已完成', value: done },
+        { label: t('chart.statusNotStarted'), value: notStarted },
+        { label: t('chart.statusInProgress'), value: inProgress },
+        { label: t('chart.statDone'), value: done },
     ];
 
     return {
-        stats: [{ label: '任务总数', value: tasks.length }],
-        funnel: { data, metricLabel: '任务状态' },
+        stats: [{ label: t('chart.statTaskTotal'), value: tasks.length }],
+        funnel: { data, metricLabel: t('chart.metricTaskStatus') },
     };
 }
 
@@ -542,7 +543,7 @@ function aggregateWordCloudTitles(provider: DataProvider): AggregationResult {
         .slice(0, 50);
 
     return {
-        stats: [{ label: '词条数', value: data.length }],
-        wordcloud: { data, metricLabel: '任务关键词' },
+        stats: [{ label: t('chart.statWordCount'), value: data.length }],
+        wordcloud: { data, metricLabel: t('chart.metricTaskKeyword') },
     };
 }
