@@ -1,6 +1,6 @@
 ﻿// 习惯面板：基于 FloatingPanel，用于查看与设置任务习惯。
 // 结构：左侧（顶部根任务下拉 + 任务树）+ 右侧（一周七列日历，展示已启用习惯的卡片）。
-import { ToggleComponent, setIcon } from 'obsidian';
+import { setIcon } from 'obsidian';
 
 import type { PrototypeTask, TaskHabit } from '../../../core/datatypes/prototype-task';
 import { t } from '../../../core/i18n';
@@ -8,6 +8,7 @@ import type { PlanCategory } from '../../../core/shared/plan-category-manager';
 import { getCurrentWeekKey, makeDayKeyFromWeek } from '../../../core/shared/plan-data';
 import { getTaskHabit, setTaskHabit } from '../../../core/shared/task-sections';
 import { FloatingPanel, type FloatingPanelOptions } from '../../../ui/basic/floating-panel';
+import { HabitEditor } from '../../../ui/basic/habit-editor';
 import { TaskTree } from '../task/task-tree';
 
 /** 习惯面板配置 */
@@ -218,55 +219,17 @@ export class HabitPanel extends FloatingPanel {
 
         this.renderTaskHead(this.habitPanelEl, task);
 
-        const habit = this.getHabit(task);
-
-        // 第二行：开关 + 图标 + 文字（启用习惯）
-        const enableRow = this.habitPanelEl.createDiv({ cls: 'habit-enable' });
-        new ToggleComponent(enableRow.createDiv({ cls: 'habit-enable-switch' }))
-            .setValue(habit.enabled)
-            .onChange((value) => {
-                this.saveHabit(task, { enabled: value });
-                this.refreshTreeTrailingIcons();
-                this.renderHabitPanel();
-            });
-        const enableIconEl = enableRow.createSpan({ cls: 'habit-enable-icon' });
-        setIcon(enableIconEl, 'repeat');
-        enableRow.createSpan({ cls: 'habit-enable-text', text: t('panel.habitEnable') });
-
-        // 第三 / 四行：时间 + 星期（仅启用后可配置）
-        const config = this.habitPanelEl.createDiv({ cls: 'habit-config' });
-        config.toggleClass('is-disabled', !habit.enabled);
-
-        const timeRow = config.createDiv({ cls: 'habit-time-row' });
-        timeRow.createSpan({ cls: 'habit-time-label', text: t('panel.habitTime') });
-        const timeInput = timeRow.createEl('input', {
-            cls: 'habit-time',
-            type: 'time',
+        new HabitEditor(this.habitPanelEl, {
+            getHabit: () => this.getHabit(task),
+            onChange: (patch) => {
+                this.saveHabit(task, patch);
+                // 启用状态变化后同步任务树行末尾图标
+                if (patch.enabled !== undefined) this.refreshTreeTrailingIcons();
+            },
+            showAllDay: false,
+            showDuration: false,
+            disableWhenInactive: true,
         });
-        timeInput.value = habit.time;
-        timeInput.disabled = !habit.enabled;
-        timeInput.addEventListener('change', () => {
-            this.saveHabit(task, { time: timeInput.value || '09:00' });
-        });
-
-        const daysRow = config.createDiv({ cls: 'habit-days' });
-        for (let day = 1; day <= 7; day += 1) {
-            const button = daysRow.createEl('button', {
-                cls: 'habit-day',
-                attr: { type: 'button' },
-                text: t(WEEKDAY_KEYS[day - 1]),
-            });
-            button.toggleClass('is-active', habit.weekdays.includes(day));
-            button.disabled = !habit.enabled;
-            button.addEventListener('click', () => {
-                const current = this.getHabit(task);
-                const weekdays = current.weekdays.includes(day)
-                    ? current.weekdays.filter((item) => item !== day)
-                    : [...current.weekdays, day].sort((a, b) => a - b);
-                this.saveHabit(task, { weekdays });
-                button.toggleClass('is-active', weekdays.includes(day));
-            });
-        }
     }
 
     /** 读取任务习惯设置（未设置时返回默认值） */

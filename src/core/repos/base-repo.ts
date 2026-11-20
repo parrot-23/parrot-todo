@@ -430,6 +430,9 @@ function parsePrototypeTasks(raw: unknown, migrateLegacy: boolean): PrototypeTas
             ...(typeof r.parentId === 'string' ? { parentId: r.parentId } : {}),
             ...(typeof r.description === 'string' ? { description: r.description } : {}),
             ...(typeof r.categoryId === 'string' ? { categoryId: r.categoryId } : {}),
+            ...(typeof r.estimatedMinutes === 'number' && Number.isFinite(r.estimatedMinutes)
+                ? { estimatedMinutes: Math.max(0, Math.round(r.estimatedMinutes)) }
+                : {}),
             ...(r.status === 'notStarted' || r.status === 'inProgress' || r.status === 'done' || r.status === 'paused'
                 ? { status: r.status }
                 : {}),

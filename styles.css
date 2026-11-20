@@ -12186,117 +12186,684 @@ button.task-record-dropdown-item.is-selected {
     font-size: 11px;
 }
 
-/* 习惯设置面板：开关行 + 时间 / 星期配置 */
-.habit-enable {
+/* 任务类型设置卡片：头部启用开关 + 表单行（习惯 / 目标共用） */
+.kind-settings {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--sdt-card-border, var(--background-modifier-border));
+    border-radius: 8px;
+    background: var(--sdt-card-bg, var(--background-secondary));
+    overflow: hidden;
+}
+
+/* 头部：类型图标 + 标题 + 启用开关 */
+.kind-settings-head {
     display: flex;
     align-items: center;
-    gap: 6px;
-    font-size: 12px;
-    color: var(--sdt-text-secondary, var(--text-muted));
+    gap: 8px;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--sdt-card-border, var(--background-modifier-border));
 }
 
-.habit-enable .checkbox-container {
-    flex-shrink: 0;
-}
-
-/* 官方 ToggleComponent 的容器，保证开关行内不被压缩 */
-.habit-enable-switch {
-    display: flex;
-    align-items: center;
-    flex-shrink: 0;
-}
-
-.habit-enable-icon {
+.kind-settings-mark {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    background: var(--sdt-hover-bg, var(--background-modifier-hover));
+    color: var(--interactive-accent);
 }
 
-.habit-enable-icon svg {
+.kind-settings-mark svg {
     width: 13px;
     height: 13px;
 }
 
-.habit-config {
+.kind-settings-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--sdt-text-primary, var(--text-normal));
+}
+
+.kind-settings-switch {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+/* 配置区：禁用时整体降透明度 */
+.kind-settings-body {
     display: flex;
     flex-direction: column;
     gap: 8px;
+    padding: 10px;
 }
 
-/* 目标类型配置：启用目标 + 截止周数 / 截止日期 */
-.goal-config {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+.kind-settings-body.is-disabled {
+    opacity: 0.45;
 }
 
-.goal-deadline-row {
+/* 表单行：左侧标签定宽，右侧控件自适应 */
+.kind-settings-row {
     display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 28px;
+}
+
+.kind-settings-label {
+    flex: 0 0 60px;
+    width: 60px;
+    font-size: 12px;
+    color: var(--sdt-text-secondary, var(--text-muted));
+}
+
+.kind-settings-control {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+/* 输入框统一尺寸 */
+.kind-settings-input {
+    height: 28px;
+    padding: 0 8px;
+    box-sizing: border-box;
+    border: 1px solid var(--sdt-card-border, var(--background-modifier-border));
+    border-radius: 6px;
+    background: var(--background-primary);
+    color: var(--sdt-text-primary, var(--text-normal));
+    font-size: 12px;
+}
+
+.kind-settings-input:focus {
+    border-color: var(--interactive-accent);
+    box-shadow: none;
+    outline: none;
+}
+
+.kind-settings-time {
+    display: inline-flex;
+}
+
+.kind-settings-time.is-hidden {
+    display: none;
+}
+
+/* 选择类控件（时间 / 数值下拉 / 日期）统一触发器：压过 Obsidian 全局 button 规则的边框与阴影 */
+.time-picker {
+    display: inline-flex;
+}
+
+.time-picker .picker-trigger,
+.number-select .picker-trigger,
+.date-picker .picker-trigger {
+    display: inline-flex;
     align-items: center;
     gap: 6px;
-    flex-wrap: wrap;
-}
-
-.goal-deadline-year {
-    width: 72px;
-}
-
-.goal-deadline-week {
-    width: 60px;
-}
-
-.goal-deadline-unit {
-    color: var(--text-muted);
+    height: 28px;
+    padding: 0 8px 0 10px;
+    box-sizing: border-box;
+    border: 1px solid var(--sdt-card-border, var(--background-modifier-border));
+    border-radius: 6px;
+    background: var(--sdt-control-bg, var(--background-primary));
+    box-shadow: none !important;
+    color: var(--sdt-text-primary, var(--text-normal));
     font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+    transition: border-color 120ms ease;
 }
 
-.habit-config.is-disabled {
+.time-picker .picker-trigger:hover:not(:disabled),
+.number-select .picker-trigger:hover:not(:disabled),
+.date-picker .picker-trigger:hover:not(:disabled),
+.picker-trigger.is-open {
+    border-color: var(--interactive-accent);
+    box-shadow: none !important;
+}
+
+.time-picker .picker-trigger:focus-visible,
+.number-select .picker-trigger:focus-visible,
+.date-picker .picker-trigger:focus-visible {
+    border-color: var(--interactive-accent);
+    outline: none;
+    box-shadow: none !important;
+}
+
+.time-picker .picker-trigger:disabled,
+.number-select .picker-trigger:disabled,
+.date-picker .picker-trigger:disabled {
     opacity: 0.5;
+    cursor: default;
 }
 
-.habit-time-row {
+.time-picker .picker-trigger {
+    min-width: 96px;
+}
+
+.time-picker-icon,
+.time-picker-caret,
+.date-picker-icon,
+.date-picker-caret,
+.number-select-caret,
+.number-select-clear {
+    display: inline-flex;
+    align-items: center;
+    color: var(--sdt-text-secondary, var(--text-muted));
+}
+
+.time-picker-icon svg,
+.date-picker-icon svg {
+    width: 13px;
+    height: 13px;
+}
+
+.time-picker-caret svg,
+.date-picker-caret svg,
+.number-select-caret svg {
+    width: 12px;
+    height: 12px;
+}
+
+.time-picker-value,
+.date-picker-value {
+    flex: 1 1 auto;
+    text-align: left;
+}
+
+.date-picker-value.is-placeholder {
+    color: var(--sdt-text-secondary, var(--text-muted));
+}
+
+/* 弹层外壳：与浮动面板同底色，仅用细边框 + 轻阴影表达层级 */
+.picker-popover {
+    position: fixed;
+    z-index: 1200;
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    box-sizing: border-box;
+    border: 1px solid var(--sdt-card-border, var(--background-modifier-border));
+    border-radius: 10px;
+    background: var(--sdt-control-bg, var(--background-primary));
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.16);
+    color: var(--sdt-text-primary, var(--text-normal));
+}
+
+.time-picker-popover {
+    width: 216px;
+}
+
+.time-picker-head {
     display: flex;
     align-items: center;
     gap: 8px;
+    padding: 10px 12px 8px;
 }
 
-.habit-time-label {
-    font-size: 12px;
-    color: var(--sdt-text-secondary, var(--text-muted));
+.time-picker-readout {
+    font-size: 18px;
+    font-weight: 600;
+    line-height: 1.2;
+    font-variant-numeric: tabular-nums;
+    color: var(--sdt-text-primary, var(--text-normal));
 }
 
-.habit-time {
-    width: 110px;
-    font-size: 12px;
-}
-
-.habit-days {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-}
-
-.habit-day {
-    padding: 3px 8px;
-    border: 1px solid var(--sdt-card-border, var(--background-modifier-border));
-    border-radius: 4px;
+.time-picker-popover .time-picker-now {
+    height: auto;
+    min-height: 0;
+    margin-left: auto;
+    padding: 2px 6px;
+    border: none;
+    border-radius: 5px;
     background: transparent;
-    color: var(--sdt-text-secondary, var(--text-muted));
-    font-size: 12px;
+    box-shadow: none !important;
+    color: var(--interactive-accent);
+    font-size: 11px;
     cursor: pointer;
 }
 
-.habit-day:hover:not(:disabled) {
+.time-picker-popover .time-picker-now:hover {
     background: var(--sdt-hover-bg, var(--background-modifier-hover));
+    box-shadow: none !important;
 }
 
-.habit-day.is-active {
-    border-color: var(--interactive-accent);
+/* 时 / 分两列，各自独立滚动 */
+.time-picker-columns {
+    display: flex;
+    gap: 8px;
+    padding: 0 12px 10px;
+}
+
+.time-picker-column {
+    display: flex;
+    flex: 1 1 0;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.time-picker-column-label {
+    font-size: 11px;
+    color: var(--sdt-text-secondary, var(--text-muted));
+    text-align: center;
+}
+
+/* 选项列表：时间两列、数值下拉共用 */
+.picker-list {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    height: 164px;
+    padding: 2px;
+    box-sizing: border-box;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border: 1px solid var(--sdt-card-border, var(--background-modifier-border));
+    border-radius: 8px;
+    background: transparent;
+}
+
+/* 选项按钮：只保留选中/悬停底色，去掉全局按钮的边框与阴影 */
+.picker-popover .picker-option {
+    flex-shrink: 0;
+    width: 100%;
+    height: 28px;
+    margin: 0;
+    padding: 0;
+    border: none !important;
+    border-radius: 6px;
+    background: transparent !important;
+    box-shadow: none !important;
+    color: var(--sdt-text-secondary, var(--text-muted));
+    font-size: 12px;
+    font-weight: 400;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    cursor: pointer;
+    transition: background 120ms ease, color 120ms ease;
+}
+
+.picker-popover .picker-option:hover {
+    background: var(--sdt-hover-bg, var(--background-modifier-hover)) !important;
+    color: var(--sdt-text-primary, var(--text-normal));
+}
+
+.picker-popover .picker-option.is-active,
+.picker-popover .picker-option.is-active:hover {
+    background: var(--interactive-accent) !important;
+    color: var(--text-on-accent);
+    font-weight: 600;
+}
+
+/* 弹层底部操作区 */
+.picker-foot {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 8px 12px 10px;
+    border-top: 1px solid var(--sdt-card-border, var(--background-modifier-border));
+}
+
+.picker-popover .picker-btn {
+    height: 26px;
+    min-height: 0;
+    margin: 0;
+    padding: 0 12px;
+    border: 1px solid var(--sdt-card-border, var(--background-modifier-border));
+    border-radius: 6px;
+    background: transparent;
+    box-shadow: none !important;
+    color: var(--sdt-text-secondary, var(--text-muted));
+    font-size: 12px;
+    font-weight: 400;
+    cursor: pointer;
+}
+
+.picker-popover .picker-btn:hover {
+    background: var(--sdt-hover-bg, var(--background-modifier-hover));
+    color: var(--sdt-text-primary, var(--text-normal));
+    box-shadow: none !important;
+}
+
+.picker-popover .picker-btn.is-primary {
+    border: 1px solid var(--interactive-accent);
+    background: var(--interactive-accent);
+    color: var(--text-on-accent);
+    font-weight: 600;
+    box-shadow: none !important;
+}
+
+.picker-popover .picker-btn.is-primary:hover {
+    background: var(--interactive-accent-hover, var(--interactive-accent));
+    color: var(--text-on-accent);
+    box-shadow: none !important;
+}
+
+/* 弹层内的图标按钮（月份切换等） */
+.picker-popover .picker-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    border: none !important;
+    border-radius: 5px;
+    background: transparent !important;
+    box-shadow: none !important;
+    color: var(--sdt-text-secondary, var(--text-muted));
+    cursor: pointer;
+}
+
+.picker-popover .picker-icon-btn:hover {
+    background: var(--sdt-hover-bg, var(--background-modifier-hover)) !important;
+    color: var(--sdt-text-primary, var(--text-normal));
+}
+
+.picker-popover .picker-icon-btn svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* 数值下拉：年份 / 周次 */
+.number-select {
+    display: inline-flex;
+}
+
+.number-select .picker-trigger {
+    justify-content: center;
+    gap: 3px;
+    min-width: 72px;
+    padding: 0 6px;
+}
+
+.number-select-value {
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+}
+
+.number-select-value.is-placeholder {
+    color: var(--sdt-text-secondary, var(--text-muted));
+}
+
+.number-select-unit {
+    color: var(--sdt-text-secondary, var(--text-muted));
+    font-size: 11px;
+}
+
+.number-select-clear {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+}
+
+.number-select-clear svg {
+    width: 11px;
+    height: 11px;
+}
+
+.number-select.is-clearable.has-value:hover .number-select-clear,
+.number-select.is-clearable.has-value:focus-within .number-select-clear {
+    display: inline-flex;
+}
+
+.number-select.is-clearable.has-value:hover .number-select-caret,
+.number-select.is-clearable.has-value:focus-within .number-select-caret {
+    display: none;
+}
+
+.number-select-clear:hover {
     background: var(--sdt-hover-bg, var(--background-modifier-hover));
     color: var(--sdt-text-primary, var(--text-normal));
 }
 
-.habit-day:disabled {
+.number-select-popover {
+    width: 104px;
+    padding: 6px;
+}
+
+.number-select-list {
+    height: 156px;
+}
+
+.goal-settings-year .picker-trigger {
+    min-width: 88px;
+}
+
+.goal-settings-week-select .picker-trigger {
+    min-width: 78px;
+}
+
+/* 周次下拉较宽：需容纳「第XX周 · MM-DD 周日」 */
+.number-select-popover.goal-week-popover {
+    width: 172px;
+}
+
+/* 日期选择：触发器 + 月历 */
+.date-picker {
+    display: inline-flex;
+}
+
+.date-picker .picker-trigger {
+    min-width: 128px;
+}
+
+.date-picker-popover {
+    width: 248px;
+}
+
+.date-picker-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 10px 6px;
+}
+
+.date-picker-title {
+    flex: 1 1 auto;
+    color: var(--sdt-text-primary, var(--text-normal));
+    font-size: 13px;
+    font-weight: 600;
+    text-align: center;
+}
+
+.date-picker-weekdays,
+.date-picker-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 2px;
+    padding: 0 8px;
+}
+
+.date-picker-weekdays {
+    padding-bottom: 4px;
+}
+
+.date-picker-weekday {
+    color: var(--sdt-text-secondary, var(--text-muted));
+    font-size: 11px;
+    line-height: 20px;
+    text-align: center;
+}
+
+.date-picker-grid {
+    padding-bottom: 8px;
+}
+
+.picker-popover .date-picker-day {
+    height: 30px;
+    margin: 0;
+    padding: 0;
+    border: 1px solid transparent !important;
+    border-radius: 6px;
+    background: transparent !important;
+    box-shadow: none !important;
+    color: var(--sdt-text-primary, var(--text-normal));
+    font-size: 12px;
+    font-weight: 400;
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+    transition: background 120ms ease;
+}
+
+.picker-popover .date-picker-day:hover {
+    background: var(--sdt-hover-bg, var(--background-modifier-hover)) !important;
+}
+
+.picker-popover .date-picker-day.is-outside {
+    color: var(--sdt-text-secondary, var(--text-muted));
+    opacity: 0.55;
+}
+
+.picker-popover .date-picker-day.is-today {
+    border-color: var(--interactive-accent) !important;
+    color: var(--interactive-accent);
+}
+
+.picker-popover .date-picker-day.is-selected,
+.picker-popover .date-picker-day.is-selected:hover {
+    background: var(--interactive-accent) !important;
+    border-color: var(--interactive-accent) !important;
+    color: var(--text-on-accent);
+    font-weight: 600;
+}
+
+.date-picker-foot {
+    justify-content: flex-end;
+}
+
+/* 有清除按钮时靠左，单独「今天」时靠右 */
+.date-picker-foot .picker-btn:first-child:not(:last-child) {
+    margin-right: auto;
+}
+
+/* 全天开关 */
+.kind-settings-allday {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--sdt-text-secondary, var(--text-muted));
+    cursor: pointer;
+    user-select: none;
+}
+
+/* 预估时长：数字框 + 单位 */
+.kind-settings-number {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.kind-settings-number-input {
+    width: 64px;
+    text-align: center;
+}
+
+.kind-settings-unit {
+    font-size: 12px;
+    color: var(--sdt-text-secondary, var(--text-muted));
+}
+
+/* 生效星期：七等分格子，选中后实心高亮 */
+.habit-settings-days {
+    flex: 1 1 auto;
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 4px;
+}
+
+.habit-settings-day {
+    height: 28px;
+    padding: 0;
+    border: 1px solid var(--sdt-card-border, var(--background-modifier-border));
+    border-radius: 6px;
+    background: var(--background-primary);
+    box-shadow: none;
+    color: var(--sdt-text-secondary, var(--text-muted));
+    font-size: 11px;
+    line-height: 1;
+    cursor: pointer;
+    transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.habit-settings-day:hover:not(:disabled) {
+    border-color: var(--interactive-accent);
+    color: var(--sdt-text-primary, var(--text-normal));
+}
+
+.habit-settings-day.is-active {
+    border-color: var(--interactive-accent);
+    background: var(--interactive-accent);
+    color: var(--text-on-accent);
+    font-weight: 600;
+}
+
+.habit-settings-day:disabled {
     cursor: default;
+}
+
+/* 习惯面板内嵌：外层已是卡片，组件去掉自身卡片装饰 */
+.habit-panel .kind-settings {
+    gap: 8px;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    overflow: visible;
+}
+
+.habit-panel .kind-settings-head {
+    padding: 0;
+    border-bottom: none;
+}
+
+.habit-panel .kind-settings-body {
+    padding: 0;
+}
+
+/* 目标设置：截止时间（年 / 周次 / 日期）单行布局 */
+.goal-settings-line {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    row-gap: 6px;
+}
+
+/* 截止时间下方：距离到期天数提示 */
+.goal-deadline-hint {
+    padding-left: 70px;
+    margin-top: -2px;
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--sdt-text-secondary, var(--text-muted));
+}
+
+.goal-deadline-hint.is-hidden {
+    display: none;
+}
+
+.goal-deadline-hint.is-today {
+    color: var(--interactive-accent);
+}
+
+.goal-deadline-hint.is-overdue {
+    color: var(--text-error);
 }
 
 /* 右侧：年 / 周选项卡 + 内容 */
@@ -14646,24 +15213,9 @@ button.interface-today-tasks-add {
     height: 12px;
 }
 
-/* 习惯类型设置：全天开关 + 预估时长 */
-.task-section-kind .habit-config {
+/* 任务类型设置卡片：任务类型选择行下方的间距（习惯 / 目标共用） */
+.task-section-kind .kind-settings {
     margin-top: 2px;
-}
-
-.task-kind-allday {
-    cursor: pointer;
-}
-
-.task-kind-duration {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    margin-left: auto;
-}
-
-.task-kind-duration-input {
-    width: 64px;
 }
 
 .task-section-tab-head {
@@ -14874,37 +15426,6 @@ button.interface-today-tasks-add {
     gap: 6px;
 }
 
-.task-section-habit-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 12px;
-    color: var(--sdt-text-primary, var(--text-normal));
-}
-
-.task-section-habit-weekdays {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-}
-
-.task-section-weekday {
-    width: 26px;
-    height: 24px;
-    padding: 0;
-    border: 1px solid var(--sdt-card-border, var(--background-modifier-border));
-    border-radius: 6px;
-    background: transparent;
-    font-size: 10px;
-    color: var(--sdt-text-secondary, var(--text-muted));
-    cursor: pointer;
-}
-
-.task-section-weekday.is-active {
-    background: var(--interactive-accent);
-    border-color: var(--interactive-accent);
-    color: var(--text-on-accent);
-}
 /* ======================== 板块选项卡 / 配置页 ======================== */
 /* 选项卡栏容器：选项卡横向滚动 + 右侧配置按钮 */
 .task-section-tabs-bar {
@@ -15080,10 +15601,6 @@ button.interface-today-tasks-add {
     display: flex;
     flex-direction: column;
     gap: 6px;
-}
-
-.task-section-time-input {
-    font-size: 12px;
 }
 
 .task-detail-right {

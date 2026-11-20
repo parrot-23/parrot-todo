@@ -82,6 +82,8 @@ export interface PrototypeTask {
     description?: string;
     /** 任务分类 id（对应图例分类） */
     categoryId?: string;
+    /** 预估总时长（分钟，普通任务类型使用；未填写时为空） */
+    estimatedMinutes?: number;
     /** 任务状态（可选，旧任务无此字段，默认未开始） */
     status?: TaskStatus;
     /** 任务板块（清单 / 日目标 / 本周描述 / 目标 / 文件 / 习惯），数组顺序即展示顺序 */

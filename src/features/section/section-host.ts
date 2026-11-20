@@ -4,21 +4,18 @@
 //  2. 「开启」始终显示该类型选项卡，「自动」仅在板块存在内容时显示，「关闭」始终隐藏（数据保留）；
 //  3. 没有可显示的板块时，配置页作为兜底视图；
 //  4. 内容读写统一走 shared/task-sections 访问器，首次写入内容时自动创建板块。
-import { Notice, TFolder, ToggleComponent, setIcon, type App, type TFile } from 'obsidian';
+import { Notice, TFolder, setIcon, type App, type TFile } from 'obsidian';
 
 import type { ChecklistItem } from '../../core/datatypes/domain';
 import type { PrototypeTask, TaskDayGoalEntry, TaskGoalConfig, TaskHabit, TaskKind } from '../../core/datatypes/prototype-task';
 import type { SectionDisplayMode, SectionType } from '../../core/datatypes/task-section';
-import { getLang, getWeekDays, t } from '../../core/i18n';
+import { getLang, t } from '../../core/i18n';
 import { SECTION_REGISTRY } from '../../core/shared/section-registry';
 import { getTaskKind } from '../../core/shared/task-kind';
 import {
     getCurrentDayKey,
     getCurrentWeekKey,
-    getISOWeek,
-    getWeeksInYear,
     makeDayKeyFromWeek,
-    makeWeekKey,
     parseWeekKey,
     shiftWeekKey,
 } from '../../core/shared/plan-data';
@@ -50,6 +47,8 @@ import {
 import { ensureTaskFileDir, revealFolderInExplorer } from '../../core/shared/task-library';
 import { FileEditorPanel } from '../../ui/basic/file-editor-panel';
 import { FloatingPanel } from '../../ui/basic/floating-panel';
+import { HabitEditor } from '../../ui/basic/habit-editor';
+import { GoalEditor } from '../../ui/basic/goal-editor';
 
 /** 标签 key */
 type LabelKey = Parameters<typeof t>[0];
@@ -297,72 +296,54 @@ export class SectionHost {
         if (current === 'habit') this.renderHabitKindSettings(wrap, task);
         // 目标类型：下方勾选启用目标 + 截止周数 / 截止日期
         else if (current === 'goal') this.renderGoalKindSettings(wrap, task);
+        // 任务类型：下方填写预估总时长
+        else this.renderTaskKindSettings(wrap, task);
+    }
+
+    /** 任务设置：预估总时长（分钟，留空表示不预估） */
+    private renderTaskKindSettings(parentEl: HTMLElement, task: PrototypeTask): void {
+        const card = parentEl.createDiv({ cls: 'kind-settings' });
+        const body = card.createDiv({ cls: 'kind-settings-body' });
+        const row = body.createDiv({ cls: 'kind-settings-row' });
+        row.createSpan({ cls: 'kind-settings-label', text: t('panel.taskEstimate') });
+        const control = row.createDiv({ cls: 'kind-settings-control' });
+        const numberWrap = control.createDiv({ cls: 'kind-settings-number' });
+        const input = numberWrap.createEl('input', {
+            cls: 'kind-settings-input kind-settings-number-input',
+            attr: { type: 'number', min: '0', 'aria-label': t('panel.taskEstimate') },
+        });
+        input.placeholder = '—';
+        input.value = task.estimatedMinutes === undefined ? '' : String(task.estimatedMinutes);
+        numberWrap.createSpan({ cls: 'kind-settings-unit', text: t('panel.habitDurationUnit') });
+
+        const commit = (): void => {
+            const raw = input.value.trim();
+            const value = Number(raw);
+            if (!raw || !Number.isFinite(value) || value <= 0) {
+                input.value = '';
+                delete task.estimatedMinutes;
+            } else {
+                task.estimatedMinutes = Math.round(value);
+            }
+            void this.options.save();
+            this.options.onChanged?.();
+        };
+        input.addEventListener('change', commit);
+        input.addEventListener('keydown', (evt) => {
+            if (evt.key !== 'Enter') return;
+            evt.preventDefault();
+            input.blur();
+        });
     }
 
     /** 习惯设置：启用 / 全天或时间点 + 预估时长 / 生效星期（不受启用状态限制，始终可编辑） */
     private renderHabitKindSettings(parentEl: HTMLElement, task: PrototypeTask): void {
-        const habit = this.readHabit(task);
-        const config = parentEl.createDiv({ cls: 'habit-config' });
-
-        const enableRow = config.createDiv({ cls: 'habit-enable' });
-        new ToggleComponent(enableRow.createDiv({ cls: 'habit-enable-switch' }))
-            .setValue(habit.enabled)
-            .onChange((value) => {
-                this.saveHabit(task, { enabled: value });
-            });
-        const enableIconEl = enableRow.createSpan({ cls: 'habit-enable-icon' });
-        setIcon(enableIconEl, 'repeat');
-        enableRow.createSpan({ cls: 'habit-enable-text', text: t('panel.habitEnable') });
-
-        // 全天开关 + 具体时间点 + 预估时长
-        const timeRow = config.createDiv({ cls: 'habit-time-row' });
-        const allDayEl = timeRow.createEl('label', { cls: 'habit-enable task-kind-allday' });
-        new ToggleComponent(allDayEl.createDiv({ cls: 'habit-enable-switch' }))
-            .setValue(habit.allDay === true)
-            .onChange((value) => {
-                this.saveHabit(task, { allDay: value });
-            });
-        allDayEl.createSpan({ cls: 'habit-enable-text', text: t('panel.habitAllDay') });
-
-        if (!habit.allDay) {
-            const timeInput = timeRow.createEl('input', { cls: 'habit-time', type: 'time' });
-            timeInput.value = habit.time;
-            timeInput.addEventListener('change', () => {
-                this.saveHabit(task, { time: timeInput.value || '09:00' });
-            });
-        }
-
-        const durationEl = timeRow.createDiv({ cls: 'task-kind-duration' });
-        durationEl.createSpan({ cls: 'habit-time-label', text: t('panel.habitDuration') });
-        const durationInput = durationEl.createEl('input', {
-            cls: 'habit-time task-kind-duration-input',
-            type: 'number',
+        new HabitEditor(parentEl, {
+            getHabit: () => this.readHabit(task),
+            onChange: (patch) => this.saveHabit(task, patch),
+            showAllDay: true,
+            showDuration: true,
         });
-        durationInput.min = '0';
-        durationInput.value = String(habit.duration ?? 30);
-        durationEl.createSpan({ cls: 'habit-time-label', text: t('panel.habitDurationUnit') });
-        durationInput.addEventListener('change', () => {
-            const value = Number(durationInput.value);
-            this.saveHabit(task, { duration: Number.isFinite(value) && value >= 0 ? Math.round(value) : 30 });
-        });
-
-        // 生效星期：默认周一至周日全部激活，点击可取消 / 恢复
-        const daysRow = config.createDiv({ cls: 'habit-days' });
-        for (let day = 1; day <= 7; day += 1) {
-            const button = daysRow.createEl('button', {
-                cls: 'habit-day',
-                attr: { type: 'button' },
-                text: t(WEEKDAY_LABEL_KEYS[day - 1]),
-            });
-            button.toggleClass('is-active', habit.weekdays.includes(day));
-            button.addEventListener('click', () => {
-                const current = this.readHabit(task);
-                const weekdays = current.weekdays.includes(day)
-                    ? current.weekdays.filter((item) => item !== day)
-                    : [...current.weekdays, day].sort((a, b) => a - b);
-                this.saveHabit(task, { weekdays });
-            });
-        }
     }
 
     /** 读取习惯设置（未创建时返回默认值：未启用、09:00、周一到周日全选） */
@@ -374,102 +355,18 @@ export class SectionHost {
         };
     }
 
-    /** 保存习惯设置并刷新 */
+    /** 保存习惯设置（编辑器自行同步界面，不重绘以避免打断选择与失焦） */
     private saveHabit(task: PrototypeTask, patch: Partial<TaskHabit>): void {
         setTaskHabit(task, { ...this.readHabit(task), ...patch });
         void this.options.save();
         this.options.onChanged?.();
-        this.render();
     }
 
-    /** 目标设置：勾选启用目标后，配置截止周数（年份 + 周数）或截止日期 */
+    /** 目标设置：启用目标 + 截止周数（年份 / 周数）或截止日期 */
     private renderGoalKindSettings(parentEl: HTMLElement, task: PrototypeTask): void {
-        const config = getTaskGoalConfig(task);
-        const wrapEl = parentEl.createDiv({ cls: 'goal-config' });
-
-        const enableRow = wrapEl.createDiv({ cls: 'habit-enable' });
-        new ToggleComponent(enableRow.createDiv({ cls: 'habit-enable-switch' }))
-            .setValue(config.enabled)
-            .onChange((value) => {
-                this.saveGoalConfig(task, { enabled: value });
-            });
-        setIcon(enableRow.createSpan({ cls: 'habit-enable-icon' }), 'target');
-        enableRow.createSpan({ cls: 'habit-enable-text', text: t('panel.goalEnable') });
-
-        // 截止周数：年份 + 周数（输入框 + 下拉候选；未勾选启用目标时也显示）
-        const weekRow = wrapEl.createDiv({ cls: 'goal-deadline-row' });
-        weekRow.createSpan({ cls: 'habit-time-label', text: t('panel.goalDeadlineWeek') });
-        const parsedWeek = config.deadlineWeek ? parseWeekKey(config.deadlineWeek) : null;
-        const currentYear = new Date().getFullYear();
-        const yearListId = `goal-year-${crypto.randomUUID()}`;
-        const weekListId = `goal-week-${crypto.randomUUID()}`;
-        const yearInput = weekRow.createEl('input', { cls: 'habit-time goal-deadline-year', type: 'text' });
-        yearInput.inputMode = 'numeric';
-        yearInput.placeholder = String(currentYear);
-        yearInput.setAttr('list', yearListId);
-        yearInput.value = parsedWeek ? String(parsedWeek.year) : '';
-        const yearList = weekRow.createEl('datalist', { attr: { id: yearListId } });
-        for (let year = currentYear - 5; year <= currentYear + 15; year += 1) {
-            yearList.createEl('option', { attr: { value: String(year) } });
-        }
-        weekRow.createSpan({ cls: 'goal-deadline-unit', text: t('panel.goalDeadlineYearUnit') });
-        const weekInput = weekRow.createEl('input', { cls: 'habit-time goal-deadline-week', type: 'text' });
-        weekInput.inputMode = 'numeric';
-        weekInput.setAttr('list', weekListId);
-        weekInput.value = parsedWeek ? String(parsedWeek.week) : '';
-        const weekList = weekRow.createEl('datalist', { attr: { id: weekListId } });
-        for (let week = 1; week <= 53; week += 1) {
-            weekList.createEl('option', { attr: { value: String(week) } });
-        }
-        weekRow.createSpan({ cls: 'goal-deadline-unit', text: t('panel.goalDeadlineWeekUnit') });
-        // 两项都为空视为清空；只填其中一项时暂不提交，避免打断连续输入
-        const syncWeek = (): void => {
-            const yearText = yearInput.value.trim();
-            const weekText = weekInput.value.trim();
-            if (!yearText && !weekText) {
-                this.saveGoalConfig(task, { deadlineWeek: undefined });
-                return;
-            }
-            const year = yearText ? Math.round(Number(yearText)) : currentYear;
-            const week = Math.round(Number(weekText));
-            if (!Number.isFinite(year) || year < 2000 || year > 2100) return;
-            if (!Number.isFinite(week) || week < 1) return;
-            const clamped = Math.min(week, getWeeksInYear(year));
-            if (!yearText) yearInput.value = String(year);
-            if (clamped !== week) weekInput.value = String(clamped);
-            this.saveGoalConfig(task, { deadlineWeek: makeWeekKey(year, clamped) });
-        };
-        const handleEnter = (evt: KeyboardEvent): void => {
-            if (evt.key !== 'Enter') return;
-            evt.preventDefault();
-            syncWeek();
-        };
-        yearInput.addEventListener('change', syncWeek);
-        weekInput.addEventListener('change', syncWeek);
-        yearInput.addEventListener('keydown', handleEnter);
-        weekInput.addEventListener('keydown', handleEnter);
-
-        // 截止日期：设置后按日期自动推算所属周并回填年份与周数
-        const dateRow = wrapEl.createDiv({ cls: 'goal-deadline-row' });
-        dateRow.createSpan({ cls: 'habit-time-label', text: t('panel.goalDeadlineDate') });
-        const dateInput = dateRow.createEl('input', { cls: 'habit-time', type: 'date' });
-        dateInput.value = config.deadlineDate ?? '';
-        dateInput.addEventListener('change', () => {
-            const value = dateInput.value;
-            if (!value) {
-                this.saveGoalConfig(task, { deadlineDate: undefined });
-                return;
-            }
-            const date = new Date(`${value}T00:00:00`);
-            if (Number.isNaN(date.getTime())) return;
-            const year = date.getFullYear();
-            const week = getISOWeek(date);
-            yearInput.value = String(year);
-            weekInput.value = String(week);
-            this.saveGoalConfig(task, {
-                deadlineDate: value,
-                deadlineWeek: makeWeekKey(year, week),
-            });
+        new GoalEditor(parentEl, {
+            getConfig: () => getTaskGoalConfig(task),
+            onChange: (patch) => this.saveGoalConfig(task, patch),
         });
     }
 
@@ -1294,45 +1191,14 @@ export class SectionHost {
     /* ---------------- 习惯 ---------------- */
 
     private renderHabit(body: HTMLElement, task: PrototypeTask): void {
-        const saved = getTaskHabit(task);
-        const habit = saved ?? { enabled: false, time: '09:00', weekdays: [1, 2, 3, 4, 5, 6, 7] };
-        const wrap = body.createDiv({ cls: 'task-section-habit' });
-
-        const enableRow = wrap.createDiv({ cls: 'task-section-habit-row' });
-        const checkbox = enableRow.createEl('input', { cls: 'task-section-check', attr: { type: 'checkbox' } });
-        checkbox.checked = habit.enabled;
-        enableRow.createSpan({ text: t('panel.habitEnable') });
-        checkbox.addEventListener('change', () => {
-            setTaskHabit(task, { enabled: checkbox.checked, time: habit.time, weekdays: [...habit.weekdays] });
-            void this.commit(task);
-        });
-
-        const timeRow = wrap.createDiv({ cls: 'task-section-habit-row' });
-        timeRow.createSpan({ text: t('panel.habitTime') });
-        const timeInput = timeRow.createEl('input', { cls: 'task-section-time-input', attr: { type: 'time' } });
-        timeInput.value = habit.time;
-        timeInput.addEventListener('change', () => {
-            setTaskHabit(task, { enabled: habit.enabled, time: timeInput.value || '09:00', weekdays: [...habit.weekdays] });
-            void this.commit(task);
-        });
-
-        const weekdayRow = wrap.createDiv({ cls: 'task-section-habit-weekdays' });
-        const weekdays = getWeekDays();
-        for (let day = 1; day <= 7; day += 1) {
-            const btn = weekdayRow.createEl('button', {
-                cls: 'task-section-weekday',
-                text: weekdays[day - 1],
-                attr: { type: 'button' },
-            });
-            btn.toggleClass('is-active', habit.weekdays.includes(day));
-            btn.addEventListener('click', () => {
-                const next = habit.weekdays.includes(day)
-                    ? habit.weekdays.filter((item) => item !== day)
-                    : [...habit.weekdays, day].sort((a, b) => a - b);
-                setTaskHabit(task, { enabled: habit.enabled, time: habit.time, weekdays: next });
+        new HabitEditor(body.createDiv({ cls: 'task-section-habit' }), {
+            getHabit: () => this.readHabit(task),
+            onChange: (patch) => {
+                setTaskHabit(task, { ...this.readHabit(task), ...patch });
                 void this.commit(task);
-            });
-        }
+            },
+            disableWhenInactive: true,
+        });
     }
 }
 
