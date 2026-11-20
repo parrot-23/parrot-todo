@@ -15421,7 +15421,7 @@ button.interface-today-tasks-add {
     background: var(--sdt-card-bg, var(--background-secondary));
 }
 
-.task-section-kind-btn {
+.task-section-kind-options button.task-section-kind-btn {
     display: inline-flex;
     align-items: center;
     gap: 4px;
@@ -15435,11 +15435,11 @@ button.interface-today-tasks-add {
     cursor: pointer;
 }
 
-.task-section-kind-btn:hover {
+.task-section-kind-options button.task-section-kind-btn:hover {
     background: var(--sdt-hover-bg, var(--background-modifier-hover));
 }
 
-.task-section-kind-btn.is-active {
+.task-section-kind-options button.task-section-kind-btn.is-active {
     background: var(--interactive-accent);
     color: var(--text-on-accent);
 }
