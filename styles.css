@@ -10583,6 +10583,18 @@ button.task-detail-todo-tool-btn:disabled {
     gap: 8px;
 }
 
+/* 任务文件排序下拉：第一行行首 */
+.task-detail-files-sort {
+    height: 26px;
+    padding: 0 6px;
+    font-size: 12px;
+}
+
+/* 任务文件添加按钮：第一行行尾 */
+.task-detail-files-btn-end {
+    margin-left: auto;
+}
+
 .task-detail-files-switch {
     display: inline-flex;
     align-items: center;
@@ -10698,6 +10710,11 @@ button.task-detail-todo-tool-btn:disabled {
     /* 用 flex 撑满父级可用高度（height: 100% 会随内容增长，导致列表无法滚动） */
     flex: 1;
     min-height: 0;
+}
+
+/* 描述页中的本周描述：固定高度，不参与列表滚动 */
+.task-week-goal-note {
+    flex: 0 0 auto;
 }
 
 /* 第一行：周切换（上一周 / 周数 + 日期范围 / 下一周），右上角为新增按钮 */

@@ -19,7 +19,7 @@ import {
     parseWeekKey,
     shiftWeekKey,
 } from '../../core/shared/plan-data';
-import { buildTaskFileName, listTaskFiles, relativeToDir } from '../../core/shared/task-file';
+import { buildTaskFileName, listTaskFiles, relativeToDir, type TaskFileSortMode } from '../../core/shared/task-file';
 import {
     appendChecklist,
     getChecklist,
@@ -44,6 +44,7 @@ import {
 } from '../../core/shared/task-sections';
 import { ensureTaskFileDir, revealFolderInExplorer } from '../../core/shared/task-library';
 import { FileEditorPanel } from '../../ui/basic/file-editor-panel';
+import { FloatingPanel } from '../../ui/basic/floating-panel';
 
 /** 标签 key */
 type LabelKey = Parameters<typeof t>[0];
@@ -67,6 +68,12 @@ const KIND_OPTIONS: { value: TaskKind; icon?: string; labelKey: LabelKey }[] = [
 ];
 
 /** 板块宿主配置 */
+/** 不在选项卡中展示的板块类型：目标 / 习惯已通过任务类型入口展示，不再占用选项卡 */
+const HIDDEN_SECTION_TYPES: SectionType[] = ['goals', 'habit'];
+
+/** 配置页允许调整显示设置的板块类型；其余类型固定按「自动」（有内容才显示）处理 */
+const CONFIGURABLE_SECTION_TYPES: SectionType[] = ['checklist', 'description', 'files'];
+
 export interface SectionHostOptions {
     /** Obsidian App */
     app: App;
@@ -78,8 +85,10 @@ export interface SectionHostOptions {
     getTaskLibraryRoot?: () => string;
     /** 持久化出口 */
     save: () => Promise<void>;
-    /** 浮层容器（文件编辑面板使用） */
+    /** 浮层容器（文件编辑面板 / 文件模板面板使用） */
     container?: HTMLElement;
+    /** 把子面板元素注册为父面板的忽略区域，避免父面板因失焦关闭 */
+    registerIgnoreElement?: (el: HTMLElement) => void;
     /** 板块变化后的回调（用于刷新面板中的数量等） */
     onChanged?: () => void;
     /** 只展示这些板块类型（默认全部） */
@@ -107,8 +116,12 @@ export class SectionHost {
     private selectedChecklistId: string | null = null;
     /** 任务文件是否处于新建输入状态 */
     private fileCreateMode = false;
+    /** 任务文件排序方式（面板内保持，切换任务不重置） */
+    private fileSortMode: TaskFileSortMode = 'mtime-desc';
     /** 文件编辑面板 */
     private fileEditorPanel: FileEditorPanel | null = null;
+    /** 文件模板面板 */
+    private fileTemplatePanel: FloatingPanel | null = null;
 
     constructor(options: SectionHostOptions) {
         this.options = options;
@@ -123,12 +136,15 @@ export class SectionHost {
         this.checklistSort = 'created';
         this.selectedChecklistId = null;
         this.fileCreateMode = false;
+        this.fileTemplatePanel?.close();
     }
 
-    /** 销毁（关闭文件编辑面板） */
+    /** 销毁（关闭文件编辑 / 文件模板面板） */
     destroy(): void {
         this.fileEditorPanel?.destroy();
         this.fileEditorPanel = null;
+        this.fileTemplatePanel?.destroy();
+        this.fileTemplatePanel = null;
     }
 
     /** 渲染宿主；传入 container 时以其为新容器，否则复用上次容器 */
@@ -160,9 +176,10 @@ export class SectionHost {
         else this.renderBody(body, task, this.activeType);
     }
 
-    /** 本面板展示的板块类型 */
+    /** 本面板展示的板块类型（目标 / 习惯不作为板块选项卡展示） */
     private availableTypes(): SectionType[] {
-        const all = Object.keys(SECTION_REGISTRY) as SectionType[];
+        const all = (Object.keys(SECTION_REGISTRY) as SectionType[])
+            .filter((type) => !HIDDEN_SECTION_TYPES.includes(type));
         const allowed = this.options.types;
         return allowed ? all.filter((type) => allowed.includes(type)) : all;
     }
@@ -181,9 +198,9 @@ export class SectionHost {
         return types;
     }
 
-    /** 是否显示该类型选项卡：开启始终显示，自动仅在存在内容时显示 */
+    /** 是否显示该类型选项卡：开启始终显示，自动仅在存在内容时显示；不可配置的类型固定按自动处理 */
     private isVisible(task: PrototypeTask, type: SectionType): boolean {
-        const mode = getSectionDisplay(task, type);
+        const mode = CONFIGURABLE_SECTION_TYPES.includes(type) ? getSectionDisplay(task, type) : 'auto';
         if (mode === 'on') return true;
         if (mode === 'off') return false;
         const section = getSection(task, type);
@@ -368,7 +385,7 @@ export class SectionHost {
 
     /* ---------------- 配置（显示设置） ---------------- */
 
-    /** 配置页：每个板块类型一行，右侧为「自动 / 开启 / 关闭」三段按钮 */
+    /** 配置页：仅清单 / 描述 / 任务文件可设置「自动 / 开启 / 关闭」，其余类型固定按自动展示 */
     private renderConfig(body: HTMLElement, task: PrototypeTask): void {
         const wrap = body.createDiv({ cls: 'task-section-config' });
         wrap.createDiv({ cls: 'task-section-config-hint', text: t('panel.sectionConfigHint') });
@@ -378,7 +395,8 @@ export class SectionHost {
             { value: 'on', labelKey: 'panel.sectionDisplayOn' },
             { value: 'off', labelKey: 'panel.sectionDisplayOff' },
         ];
-        for (const type of this.availableTypes()) {
+        const configurable = this.availableTypes().filter((type) => CONFIGURABLE_SECTION_TYPES.includes(type));
+        for (const type of configurable) {
             const def = SECTION_REGISTRY[type];
             const row = wrap.createDiv({ cls: 'task-section-config-row' });
             setIcon(row.createSpan({ cls: 'task-section-config-icon' }), def.icon);
@@ -428,11 +446,8 @@ export class SectionHost {
             case 'checklist':
                 this.renderChecklist(body, task);
                 return;
-            case 'dayGoals':
-                this.renderDayGoals(body, task);
-                return;
-            case 'weekNote':
-                this.renderWeekNote(body, task);
+            case 'description':
+                this.renderDescription(body, task);
                 return;
             case 'stageGoals':
                 this.renderStageGoals(body, task);
@@ -625,10 +640,13 @@ export class SectionHost {
         input.focus();
     }
 
-    /* ---------------- 日目标 ---------------- */
+    /* ---------------- 描述（本周描述 + 日描述） ---------------- */
 
-    /** 「每日描述」：顶部周切换 + 右上角新增；仅渲染有内容的日期条目，按周一到周日排序 */
-    private renderDayGoals(body: HTMLElement, task: PrototypeTask): void {
+    /**
+     * 「描述」：顶部统一周切换；下一行为本周描述；再往下是当前周存在的日描述。
+     * 周切换同时作用于本周描述与日描述。
+     */
+    private renderDescription(body: HTMLElement, task: PrototypeTask): void {
         const wrap = body.createDiv({ cls: 'task-week-goal' });
 
         // 第一行：周切换按钮（上一周 / 周数 + 日期范围 / 下一周），右上角为新增按钮
@@ -664,7 +682,7 @@ export class SectionHost {
             this.render();
         });
 
-        // 右上角：新增一条每日描述（选择周几 + 填写内容）
+        // 右上角：新增一条日描述（选择周几 + 填写内容）
         const addBtn = nav.createEl('button', {
             cls: 'task-week-goal-nav-add',
             attr: { type: 'button', 'aria-label': t('common.add') },
@@ -672,7 +690,21 @@ export class SectionHost {
         setIcon(addBtn, 'plus');
         addBtn.addEventListener('click', () => this.startAddDayGoal(wrap, task));
 
-        // 仅渲染有内容的条目：按周一到周日排序，同一天内按创建顺序
+        // 第二行：本周描述（随当前周切换）
+        const noteWrap = wrap.createDiv({ cls: 'task-section-weeknote task-week-goal-note' });
+        const textarea = noteWrap.createEl('textarea', {
+            cls: 'task-section-weeknote-textarea',
+            attr: { placeholder: t('panel.planWeekDescriptionPlaceholder') },
+        });
+        textarea.value = getWeekNote(task, this.weekKey);
+        textarea.addEventListener('change', () => {
+            const next = textarea.value.trim();
+            if (next === getWeekNote(task, this.weekKey)) return;
+            setWeekNote(task, this.weekKey, textarea.value);
+            void this.commit(task);
+        });
+
+        // 第三行：日描述（仅渲染当前周有内容的日期，按周一到周日排序）
         const list = wrap.createDiv({ cls: 'task-week-goal-list' });
         let count = 0;
         for (let day = 1; day <= 7; day += 1) {
@@ -825,26 +857,6 @@ export class SectionHost {
         });
     }
 
-    /* ---------------- 本周描述 ---------------- */
-
-    private renderWeekNote(body: HTMLElement, task: PrototypeTask): void {
-        const weekKey = getCurrentWeekKey();
-        const { week } = parseWeekKey(weekKey);
-        const wrap = body.createDiv({ cls: 'task-section-weeknote' });
-        wrap.createDiv({ cls: 'task-section-weeknote-head', text: `W${String(week).padStart(2, '0')}` });
-        const textarea = wrap.createEl('textarea', {
-            cls: 'task-section-weeknote-textarea',
-            attr: { placeholder: t('panel.planWeekDescriptionPlaceholder') },
-        });
-        textarea.value = getWeekNote(task, weekKey);
-        textarea.addEventListener('change', () => {
-            const next = textarea.value.trim();
-            if (next === getWeekNote(task, weekKey)) return;
-            setWeekNote(task, weekKey, textarea.value);
-            void this.commit(task);
-        });
-    }
-
     /* ---------------- 阶段目标 ---------------- */
 
     /** 阶段目标：按截止周分组展示（编辑入口在「板块 → 目标」面板的周格悬浮面板） */
@@ -973,16 +985,23 @@ export class SectionHost {
         const toolbar = card.createDiv({ cls: 'task-detail-files-toolbar' });
         const dir = getTaskFileDir(task);
 
-        // 启用时间戳（无目录时不可用，避免生成只有开关的空板块）
-        const switchWrap = toolbar.createDiv({ cls: 'task-detail-files-switch' });
-        const checkbox = switchWrap.createEl('input', { cls: 'task-detail-files-checkbox', attr: { type: 'checkbox' } });
-        checkbox.checked = getTaskFileTimestamp(task);
-        checkbox.disabled = !dir;
-        checkbox.addEventListener('change', () => {
-            setTaskFileTimestamp(task, checkbox.checked);
-            void this.commit(task);
+        // 排序方式：字母正序/反序、创建时间、修改时间（行首）
+        const sortSelect = toolbar.createEl('select', {
+            cls: 'dropdown task-detail-files-sort',
+            attr: { 'aria-label': t('panel.fileSort') },
         });
-        switchWrap.createSpan({ cls: 'task-detail-files-switch-label', text: t('panel.fileTimestamp') });
+        const sortOptions: { value: TaskFileSortMode; labelKey: LabelKey }[] = [
+            { value: 'name-asc', labelKey: 'panel.fileSortNameAsc' },
+            { value: 'name-desc', labelKey: 'panel.fileSortNameDesc' },
+            { value: 'ctime-desc', labelKey: 'panel.fileSortCtimeDesc' },
+            { value: 'ctime-asc', labelKey: 'panel.fileSortCtimeAsc' },
+            { value: 'mtime-desc', labelKey: 'panel.fileSortMtimeDesc' },
+            { value: 'mtime-asc', labelKey: 'panel.fileSortMtimeAsc' },
+        ];
+        for (const option of sortOptions) {
+            const optionEl = sortSelect.createEl('option', { text: t(option.labelKey), attr: { value: option.value } });
+            optionEl.selected = option.value === this.fileSortMode;
+        }
 
         // 文件夹：目录由任务树自动绑定，点击在 Obsidian 文件浏览器中定位
         const dirBtn = toolbar.createEl('button', { cls: 'task-detail-files-btn', attr: { type: 'button' } });
@@ -991,8 +1010,20 @@ export class SectionHost {
         if (dir) dirBtn.title = dir;
         dirBtn.addEventListener('click', () => void this.openTaskFolder(task));
 
-        // 新建文件
-        const addBtn = toolbar.createEl('button', { cls: 'task-detail-files-btn', attr: { type: 'button' } });
+        // 模板（文件夹按钮右侧）：打开文件模板配置面板
+        const templateBtn = toolbar.createEl('button', {
+            cls: 'task-detail-files-btn',
+            attr: { type: 'button', 'aria-label': t('panel.fileTemplate') },
+        });
+        setIcon(templateBtn.createSpan({ cls: 'task-detail-files-btn-icon' }), 'layout-template');
+        templateBtn.createSpan({ cls: 'task-detail-files-btn-text', text: t('panel.fileTemplate') });
+        templateBtn.addEventListener('click', () => this.openFileTemplatePanel(task));
+
+        // 新建文件（行尾）
+        const addBtn = toolbar.createEl('button', {
+            cls: 'task-detail-files-btn task-detail-files-btn-end',
+            attr: { type: 'button' },
+        });
         setIcon(addBtn.createSpan({ cls: 'task-detail-files-btn-icon' }), 'plus');
         addBtn.createSpan({ cls: 'task-detail-files-btn-text', text: t('panel.fileAdd') });
         addBtn.addEventListener('click', () => void this.startCreateFile(task));
@@ -1001,11 +1032,21 @@ export class SectionHost {
 
         // 文件列表
         const listCard = wrap.createDiv({ cls: 'task-detail-files-card task-detail-files-list-card' });
+        sortSelect.addEventListener('change', () => {
+            this.fileSortMode = sortSelect.value as TaskFileSortMode;
+            this.renderFileRows(listCard, dir);
+        });
+        this.renderFileRows(listCard, dir);
+    }
+
+    /** 渲染绑定目录下的文件列表（按当前排序方式） */
+    private renderFileRows(listCard: HTMLElement, dir: string | undefined): void {
+        listCard.empty();
         if (!dir) {
             listCard.createDiv({ cls: 'task-section-empty', text: t('panel.taskLibraryRequired') });
             return;
         }
-        const files = listTaskFiles(this.options.app, dir);
+        const files = listTaskFiles(this.options.app, dir, this.fileSortMode);
         if (files.length === 0) {
             listCard.createDiv({ cls: 'task-section-empty', text: t('panel.fileEmpty') });
             return;
@@ -1018,6 +1059,38 @@ export class SectionHost {
             row.createSpan({ cls: 'task-detail-file-time', text: formatDateTime(file.stat.mtime) });
             row.addEventListener('click', () => this.openTaskFile(file));
         }
+    }
+
+    /** 打开文件模板面板（第一行为「启用时间戳」开关） */
+    private openFileTemplatePanel(task: PrototypeTask): void {
+        if (!this.fileTemplatePanel) {
+            const panel = new FloatingPanel({
+                width: 280,
+                title: t('panel.fileTemplate'),
+                closeOnBlur: true,
+                container: this.options.container,
+            });
+            // 子面板内的点击不触发父面板的失焦关闭
+            this.options.registerIgnoreElement?.(panel.element);
+            this.fileTemplatePanel = panel;
+        }
+        const panel = this.fileTemplatePanel;
+        panel.setContent((body) => {
+            body.addClass('task-file-template-panel');
+            const switchWrap = body.createDiv({ cls: 'task-detail-files-switch' });
+            const checkbox = switchWrap.createEl('input', {
+                cls: 'task-detail-files-checkbox',
+                attr: { type: 'checkbox' },
+            });
+            checkbox.checked = getTaskFileTimestamp(task);
+            checkbox.disabled = !getTaskFileDir(task);
+            checkbox.addEventListener('change', () => {
+                setTaskFileTimestamp(task, checkbox.checked);
+                void this.commit(task);
+            });
+            switchWrap.createSpan({ cls: 'task-detail-files-switch-label', text: t('panel.fileTimestamp') });
+        });
+        panel.open();
     }
 
     /** 新建文件输入行（先确保目录存在） */

@@ -52,8 +52,14 @@ function parseChecklistPayload(raw: unknown): TaskSectionPayloadMap['checklist']
     return { items };
 }
 
-/** 解析日目标（键为日期 YYYY-MM-DD） */
-function parseDayGoalsPayload(raw: unknown): TaskSectionPayloadMap['dayGoals'] | null {
+/** 日描述载荷（描述板块的一部分，也可用于解析旧版日描述板块） */
+type DayGoalsPayload = {
+    entries: TaskSectionPayloadMap['description']['entries'];
+    estimates?: Record<string, number>;
+};
+
+/** 解析日描述（键为日期 YYYY-MM-DD） */
+function parseDayGoalsPayload(raw: unknown): DayGoalsPayload | null {
     let entriesRaw: unknown = raw;
     let estimatesRaw: unknown;
     if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
@@ -93,7 +99,7 @@ function parseDayGoalsPayload(raw: unknown): TaskSectionPayloadMap['dayGoals'] |
 }
 
 /** 解析本周描述（键为周键 YYYY-Www） */
-function parseWeekNotePayload(raw: unknown): TaskSectionPayloadMap['weekNote'] | null {
+function parseWeekNotePayload(raw: unknown): { notes: Record<string, string> } | null {
     raw = unwrapPayload(raw, 'notes');
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
     const notes: Record<string, string> = {};
@@ -103,6 +109,38 @@ function parseWeekNotePayload(raw: unknown): TaskSectionPayloadMap['weekNote'] |
         if (trimmed) notes[weekKey] = trimmed;
     }
     return { notes };
+}
+
+/** 解析描述板块载荷：本周描述 + 日描述 + 日预估时长 */
+function parseDescriptionPayload(raw: unknown): TaskSectionPayloadMap['description'] | null {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+    const record = raw as Record<string, unknown>;
+    const notes = parseWeekNotePayload('notes' in record ? record.notes : raw)?.notes ?? {};
+    const dayGoals = 'entries' in record
+        ? parseDayGoalsPayload({ entries: record.entries, estimates: record.estimates })
+        : null;
+    const entries = dayGoals?.entries ?? {};
+    const estimates = dayGoals?.estimates;
+    if (estimates && Object.keys(estimates).length > 0) return { notes, entries, estimates };
+    return { notes, entries };
+}
+
+/** 把旧版「本周描述」「日描述」两块载荷合并为描述板块载荷（都无效时返回 null） */
+export function parseLegacyDescriptionPayload(
+    weekNoteRaw: unknown,
+    dayGoalsRaw: unknown,
+): TaskSectionPayloadMap['description'] | null {
+    const notes = parseWeekNotePayload(weekNoteRaw)?.notes;
+    const dayGoals = parseDayGoalsPayload(dayGoalsRaw);
+    if (!notes && !dayGoals) return null;
+    const payload: TaskSectionPayloadMap['description'] = {
+        notes: notes ?? {},
+        entries: dayGoals?.entries ?? {},
+    };
+    if (dayGoals?.estimates && Object.keys(dayGoals.estimates).length > 0) {
+        payload.estimates = dayGoals.estimates;
+    }
+    return payload;
 }
 
 /** 解析阶段目标（键为周键 YYYY-Www，该周为截止时间点） */
@@ -194,26 +232,19 @@ export const SECTION_REGISTRY: Record<SectionType, SectionDefinition> = {
         isEmpty: (payload) => !payload || (payload as TaskSectionPayloadMap['checklist']).items.length === 0,
         parsePayload: (raw) => parseChecklistPayload(raw),
     },
-    dayGoals: {
-        type: 'dayGoals',
-        labelKey: 'panel.weekGoalTab',
-        icon: 'calendar-days',
-        singleton: true,
-        isEmpty: (payload) => {
-            const data = payload as TaskSectionPayloadMap['dayGoals'] | undefined;
-            if (!data) return true;
-            return Object.keys(data.entries).length === 0
-                && Object.keys(data.estimates ?? {}).length === 0;
-        },
-        parsePayload: (raw) => parseDayGoalsPayload(raw),
-    },
-    weekNote: {
-        type: 'weekNote',
-        labelKey: 'panel.planWeekDescription',
+    description: {
+        type: 'description',
+        labelKey: 'panel.sectionDescription',
         icon: 'file-text',
         singleton: true,
-        isEmpty: (payload) => !payload || Object.keys((payload as TaskSectionPayloadMap['weekNote']).notes).length === 0,
-        parsePayload: (raw) => parseWeekNotePayload(raw),
+        isEmpty: (payload) => {
+            const data = payload as TaskSectionPayloadMap['description'] | undefined;
+            if (!data) return true;
+            return Object.keys(data.notes).length === 0
+                && Object.keys(data.entries).length === 0
+                && Object.keys(data.estimates ?? {}).length === 0;
+        },
+        parsePayload: (raw) => parseDescriptionPayload(raw),
     },
     stageGoals: {
         type: 'stageGoals',

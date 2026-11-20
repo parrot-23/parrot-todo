@@ -135,6 +135,7 @@ export class TaskDetailPanel extends FloatingPanel {
             getTaskLibraryRoot: options.getTaskLibraryRoot,
             save: options.save,
             container: options.container,
+            registerIgnoreElement: (el) => this.addIgnoreElement(el),
             showKindTab: true,
             // 类型或习惯设置变化后立即刷新左侧任务树（行末尾类型图标热更新）
             onChanged: () => this.renderTree(),

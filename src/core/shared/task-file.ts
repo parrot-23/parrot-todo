@@ -10,12 +10,39 @@ export function formatFileStamp(ts: number): string {
     return `${y}-${mo}-${da}`;
 }
 
-/** 绑定目录下的一级文件（按最近编辑时间倒序） */
-export function listTaskFiles(app: App, dir: string | undefined): TFile[] {
+/** 任务文件排序方式 */
+export type TaskFileSortMode =
+    | 'name-asc'
+    | 'name-desc'
+    | 'ctime-desc'
+    | 'ctime-asc'
+    | 'mtime-desc'
+    | 'mtime-asc';
+
+/** 绑定目录下的一级文件（默认按最近编辑时间倒序） */
+export function listTaskFiles(
+    app: App,
+    dir: string | undefined,
+    sort: TaskFileSortMode = 'mtime-desc',
+): TFile[] {
     if (!dir) return [];
-    return app.vault.getFiles()
-        .filter((file) => file.parent?.path === dir)
-        .sort((a, b) => b.stat.mtime - a.stat.mtime);
+    const files = app.vault.getFiles().filter((file) => file.parent?.path === dir);
+    const byName = (a: TFile, b: TFile): number => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+    switch (sort) {
+        case 'name-asc':
+            return files.sort(byName);
+        case 'name-desc':
+            return files.sort((a, b) => byName(b, a));
+        case 'ctime-desc':
+            return files.sort((a, b) => b.stat.ctime - a.stat.ctime || byName(a, b));
+        case 'ctime-asc':
+            return files.sort((a, b) => a.stat.ctime - b.stat.ctime || byName(a, b));
+        case 'mtime-asc':
+            return files.sort((a, b) => a.stat.mtime - b.stat.mtime || byName(a, b));
+        case 'mtime-desc':
+        default:
+            return files.sort((a, b) => b.stat.mtime - a.stat.mtime || byName(a, b));
+    }
 }
 
 /** 文件路径相对绑定目录的展示文本（含子目录，如 子目录/文件.md）；不在该目录下时回退完整路径 */

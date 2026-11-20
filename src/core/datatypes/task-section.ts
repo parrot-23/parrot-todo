@@ -1,5 +1,5 @@
 // 任务板块（section）：挂在原型任务上的统一板块模型。
-// 所有任务附属数据（清单 / 日目标 / 本周描述 / 目标 / 文件 / 习惯）都以板块形式存放在 task.sections 中，
+// 所有任务附属数据（清单 / 描述 / 阶段目标 / 目标 / 文件 / 习惯）都以板块形式存放在 task.sections 中，
 // 数组顺序即展示顺序；缺省表示该任务没有任何板块。
 
 import type { ChecklistItem } from './domain';
@@ -17,14 +17,12 @@ export interface TaskStageGoalEntry {
 export interface TaskSectionPayloadMap {
     /** 清单 */
     checklist: { items: ChecklistItem[] };
-    /** 日目标（键为日期 YYYY-MM-DD） */
-    dayGoals: {
+    /** 描述：本周描述（周键 YYYY-Www）+ 日描述（日期 YYYY-MM-DD）+ 每天预估时长（分钟） */
+    description: {
+        notes: Record<string, string>;
         entries: Record<string, TaskDayGoalEntry[]>;
-        /** 每天预估时长（分钟，键为日期 YYYY-MM-DD） */
         estimates?: Record<string, number>;
     };
-    /** 本周描述（键为周键 YYYY-Www） */
-    weekNote: { notes: Record<string, string> };
     /** 阶段目标（键为周键 YYYY-Www，该周为截止时间点） */
     stageGoals: { entries: Record<string, TaskStageGoalEntry[]> };
     /** 目标清单 */

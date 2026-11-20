@@ -4,7 +4,7 @@
 import type { ChecklistItem } from '../datatypes/domain';
 import type { PrototypeTask, TaskDayGoalEntry, TaskGoalEntry, TaskHabit } from '../datatypes/prototype-task';
 import type { SectionDisplayMode, SectionType, TaskSection, TaskSectionDisplayMap, TaskSectionOf, TaskSectionPayloadMap, TaskStageGoalEntry } from '../datatypes/task-section';
-import { SECTION_REGISTRY } from './section-registry';
+import { parseLegacyDescriptionPayload, SECTION_REGISTRY } from './section-registry';
 
 /** 生成板块实例 id */
 function createSectionId(): string {
@@ -16,10 +16,8 @@ function createPayload<K extends SectionType>(type: K): TaskSectionPayloadMap[K]
     switch (type) {
         case 'checklist':
             return { items: [] } as TaskSectionPayloadMap[K];
-        case 'dayGoals':
-            return { entries: {} } as TaskSectionPayloadMap[K];
-        case 'weekNote':
-            return { notes: {} } as TaskSectionPayloadMap[K];
+        case 'description':
+            return { notes: {}, entries: {} } as TaskSectionPayloadMap[K];
         case 'stageGoals':
             return { entries: {} } as TaskSectionPayloadMap[K];
         case 'goals':
@@ -102,10 +100,31 @@ export function parseSectionDisplay(raw: unknown): TaskSectionDisplayMap | undef
 export function parseTaskSections(raw: unknown): TaskSection[] | undefined {
     if (!Array.isArray(raw)) return undefined;
     const sections: TaskSection[] = [];
+    // 旧版「本周描述」(weekNote) / 「日描述」(dayGoals) 合并为单一描述板块：
+    // 记录首个旧板块的位置与 id，保证迁移后选项卡顺序稳定
+    let legacyNotesRaw: unknown;
+    let legacyDayGoalsRaw: unknown;
+    let legacyId = '';
+    let legacyCreatedAt = 0;
+    let legacyInsertIndex = -1;
+    let hasLegacy = false;
+    let descriptionIndex = -1;
+
     for (const item of raw) {
         if (!item || typeof item !== 'object') continue;
         const r = item as Record<string, unknown>;
         if (typeof r.id !== 'string' || typeof r.type !== 'string') continue;
+        if (r.type === 'weekNote' || r.type === 'dayGoals') {
+            if (legacyInsertIndex < 0) {
+                legacyInsertIndex = sections.length;
+                legacyId = r.id;
+                legacyCreatedAt = typeof r.createdAt === 'number' ? r.createdAt : 0;
+            }
+            if (r.type === 'weekNote') legacyNotesRaw = r.payload;
+            else legacyDayGoalsRaw = r.payload;
+            hasLegacy = true;
+            continue;
+        }
         // 兼容早期命名为 weekGoals 的阶段目标数据（载荷结构一致）
         const type = r.type === 'weekGoals' ? 'stageGoals' : r.type;
         const def = SECTION_REGISTRY[type as SectionType];
@@ -116,6 +135,7 @@ export function parseTaskSections(raw: unknown): TaskSection[] | undefined {
         }
         const payload = def.parsePayload(r.payload);
         if (!payload) continue;
+        if (type === 'description') descriptionIndex = sections.length;
         sections.push({
             id: r.id,
             type,
@@ -125,6 +145,28 @@ export function parseTaskSections(raw: unknown): TaskSection[] | undefined {
             ...(typeof r.updatedAt === 'number' ? { updatedAt: r.updatedAt } : {}),
         } as unknown as TaskSection);
     }
+
+    if (hasLegacy) {
+        const legacyPayload = parseLegacyDescriptionPayload(legacyNotesRaw, legacyDayGoalsRaw);
+        if (legacyPayload) {
+            if (descriptionIndex >= 0) {
+                // 新旧数据并存时以新板块为主，旧数据补齐缺失内容
+                const existing = sections[descriptionIndex] as TaskSectionOf<'description'>;
+                existing.payload.notes = { ...legacyPayload.notes, ...existing.payload.notes };
+                existing.payload.entries = { ...legacyPayload.entries, ...existing.payload.entries };
+                if (legacyPayload.estimates) {
+                    existing.payload.estimates = { ...legacyPayload.estimates, ...existing.payload.estimates };
+                }
+            } else {
+                sections.splice(legacyInsertIndex, 0, {
+                    id: legacyId || createSectionId(),
+                    type: 'description',
+                    payload: legacyPayload,
+                    createdAt: legacyCreatedAt,
+                } as unknown as TaskSection);
+            }
+        }
+    }
     return sections.length > 0 ? sections : undefined;
 }
 
@@ -132,7 +174,7 @@ export function parseTaskSections(raw: unknown): TaskSection[] | undefined {
 
 /**
  * 由旧版任务字段生成板块数组（一次性迁移使用）。
- * 旧字段顺序：清单 / 日目标 / 本周描述 / 目标 / 文件 / 习惯。
+ * 旧字段顺序：清单 / 描述（日描述 + 本周描述合并） / 阶段目标 / 目标 / 文件 / 习惯。
  */
 export function createSectionsFromLegacy(raw: Record<string, unknown>): TaskSection[] | undefined {
     const sections: TaskSection[] = [];
@@ -143,8 +185,7 @@ export function createSectionsFromLegacy(raw: Record<string, unknown>): TaskSect
         sections.push({ id: createSectionId(), type, payload, createdAt: 0 } as unknown as TaskSection);
     };
     push('checklist', SECTION_REGISTRY.checklist.parsePayload(raw.checklist));
-    push('dayGoals', SECTION_REGISTRY.dayGoals.parsePayload(raw.dayGoals));
-    push('weekNote', SECTION_REGISTRY.weekNote.parsePayload(raw.weekGoals));
+    push('description', parseLegacyDescriptionPayload(raw.weekGoals, raw.dayGoals));
     push('goals', SECTION_REGISTRY.goals.parsePayload(raw.goals));
     push('files', SECTION_REGISTRY.files.parsePayload({ fileDir: raw.fileDir, fileTimestamp: raw.fileTimestamp }));
     push('habit', SECTION_REGISTRY.habit.parsePayload(raw.habit));
@@ -170,18 +211,18 @@ export function appendChecklist(task: PrototypeTask, item: ChecklistItem): void 
     setChecklist(task, [...getChecklist(task), item]);
 }
 
-/* ---------------- 日目标 ---------------- */
+/* ---------------- 日描述 ---------------- */
 
-/** 读取某天的日目标 */
+/** 读取某天的日描述 */
 export function getDayGoalEntries(task: PrototypeTask, dayKey: string): TaskDayGoalEntry[] {
-    return getSection(task, 'dayGoals')?.payload.entries[dayKey] ?? [];
+    return getSection(task, 'description')?.payload.entries[dayKey] ?? [];
 }
 
-/** 写入某天的日目标（空数组即删除该天条目） */
+/** 写入某天的日描述（空数组即删除该天条目） */
 export function setDayGoalEntries(task: PrototypeTask, dayKey: string, entries: TaskDayGoalEntry[]): void {
-    const existing = getSection(task, 'dayGoals');
+    const existing = getSection(task, 'description');
     if (!existing && entries.length === 0) return;
-    const section = existing ?? ensureSection(task, 'dayGoals');
+    const section = existing ?? ensureSection(task, 'description');
     if (entries.length > 0) section.payload.entries[dayKey] = entries;
     else delete section.payload.entries[dayKey];
     section.updatedAt = Date.now();
@@ -189,12 +230,12 @@ export function setDayGoalEntries(task: PrototypeTask, dayKey: string, entries: 
 
 /** 读取某天的预估时长（分钟，未填写返回 undefined） */
 export function getDayEstimate(task: PrototypeTask, dayKey: string): number | undefined {
-    return getSection(task, 'dayGoals')?.payload.estimates?.[dayKey];
+    return getSection(task, 'description')?.payload.estimates?.[dayKey];
 }
 
 /** 写入某天的预估时长（分钟；非正数即删除该天预估） */
 export function setDayEstimate(task: PrototypeTask, dayKey: string, minutes?: number): void {
-    const existing = getSection(task, 'dayGoals');
+    const existing = getSection(task, 'description');
     const current = existing?.payload.estimates?.[dayKey];
     if (!minutes || minutes <= 0) {
         if (!existing || current === undefined) return;
@@ -202,7 +243,7 @@ export function setDayEstimate(task: PrototypeTask, dayKey: string, minutes?: nu
         existing.updatedAt = Date.now();
         return;
     }
-    const section = existing ?? ensureSection(task, 'dayGoals');
+    const section = existing ?? ensureSection(task, 'description');
     section.payload.estimates ??= {};
     section.payload.estimates[dayKey] = Math.round(minutes);
     section.updatedAt = Date.now();
@@ -212,19 +253,19 @@ export function setDayEstimate(task: PrototypeTask, dayKey: string, minutes?: nu
 
 /** 读取某周的本周描述 */
 export function getWeekNote(task: PrototypeTask, weekKey: string): string {
-    return getSection(task, 'weekNote')?.payload.notes[weekKey] ?? '';
+    return getSection(task, 'description')?.payload.notes[weekKey] ?? '';
 }
 
 /** 写入某周的本周描述（空字符串即删除该周条目） */
 export function setWeekNote(task: PrototypeTask, weekKey: string, note: string): void {
-    const existing = getSection(task, 'weekNote');
+    const existing = getSection(task, 'description');
     if (!note.trim()) {
         if (!existing) return;
         delete existing.payload.notes[weekKey];
         existing.updatedAt = Date.now();
         return;
     }
-    const section = existing ?? ensureSection(task, 'weekNote');
+    const section = existing ?? ensureSection(task, 'description');
     section.payload.notes[weekKey] = note;
     section.updatedAt = Date.now();
 }

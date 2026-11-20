@@ -51,6 +51,7 @@ export class TaskSectionsPanel extends FloatingPanel {
             getTaskLibraryRoot: options.getTaskLibraryRoot,
             save: options.save,
             container: options.container,
+            registerIgnoreElement: (el) => this.addIgnoreElement(el),
         });
         // 标题栏钉住按钮左侧：跳转到任务详情面板（未提供回调时不显示）
         if (options.onOpenTaskDetail) {
