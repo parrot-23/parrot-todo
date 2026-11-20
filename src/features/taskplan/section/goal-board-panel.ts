@@ -1,6 +1,5 @@
-﻿// 目标面板：左侧任务配置（底部根任务下拉 + 目标通用配置占位），
-// 右侧为年-周泳道图（按季度翻页，仅展示根任务一行，读取计划整周排布）；
-// 点击色块周格弹出悬浮面板，可填写 / 勾选 / 删除该周的阶段目标（以该周为截止时间点，存入任务的「阶段目标」板块）。
+﻿// 目标面板：左侧为根任务下拉与目标列表（该根任务下的目标类型任务，点击定位其截止周），
+// 右侧为年-周泳道图（按季度翻页，仅展示根任务一行，读取计划整周排布）。
 import { setIcon } from 'obsidian';
 
 import type { PrototypeTask } from '../../../core/datatypes/prototype-task';
@@ -46,14 +45,12 @@ export interface GoalBoardPanelOptions extends Omit<FloatingPanelOptions, 'title
     getCategories: () => PlanCategory[];
     /** 计划排布数据仓库（与计划面板共享，只读） */
     planAssignmentRepo: PlanAssignmentRepo;
-    /** 持久化出口（阶段目标修改后保存） */
-    save: () => Promise<void>;
 }
 
 /** 目标面板 */
 export class GoalBoardPanel extends FloatingPanel {
     private rootSelectEl!: HTMLSelectElement;
-    /** 左侧阶段目标列表容器 */
+    /** 左侧目标列表容器 */
     private goalListEl!: HTMLElement;
     private navEl!: HTMLElement;
     private weekHeaderEl!: HTMLElement;
@@ -107,7 +104,7 @@ export class GoalBoardPanel extends FloatingPanel {
         });
 
         config.createDiv({ cls: 'goal-board-config-divider' });
-        config.createDiv({ cls: 'goal-board-config-title', text: t('panel.sectionStageGoals') });
+        config.createDiv({ cls: 'goal-board-config-title', text: t('panel.planAnnualGoal') });
         this.goalListEl = config.createDiv({ cls: 'goal-board-goal-list' });
 
         // 右侧：季度导航 + 周表头 + 泳道
@@ -141,7 +138,7 @@ export class GoalBoardPanel extends FloatingPanel {
         this.renderQuarter();
     }
 
-    /** 左侧阶段目标列表：列出该根任务下全部「目标」类型任务，点击定位其截止周 */
+    /** 左侧目标列表：列出该根任务下全部「目标」类型任务，点击定位其截止周 */
     private renderGoalList(): void {
         if (!this.goalListEl) return;
         this.goalListEl.empty();

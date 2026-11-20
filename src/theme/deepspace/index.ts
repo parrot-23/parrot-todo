@@ -1,10 +1,10 @@
-// 时空之旅主题：纯黑星空 + 代码绘制的星点（缓慢迎面移动），不使用图片素材。
+// 深空主题：纯黑星空 + 代码绘制的星点（缓慢迎面移动），不使用图片素材。
 import type { ThemeDefinition } from '../theme-definition';
 import { createStarfield } from './star-canvas';
 
-export const timespaceTheme: ThemeDefinition = {
-    id: 'timespace',
-    nameKey: 'theme.nameTimespace',
+export const deepspaceTheme: ThemeDefinition = {
+    id: 'deepspace',
+    nameKey: 'theme.nameDeepSpace',
     assets: [],
     colors: {
         cardBackground: 'rgba(22, 26, 40, 0.55)',

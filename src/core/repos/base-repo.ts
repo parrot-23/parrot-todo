@@ -6,9 +6,9 @@ import type { Plugin } from 'obsidian';
 import type { PlanSchemeData } from '../shared/plan-data';
 import { ensureDefaultScheme } from '../shared/plan-data';
 import type { PlanCategoryData } from '../shared/plan-category-manager';
-import { ensureUncategorizedCategory, UNCATEGORIZED_CATEGORY_ID } from '../shared/plan-category-manager';
+import { ensureUncategorizedCategory } from '../shared/plan-category-manager';
 import type { DayTemplateData, EventBlock, ExecutionRecord, InboxData, RunningTask, OkrRecordEntry } from '../datatypes/domain';
-import { DEFAULT_INBOX_DATA, migrateOkrConditions, migrateOkrEntries, migrateOkrRecordCards } from '../datatypes/domain';
+import { DEFAULT_INBOX_DATA } from '../datatypes/domain';
 import type { WorkbenchData } from '../datatypes/card';
 import { defaultWorkbenchData } from '../datatypes/card';
 import type { GtdData } from '../datatypes/gtd';
@@ -20,7 +20,7 @@ import type { TaskExecutionData } from '../datatypes/task-execution';
 import type { TimeBoxData } from '../datatypes/timebox-data';
 import type { ThemeData, Theme } from '../datatypes/theme';
 import { DEFAULT_THEME_ID } from '../datatypes/theme';
-import { createSectionsFromLegacy, getTaskGoals, getTaskHabit, parseSectionDisplay, parseTaskSections } from '../shared/task-sections';
+import { parseSectionDisplay, parseTaskSections } from '../shared/task-sections';
 import { log } from '../shared/logger';
 import { t } from '../i18n';
 
@@ -53,12 +53,6 @@ export interface PluginData {
     taskExecutionData: TaskExecutionData;
     /** 界面主题数据（官方 / 本地主题列表） */
     themeData: ThemeData;
-    /** 原型任务描述 / 分类转换版本（1 = 已从旧任务转换） */
-    prototypeTaskMetaMigrationDone?: number;
-    /** 原型任务板块结构版本（0 = 旧字段结构，1 = task.sections 结构） */
-    taskSectionSchemaVersion?: number;
-    /** 原型任务类型版本（0 = 未迁移，1 = 已按习惯/目标推断 task.kind） */
-    taskKindSchemaVersion?: number;
     /** OKR 记录卡片的填写结果（顶层独立存储，不挂在任务上，避免任务对象膨胀） */
     recordEntries: OkrRecordEntry[];
     /** 当前进行中的任务（界面视图「今天任务」计时，随主数据一起持久化） */
@@ -128,9 +122,6 @@ export class BaseRepo {
             interfaceLayoutData: d.interfaceLayoutData,
             taskExecutionData: d.taskExecutionData,
             themeData: d.themeData,
-            prototypeTaskMetaMigrationDone: d.prototypeTaskMetaMigrationDone,
-            taskSectionSchemaVersion: d.taskSectionSchemaVersion,
-            taskKindSchemaVersion: d.taskKindSchemaVersion,
             recordEntries: d.recordEntries,
             runningTask: d.runningTask,
             cacheDirName: this.cacheDirName,
@@ -188,7 +179,7 @@ export class BaseRepo {
     }
 
     /**
-     * 加载数据：读取 + 迁移 + 兼容旧数据，最终写入 this.data。
+     * 加载数据：读取 + 解析，最终写入 this.data。
      * 从 main.ts 的 onload 迁入。
      */
     async load(): Promise<void> {
@@ -196,14 +187,11 @@ export class BaseRepo {
         let savedData: Record<string, unknown> =
             rawData && typeof rawData === 'object' ? rawData as Record<string, unknown> : {};
 
-        // 读取缓存目录名称（随主数据一起存储，兼容旧数据：默认值）
+        // 读取缓存目录名称（随主数据一起存储，空值时使用默认目录）
         const savedCacheDirName = typeof savedData.cacheDirName === 'string' && savedData.cacheDirName
             ? savedData.cacheDirName
             : '';
-        // 兼容旧数据：旧默认目录 parrotPlanCache 迁移为新默认 .parrot-plan/cache
-        this.cacheDirName = savedCacheDirName && savedCacheDirName !== 'parrotPlanCache'
-            ? savedCacheDirName
-            : DEFAULT_CACHE_DIR_NAME;
+        this.cacheDirName = savedCacheDirName || DEFAULT_CACHE_DIR_NAME;
 
         // 读取是否启用缓存（兼容旧数据：默认启用）
         this.cacheEnabled = typeof savedData.cacheEnabled === 'boolean'
@@ -264,29 +252,6 @@ export class BaseRepo {
         const initialInboxData = (savedData.inboxData ?? DEFAULT_INBOX_DATA) as InboxData;
         // 兼容旧数据：确保关注任务列表字段始终存在
         if (!Array.isArray(initialInboxData.focusTaskIds)) initialInboxData.focusTaskIds = [];
-        // 兼容旧数据：把旧的 OKR 条件（duration / outcome）迁移为新类型
-        for (const item of initialInboxData.items ?? []) {
-            if (item.okr) {
-                const rawConditions = item.okr.conditions ?? [];
-                // 兼容旧数据：旧的「记录」是 type 为 record 的 OKR 条件，拆出到 item.records
-                const legacyRecords = rawConditions.filter(c => (c as { type?: unknown })?.type === 'record');
-                if (legacyRecords.length > 0) {
-                    const migrated = migrateOkrRecordCards(legacyRecords);
-                    if (migrated.length > 0) {
-                        item.records = [...(item.records ?? []), ...migrated];
-                    }
-                }
-                item.okr.conditions = migrateOkrConditions(rawConditions);
-            }
-            // 兼容旧数据：规范化记录卡片
-            if (item.records) {
-                item.records = migrateOkrRecordCards(item.records);
-            }
-            // 兼容旧数据：把旧的 habitTimeEnabled 迁移为 taskType（习惯型任务）
-            if (item.taskType === undefined && item.habitTimeEnabled === true) {
-                item.taskType = 'habit';
-            }
-        }
         const initialPlanSchemeData = (savedData.schemeData ?? { schemes: [] }) as PlanSchemeData;
         // 兼容旧数据：确保默认方案始终存在且位于首位
         ensureDefaultScheme(initialPlanSchemeData, t('planScheme.defaultName'));
@@ -305,24 +270,8 @@ export class BaseRepo {
         // 兼容旧数据：确保 items / sources 字段存在
         if (!Array.isArray(initialGtdData.items)) initialGtdData.items = [];
         if (!Array.isArray(initialGtdData.sources)) initialGtdData.sources = [];
-        // 原型任务板块结构版本（兼容旧数据：0 = 旧字段结构，需要一次性迁移）
-        const savedTaskSectionSchemaVersion = typeof savedData.taskSectionSchemaVersion === 'number'
-            ? savedData.taskSectionSchemaVersion
-            : 0;
-        // 原型任务（旧字段一次性迁移为 task.sections；兼容旧数据：默认空数组）
-        const initialPrototypeTasks = parsePrototypeTasks(savedData.prototypeTasks, savedTaskSectionSchemaVersion < 1);
-        // 任务类型版本（0 = 旧数据，需要一次性推断习惯 / 目标类型）
-        const savedTaskKindSchemaVersion = typeof savedData.taskKindSchemaVersion === 'number'
-            ? savedData.taskKindSchemaVersion
-            : 0;
-        // 一次性迁移：已启用习惯 → 习惯；存在阶段目标 → 目标；两者都有时按习惯处理，其余为任务
-        if (savedTaskKindSchemaVersion < 1) {
-            for (const task of initialPrototypeTasks) {
-                if (task.kind !== undefined) continue;
-                if (getTaskHabit(task)?.enabled) task.kind = 'habit';
-                else if (getTaskGoals(task).length > 0) task.kind = 'goal';
-            }
-        }
+        // 原型任务（兼容旧数据：默认空数组）
+        const initialPrototypeTasks = parsePrototypeTasks(savedData.prototypeTasks);
         // 时间盒数据（兼容旧数据：默认空）
         const initialTimeBoxData = parseTimeBoxData(savedData.timeBoxData);
         // 计划排布数据（兼容旧数据：默认空）
@@ -333,28 +282,10 @@ export class BaseRepo {
         const initialTaskExecutionData = parseTaskExecutionData(savedData.taskExecutionData);
         // 界面主题数据（兼容旧数据：默认空列表）
         const initialThemeData = parseThemeData(savedData.themeData);
-        // 原型任务描述 / 分类转换版本（兼容旧数据：默认 0）
-        const initialPrototypeTaskMetaVersion = typeof savedData.prototypeTaskMetaMigrationDone === 'number'
-            ? savedData.prototypeTaskMetaMigrationDone
-            : 0;
-        // 一次性转换：legacy-<inboxId> 原型任务 ← 旧任务的描述 / 分类
-        let prototypeTaskMetaMigrated = false;
-        if (initialPrototypeTaskMetaVersion < 1) {
-            const inboxById = new Map((initialInboxData.items ?? []).map((item) => [item.id, item]));
-            const categoryIds = new Set(initialCategoryData.categories.map((category) => category.id));
-            for (const task of initialPrototypeTasks) {
-                if (!task.id.startsWith('legacy-')) continue;
-                const item = inboxById.get(task.id.slice('legacy-'.length));
-                if (!item) continue;
-                task.description = item.description ?? '';
-                task.categoryId = item.categoryId && categoryIds.has(item.categoryId)
-                    ? item.categoryId
-                    : UNCATEGORIZED_CATEGORY_ID;
-            }
-            prototypeTaskMetaMigrated = true;
-        }
         // OKR 记录卡片填写结果（顶层独立存储，兼容旧数据：默认空）
-        const initialOkrEntries = migrateOkrEntries(savedData.recordEntries ?? savedData.okrEntries);
+        const initialOkrEntries = Array.isArray(savedData.recordEntries)
+            ? savedData.recordEntries as PluginData['recordEntries']
+            : [];
         // 当前进行中的任务（兼容旧数据：默认无）
         const initialRunningTask = parseRunningTask(savedData.runningTask);
 
@@ -375,15 +306,9 @@ export class BaseRepo {
             interfaceLayoutData: initialInterfaceLayoutData,
             taskExecutionData: initialTaskExecutionData,
             themeData: initialThemeData,
-            prototypeTaskMetaMigrationDone: prototypeTaskMetaMigrated ? 1 : initialPrototypeTaskMetaVersion,
-            taskSectionSchemaVersion: savedTaskSectionSchemaVersion < 1 ? 1 : savedTaskSectionSchemaVersion,
-            taskKindSchemaVersion: savedTaskKindSchemaVersion < 1 ? 1 : savedTaskKindSchemaVersion,
             recordEntries: initialOkrEntries,
             runningTask: initialRunningTask,
         };
-
-        // 转换后立即落盘，避免下次启动重复执行
-        if (prototypeTaskMetaMigrated || savedTaskSectionSchemaVersion < 1 || savedTaskKindSchemaVersion < 1) await this.saveAll();
 
         // 持久化自检：记录加载到的板块条目数，便于排查重启后数据丢失
         log('持久化自检', countSectionStats(initialPrototypeTasks));
@@ -396,23 +321,20 @@ export class BaseRepo {
 }
 
 /** 统计板块条目数（排查板块内容持久化问题用） */
-function countSectionStats(tasks: PrototypeTask[]): { tasks: number; stageGoals: number; checklist: number } {
-    let stageGoals = 0;
+function countSectionStats(tasks: PrototypeTask[]): { tasks: number; checklist: number } {
     let checklist = 0;
     for (const task of tasks) {
         for (const section of task.sections ?? []) {
-            if (section.type === 'stageGoals') {
-                for (const list of Object.values(section.payload.entries)) stageGoals += list.length;
-            } else if (section.type === 'checklist') {
+            if (section.type === 'checklist') {
                 checklist += section.payload.items.length;
             }
         }
     }
-    return { tasks: tasks.length, stageGoals, checklist };
+    return { tasks: tasks.length, checklist };
 }
 
-/** 解析持久化的原型任务（兼容旧数据 / 非法数据：返回空数组） */
-function parsePrototypeTasks(raw: unknown, migrateLegacy: boolean): PrototypeTask[] {
+/** 解析持久化的原型任务（非法数据：返回空数组） */
+function parsePrototypeTasks(raw: unknown): PrototypeTask[] {
     if (!Array.isArray(raw)) return [];
     const tasks: PrototypeTask[] = [];
     for (const item of raw) {
@@ -420,8 +342,8 @@ function parsePrototypeTasks(raw: unknown, migrateLegacy: boolean): PrototypeTas
         const r = item as Record<string, unknown>;
         if (typeof r.id !== 'string' || typeof r.name !== 'string') continue;
         const type = r.type === 'side' ? 'side' : 'main';
-        // 板块：优先读新结构；旧结构在迁移期由旧字段一次性转换
-        const sections = parseTaskSections(r.sections) ?? (migrateLegacy ? createSectionsFromLegacy(r) : undefined);
+        // 板块：只读新结构
+        const sections = parseTaskSections(r.sections);
         const sectionDisplay = parseSectionDisplay(r.sectionDisplay);
         tasks.push({
             id: r.id,

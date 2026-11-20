@@ -1,9 +1,10 @@
 ﻿// 任务面板：基于 FloatingPanel 的任务添加入口。
-// 布局从上到下：第一行输入框 + 类型下拉 + 添加按钮；第二行归属方块（收集篮子 / 待办改进等）；
+// 布局从上到下：第一行输入框 + 类型下拉 + 添加按钮；第二行展示任务可用的板块类型；
 // 最下方为已有任务的单行列表（主线 / 支线用左侧颜色竖条区分）。
 import { setIcon } from 'obsidian';
 
 import type { PrototypeTask } from '../../../core/datatypes/prototype-task';
+import type { SectionType } from '../../../core/datatypes/task-section';
 import type { TaskExecutionRecord } from '../../../core/datatypes/task-execution';
 import { t } from '../../../core/i18n';
 import {
@@ -14,6 +15,7 @@ import {
     shiftWeekKey,
     type WeekKey,
 } from '../../../core/shared/plan-data';
+import { SECTION_REGISTRY } from '../../../core/shared/section-registry';
 import { FloatingPanel, type FloatingPanelOptions } from '../../../ui/basic/floating-panel';
 
 /** 任务类型：主线 / 支线 */
@@ -45,13 +47,8 @@ export interface TaskPanelOptions extends Omit<FloatingPanelOptions, 'title'> {
     onUnarchiveTask?: (taskId: string) => void;
 }
 
-/** 归属方块定义（仅展示，不参与选择） */
-const TARGETS: { icon: string; labelKey: Parameters<typeof t>[0] }[] = [
-    { icon: 'list-checks', labelKey: 'panel.targetChecklist' },
-    { icon: 'check-square', labelKey: 'panel.targetFormCheck' },
-    { icon: 'target', labelKey: 'panel.targetOkr' },
-    { icon: 'file-text', labelKey: 'panel.targetFile' },
-];
+/** 胶囊行展示的板块类型：按注册表顺序展示 */
+const SECTION_TYPES = Object.keys(SECTION_REGISTRY) as SectionType[];
 
 /** 任务面板 */
 export class TaskPanel extends FloatingPanel {
@@ -59,7 +56,7 @@ export class TaskPanel extends FloatingPanel {
     private inputEl!: HTMLInputElement;
     private typeSelectEl!: HTMLSelectElement;
     private existingEl!: HTMLElement;
-    /** 归属方块行（查看归档时隐藏） */
+    /** 板块类型胶囊行（查看归档时隐藏） */
     private targetsEl!: HTMLElement;
     /** 查看归档按钮 */
     private archiveToggleEl!: HTMLElement;
@@ -103,13 +100,14 @@ export class TaskPanel extends FloatingPanel {
         });
         addBtn.addEventListener('click', () => this.submit());
 
-        // 第二行：归属方块（仅展示，压缩高度）；行末尾为「查看归档」按钮
+        // 第二行：任务可用的板块类型（仅展示）；行末尾为「查看归档」按钮
         this.targetsEl = body.createDiv({ cls: 'task-panel-targets' });
-        for (const target of TARGETS) {
+        for (const type of SECTION_TYPES) {
+            const def = SECTION_REGISTRY[type];
             const el = this.targetsEl.createDiv({ cls: 'task-panel-target' });
             const iconEl = el.createDiv({ cls: 'task-panel-target-icon' });
-            setIcon(iconEl, target.icon);
-            el.createDiv({ cls: 'task-panel-target-label', text: t(target.labelKey) });
+            setIcon(iconEl, def.icon);
+            el.createDiv({ cls: 'task-panel-target-label', text: t(def.labelKey as Parameters<typeof t>[0]) });
         }
         this.archiveToggleEl = this.targetsEl.createEl('button', {
             cls: 'task-panel-archive-toggle',

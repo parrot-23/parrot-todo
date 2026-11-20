@@ -1,4 +1,4 @@
-﻿// 计划一周面板：左右结构。
+// 计划一周面板：左右结构。
 // 左侧：周信息摘要（周数 / 日期范围 / 任务数）+ 本周已整周排布的任务列表，
 //       点击任务条目选中它，作为右侧日目标的绑定任务（再次点击取消选中）；
 //       列表底部：选中任务时显示本周描述输入框，未选中时显示本周各分类计划时长柱形图。
@@ -255,7 +255,6 @@ export class PlanWeekPanel extends FloatingPanel {
 
     /** 条目内缩进展示本周描述：默认只读，点击后切换为输入框，失焦保存 */
     private renderInlineDescription(row: HTMLElement, task: PrototypeTask): void {
-        this.migrateLegacyWeekNote(task);
         const note = getWeekNote(task, this.weekKey);
         const wrap = row.createDiv({ cls: 'plan-week-task-desc' });
         const textEl = wrap.createDiv({
@@ -975,23 +974,7 @@ export class PlanWeekPanel extends FloatingPanel {
         return `${rest}m`;
     }
 
-    /**
-     * 旧数据迁移：该周此前按周保存的「本周描述」，
-     * 在首次选中任务时转入该任务的本周目标，随后清除旧的周级描述。
-     */
-    private migrateLegacyWeekNote(task: PrototypeTask): void {
-        const repo = this.panelOptions.planAssignmentRepo;
-        const legacy = repo.weekNote(this.weekKey);
-        if (!legacy) return;
-        if (!getWeekNote(task, this.weekKey)) {
-            setWeekNote(task, this.weekKey, legacy);
-        }
-        repo.setWeekNote(this.weekKey, '');
-        void this.panelOptions.save();
-        this.panelOptions.onChanged?.();
-    }
-
-    /** 保存某天的日描述：每天只保留一条，清空视为删除（旧的多条仅在保存时清理为一条） */
+    /** 保存某天的日描述：每天只保留一条，清空视为删除 */
     private async setDayDescription(task: PrototypeTask, dayKey: string, text: string): Promise<void> {
         if (!text) {
             setDayGoalEntries(task, dayKey, []);

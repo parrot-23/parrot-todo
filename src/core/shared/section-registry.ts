@@ -3,7 +3,7 @@
 
 import type { ChecklistItem } from '../datatypes/domain';
 import type { TaskDayGoalEntry, TaskGoalEntry, TaskHabit } from '../datatypes/prototype-task';
-import type { SectionType, TaskSectionPayloadMap, TaskStageGoalEntry } from '../datatypes/task-section';
+import type { SectionType, TaskSectionPayloadMap } from '../datatypes/task-section';
 
 /** 板块定义 */
 export interface SectionDefinition {
@@ -21,22 +21,13 @@ export interface SectionDefinition {
     parsePayload: (raw: unknown) => unknown | null;
 }
 
-/**
- * 兼容两种传入形态：新结构把载荷整体存进板块（如 { items } / { entries } / { notes }），
- * 旧字段迁移传入的是内层值本身。存在包装键时取内层值，避免解析时把整块数据丢掉。
- */
-function unwrapPayload(raw: unknown, key: 'items' | 'entries' | 'notes'): unknown {
-    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return raw;
-    const record = raw as Record<string, unknown>;
-    return key in record ? record[key] : raw;
-}
-
 /** 解析任务清单条目 */
 function parseChecklistPayload(raw: unknown): TaskSectionPayloadMap['checklist'] | null {
-    raw = unwrapPayload(raw, 'items');
-    if (!Array.isArray(raw)) return null;
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+    const listRaw = (raw as Record<string, unknown>).items;
+    if (!Array.isArray(listRaw)) return null;
     const items: ChecklistItem[] = [];
-    for (const entry of raw) {
+    for (const entry of listRaw) {
         if (!entry || typeof entry !== 'object') continue;
         const r = entry as Record<string, unknown>;
         if (typeof r.id !== 'string' || typeof r.text !== 'string') continue;
@@ -52,137 +43,67 @@ function parseChecklistPayload(raw: unknown): TaskSectionPayloadMap['checklist']
     return { items };
 }
 
-/** 日描述载荷（描述板块的一部分，也可用于解析旧版日描述板块） */
-type DayGoalsPayload = {
-    entries: TaskSectionPayloadMap['description']['entries'];
-    estimates?: Record<string, number>;
-};
+/** 解析描述板块载荷：本周描述 + 日描述 + 日预估时长 */
+function parseDescriptionPayload(raw: unknown): TaskSectionPayloadMap['description'] | null {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+    const record = raw as Record<string, unknown>;
+    if (!('notes' in record) && !('entries' in record)) return null;
 
-/** 解析日描述（键为日期 YYYY-MM-DD） */
-function parseDayGoalsPayload(raw: unknown): DayGoalsPayload | null {
-    let entriesRaw: unknown = raw;
-    let estimatesRaw: unknown;
-    if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
-        const record = raw as Record<string, unknown>;
-        if ('entries' in record) {
-            entriesRaw = record.entries;
-            estimatesRaw = record.estimates;
+    const notes: Record<string, string> = {};
+    if (record.notes && typeof record.notes === 'object' && !Array.isArray(record.notes)) {
+        for (const [weekKey, value] of Object.entries(record.notes as Record<string, unknown>)) {
+            if (!/^\d{4}-W\d{2}$/.test(weekKey) || typeof value !== 'string') continue;
+            const trimmed = value.trim();
+            if (trimmed) notes[weekKey] = trimmed;
         }
     }
-    if (!entriesRaw || typeof entriesRaw !== 'object' || Array.isArray(entriesRaw)) return null;
+
     const entries: Record<string, TaskDayGoalEntry[]> = {};
-    for (const [dayKey, value] of Object.entries(entriesRaw as Record<string, unknown>)) {
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(dayKey) || !Array.isArray(value)) continue;
-        const list: TaskDayGoalEntry[] = [];
-        for (const entry of value) {
-            if (!entry || typeof entry !== 'object') continue;
-            const r = entry as Record<string, unknown>;
-            if (typeof r.id !== 'string' || typeof r.text !== 'string') continue;
-            list.push({
-                id: r.id,
-                text: r.text,
-                createdAt: typeof r.createdAt === 'number' ? r.createdAt : 0,
-                ...(r.done === true ? { done: true } : {}),
-            });
+    if (record.entries && typeof record.entries === 'object' && !Array.isArray(record.entries)) {
+        for (const [dayKey, value] of Object.entries(record.entries as Record<string, unknown>)) {
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(dayKey) || !Array.isArray(value)) continue;
+            const list: TaskDayGoalEntry[] = [];
+            for (const entry of value) {
+                if (!entry || typeof entry !== 'object') continue;
+                const r = entry as Record<string, unknown>;
+                if (typeof r.id !== 'string' || typeof r.text !== 'string') continue;
+                list.push({
+                    id: r.id,
+                    text: r.text,
+                    createdAt: typeof r.createdAt === 'number' ? r.createdAt : 0,
+                    ...(r.done === true ? { done: true } : {}),
+                });
+            }
+            if (list.length > 0) entries[dayKey] = list;
         }
-        if (list.length > 0) entries[dayKey] = list;
     }
+
     const estimates: Record<string, number> = {};
-    if (estimatesRaw && typeof estimatesRaw === 'object' && !Array.isArray(estimatesRaw)) {
-        for (const [dayKey, value] of Object.entries(estimatesRaw as Record<string, unknown>)) {
+    if (record.estimates && typeof record.estimates === 'object' && !Array.isArray(record.estimates)) {
+        for (const [dayKey, value] of Object.entries(record.estimates as Record<string, unknown>)) {
             if (!/^\d{4}-\d{2}-\d{2}$/.test(dayKey)) continue;
             if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) continue;
             estimates[dayKey] = Math.round(value);
         }
     }
-    return Object.keys(estimates).length > 0 ? { entries, estimates } : { entries };
+
+    return Object.keys(estimates).length > 0 ? { notes, entries, estimates } : { notes, entries };
 }
 
-/** 解析本周描述（键为周键 YYYY-Www） */
-function parseWeekNotePayload(raw: unknown): { notes: Record<string, string> } | null {
-    raw = unwrapPayload(raw, 'notes');
-    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
-    const notes: Record<string, string> = {};
-    for (const [weekKey, value] of Object.entries(raw as Record<string, unknown>)) {
-        if (!/^\d{4}-W\d{2}$/.test(weekKey) || typeof value !== 'string') continue;
-        const trimmed = value.trim();
-        if (trimmed) notes[weekKey] = trimmed;
-    }
-    return { notes };
-}
-
-/** 解析描述板块载荷：本周描述 + 日描述 + 日预估时长 */
-function parseDescriptionPayload(raw: unknown): TaskSectionPayloadMap['description'] | null {
+/** 解析目标清单 */
+function parseGoalsPayload(raw: unknown): TaskSectionPayloadMap['goals'] | null {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
     const record = raw as Record<string, unknown>;
-    const notes = parseWeekNotePayload('notes' in record ? record.notes : raw)?.notes ?? {};
-    const dayGoals = 'entries' in record
-        ? parseDayGoalsPayload({ entries: record.entries, estimates: record.estimates })
-        : null;
-    const entries = dayGoals?.entries ?? {};
-    const estimates = dayGoals?.estimates;
-    if (estimates && Object.keys(estimates).length > 0) return { notes, entries, estimates };
-    return { notes, entries };
-}
-
-/** 把旧版「本周描述」「日描述」两块载荷合并为描述板块载荷（都无效时返回 null） */
-export function parseLegacyDescriptionPayload(
-    weekNoteRaw: unknown,
-    dayGoalsRaw: unknown,
-): TaskSectionPayloadMap['description'] | null {
-    const notes = parseWeekNotePayload(weekNoteRaw)?.notes;
-    const dayGoals = parseDayGoalsPayload(dayGoalsRaw);
-    if (!notes && !dayGoals) return null;
-    const payload: TaskSectionPayloadMap['description'] = {
-        notes: notes ?? {},
-        entries: dayGoals?.entries ?? {},
-    };
-    if (dayGoals?.estimates && Object.keys(dayGoals.estimates).length > 0) {
-        payload.estimates = dayGoals.estimates;
-    }
-    return payload;
-}
-
-/** 解析阶段目标（键为周键 YYYY-Www，该周为截止时间点） */
-function parseStageGoalsPayload(raw: unknown): TaskSectionPayloadMap['stageGoals'] | null {
-    raw = unwrapPayload(raw, 'entries');
-    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
-    const entries: Record<string, TaskStageGoalEntry[]> = {};
-    for (const [weekKey, value] of Object.entries(raw as Record<string, unknown>)) {
-        if (!/^\d{4}-W\d{2}$/.test(weekKey) || !Array.isArray(value)) continue;
-        const list: TaskStageGoalEntry[] = [];
-        for (const entry of value) {
-            if (!entry || typeof entry !== 'object') continue;
-            const r = entry as Record<string, unknown>;
-            if (typeof r.id !== 'string' || typeof r.text !== 'string') continue;
-            list.push({
-                id: r.id,
-                text: r.text,
-                createdAt: typeof r.createdAt === 'number' ? r.createdAt : 0,
-                ...(r.done === true ? { done: true } : {}),
-            });
-        }
-        if (list.length > 0) entries[weekKey] = list;
-    }
-    return { entries };
-}
-
-/** 解析目标清单（兼容旧版直接存数组的数据） */
-function parseGoalsPayload(raw: unknown): TaskSectionPayloadMap['goals'] | null {
-    const record = raw && typeof raw === 'object' && !Array.isArray(raw)
-        ? raw as Record<string, unknown>
-        : null;
-    const listRaw = record && 'items' in record ? record.items : raw;
+    const listRaw = record.items;
     if (!Array.isArray(listRaw)) return null;
     const items: TaskGoalEntry[] = [];
     for (const entry of listRaw) {
         if (!entry || typeof entry !== 'object') continue;
         const r = entry as Record<string, unknown>;
         if (typeof r.id !== 'string' || typeof r.text !== 'string') continue;
-        const ids = Array.isArray(r.subtaskIds)
-            ? r.subtaskIds
-            : typeof r.subtaskId === 'string' ? [r.subtaskId] : [];
-        const subtaskIds = Array.from(new Set(ids.filter((id): id is string => typeof id === 'string' && !!id)));
+        const subtaskIds = Array.isArray(r.subtaskIds)
+            ? r.subtaskIds.filter((id): id is string => typeof id === 'string' && !!id)
+            : [];
         items.push({
             id: r.id,
             text: r.text,
@@ -196,11 +117,11 @@ function parseGoalsPayload(raw: unknown): TaskSectionPayloadMap['goals'] | null 
     }
     return {
         items,
-        ...(record?.enabled === false ? { enabled: false } : record?.enabled === true ? { enabled: true } : {}),
-        ...(typeof record?.deadlineWeek === 'string' && /^\d{4}-W\d{2}$/.test(record.deadlineWeek)
+        ...(record.enabled === false ? { enabled: false } : record.enabled === true ? { enabled: true } : {}),
+        ...(typeof record.deadlineWeek === 'string' && /^\d{4}-W\d{2}$/.test(record.deadlineWeek)
             ? { deadlineWeek: record.deadlineWeek }
             : {}),
-        ...(typeof record?.deadlineDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(record.deadlineDate)
+        ...(typeof record.deadlineDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(record.deadlineDate)
             ? { deadlineDate: record.deadlineDate }
             : {}),
     };
@@ -257,14 +178,6 @@ export const SECTION_REGISTRY: Record<SectionType, SectionDefinition> = {
                 && Object.keys(data.estimates ?? {}).length === 0;
         },
         parsePayload: (raw) => parseDescriptionPayload(raw),
-    },
-    stageGoals: {
-        type: 'stageGoals',
-        labelKey: 'panel.sectionStageGoals',
-        icon: 'calendar-check',
-        singleton: true,
-        isEmpty: (payload) => !payload || Object.keys((payload as TaskSectionPayloadMap['stageGoals']).entries).length === 0,
-        parsePayload: (raw) => parseStageGoalsPayload(raw),
     },
     goals: {
         type: 'goals',

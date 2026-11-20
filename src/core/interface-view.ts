@@ -319,7 +319,6 @@ export class InterfaceView {
         if (!this.goalBoardPanel) {
             const holder = this.plugin as Plugin & {
                 planAssignmentRepo: ConstructorParameters<typeof GoalBoardPanel>[0]['planAssignmentRepo'];
-                saveAll: () => Promise<void>;
             };
             this.goalBoardPanel = new GoalBoardPanel({
                 container: this.panelContainer,
@@ -328,7 +327,6 @@ export class InterfaceView {
                     .filter((task) => getTaskKind(task) !== 'goal' || getTaskGoalConfig(task).enabled),
                 getCategories: () => this.categoryData.categories,
                 planAssignmentRepo: holder.planAssignmentRepo,
-                save: () => holder.saveAll(),
             });
         }
         return this.goalBoardPanel;

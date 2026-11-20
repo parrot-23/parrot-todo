@@ -1,4 +1,4 @@
-﻿// English messages
+// English messages
 import type { I18nMessages } from './zh';
 
 export const en: I18nMessages = {
@@ -215,8 +215,6 @@ export const en: I18nMessages = {
     'panel.targetChecklist': 'Checklist',
     'panel.goalBoardTitle': 'Goals',
     'panel.goalBoardGoalsEmpty': 'No goals',
-    'panel.sectionStageGoals': 'Stage goals',
-    'panel.sectionStageGoalsEmpty': 'No stage goals',
     'panel.sectionConfig': 'Config',
     'panel.sectionKindTab': 'Task type',
     'panel.sectionKindLabel': 'Set task type',
@@ -236,8 +234,6 @@ export const en: I18nMessages = {
     'panel.sectionDisplayAuto': 'Auto',
     'panel.sectionDisplayOn': 'On',
     'panel.sectionDisplayOff': 'Off',
-    'panel.targetFormCheck': 'Form Check-in',
-    'panel.targetOkr': 'OKR Basket',
     'panel.checklistAddPlaceholder': 'Enter a checklist item',
     'panel.checklistEmpty': 'No checklist items',
     'panel.checklistPending': 'Todo',
@@ -313,7 +309,7 @@ export const en: I18nMessages = {
     'theme.menuOfficial': 'Official',
     'theme.menuLocal': 'Local',
     'theme.contentPlaceholder': 'Content to be implemented',
-    'theme.nameTimespace': 'Time-Space Journey',
+    'theme.nameDeepSpace': 'Deep Space',
     'theme.blank': 'Blank',
     'theme.blankNote': 'No theme applied',
     'theme.apply': 'Apply',

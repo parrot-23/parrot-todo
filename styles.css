@@ -13101,7 +13101,7 @@ button.task-record-dropdown-item.is-selected {
     min-width: 0;
     padding: 3px 18px 3px 6px;
     border-radius: 4px;
-    /* 时空之旅等深色主题下卡片背景与面板背景接近，需要完整描边才能看出卡片形状 */
+    /* 深空等深色主题下卡片背景与面板背景接近，需要完整描边才能看出卡片形状 */
     border: 1px solid var(--sdt-card-border, var(--background-modifier-border));
     border-left: 3px solid var(--interactive-accent);
     background: var(--sdt-card-bg, var(--background-secondary));
@@ -14784,7 +14784,7 @@ body.plan-annual-dragging {
     color: var(--text-normal) !important;
 }
 
-/* 行内代码 / 代码块背景：主题（如时空之旅）只覆盖了 --background-primary 等变量，
+/* 行内代码 / 代码块背景：主题（如深空）只覆盖了 --background-primary 等变量，
    而 Obsidian 默认主题把代码底色写死为浅色（--code-background / --code-block-background），
    这里在面板作用域内改用主题控件底色，保证深色主题下代码区域也是深色 */
 .file-editor-panel-host .cm-inline-code,
@@ -14999,20 +14999,20 @@ body.plan-annual-dragging {
     border-color: var(--interactive-accent);
 }
 
-/* ======================== 时空之旅主题（仅界面视图背景） ======================== */
+/* ======================== 深空主题（仅界面视图背景） ======================== */
 /* 视图底色：纯黑，星点全部由代码绘制 */
-.interface-view.is-theme-timespace {
+.interface-view.is-theme-deepspace {
     background-color: #000000;
     background-image: none;
 }
 
 /* 兜底：即使 view-content 仍带有内边距，整块标签页区域也保持黑色 */
-.parrot-plan-main.view-content:has(.interface-view.is-theme-timespace) {
+.parrot-plan-main.view-content:has(.interface-view.is-theme-deepspace) {
     background-color: #000000;
 }
 
 /* 编辑模式：网点叠加在星点之上 */
-.interface-view.is-editing.is-theme-timespace {
+.interface-view.is-editing.is-theme-deepspace {
     background-image: radial-gradient(circle at 0 0, rgba(255, 255, 255, 0.35) 1.4px, transparent 1.4px);
     background-size: 30px 30px;
     background-repeat: repeat;

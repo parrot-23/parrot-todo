@@ -3,8 +3,8 @@
 
 import type { ChecklistItem } from '../datatypes/domain';
 import type { PrototypeTask, TaskDayGoalEntry, TaskGoalConfig, TaskGoalEntry, TaskHabit } from '../datatypes/prototype-task';
-import type { SectionDisplayMode, SectionType, TaskSection, TaskSectionDisplayMap, TaskSectionOf, TaskSectionPayloadMap, TaskStageGoalEntry } from '../datatypes/task-section';
-import { parseLegacyDescriptionPayload, SECTION_REGISTRY } from './section-registry';
+import type { SectionDisplayMode, SectionType, TaskSection, TaskSectionDisplayMap, TaskSectionOf, TaskSectionPayloadMap } from '../datatypes/task-section';
+import { SECTION_REGISTRY } from './section-registry';
 
 /** 生成板块实例 id */
 function createSectionId(): string {
@@ -18,8 +18,6 @@ function createPayload<K extends SectionType>(type: K): TaskSectionPayloadMap[K]
             return { items: [] } as TaskSectionPayloadMap[K];
         case 'description':
             return { notes: {}, entries: {} } as TaskSectionPayloadMap[K];
-        case 'stageGoals':
-            return { entries: {} } as TaskSectionPayloadMap[K];
         case 'goals':
             return { items: [] } as TaskSectionPayloadMap[K];
         case 'files':
@@ -96,99 +94,27 @@ export function parseSectionDisplay(raw: unknown): TaskSectionDisplayMap | undef
     return Object.keys(display).length > 0 ? display : undefined;
 }
 
-/** 解析持久化的板块数组（兼容旧数据 / 非法数据：返回 undefined 表示无板块） */
+/** 解析持久化的板块数组（非法数据返回 undefined 表示无板块） */
 export function parseTaskSections(raw: unknown): TaskSection[] | undefined {
     if (!Array.isArray(raw)) return undefined;
     const sections: TaskSection[] = [];
-    // 旧版「本周描述」(weekNote) / 「日描述」(dayGoals) 合并为单一描述板块：
-    // 记录首个旧板块的位置与 id，保证迁移后选项卡顺序稳定
-    let legacyNotesRaw: unknown;
-    let legacyDayGoalsRaw: unknown;
-    let legacyId = '';
-    let legacyCreatedAt = 0;
-    let legacyInsertIndex = -1;
-    let hasLegacy = false;
-    let descriptionIndex = -1;
-
     for (const item of raw) {
         if (!item || typeof item !== 'object') continue;
         const r = item as Record<string, unknown>;
         if (typeof r.id !== 'string' || typeof r.type !== 'string') continue;
-        if (r.type === 'weekNote' || r.type === 'dayGoals') {
-            if (legacyInsertIndex < 0) {
-                legacyInsertIndex = sections.length;
-                legacyId = r.id;
-                legacyCreatedAt = typeof r.createdAt === 'number' ? r.createdAt : 0;
-            }
-            if (r.type === 'weekNote') legacyNotesRaw = r.payload;
-            else legacyDayGoalsRaw = r.payload;
-            hasLegacy = true;
-            continue;
-        }
-        // 兼容早期命名为 weekGoals 的阶段目标数据（载荷结构一致）
-        const type = r.type === 'weekGoals' ? 'stageGoals' : r.type;
-        const def = SECTION_REGISTRY[type as SectionType];
-        // 未知板块类型：保留原条目（不渲染），避免新版数据被旧版覆盖丢失
-        if (!def) {
-            sections.push(item as TaskSection);
-            continue;
-        }
+        const def = SECTION_REGISTRY[r.type as SectionType];
+        if (!def) continue;
         const payload = def.parsePayload(r.payload);
         if (!payload) continue;
-        if (type === 'description') descriptionIndex = sections.length;
         sections.push({
             id: r.id,
-            type,
+            type: r.type as SectionType,
             payload,
             createdAt: typeof r.createdAt === 'number' ? r.createdAt : 0,
             ...(r.collapsed === true ? { collapsed: true } : {}),
             ...(typeof r.updatedAt === 'number' ? { updatedAt: r.updatedAt } : {}),
         } as unknown as TaskSection);
     }
-
-    if (hasLegacy) {
-        const legacyPayload = parseLegacyDescriptionPayload(legacyNotesRaw, legacyDayGoalsRaw);
-        if (legacyPayload) {
-            if (descriptionIndex >= 0) {
-                // 新旧数据并存时以新板块为主，旧数据补齐缺失内容
-                const existing = sections[descriptionIndex] as TaskSectionOf<'description'>;
-                existing.payload.notes = { ...legacyPayload.notes, ...existing.payload.notes };
-                existing.payload.entries = { ...legacyPayload.entries, ...existing.payload.entries };
-                if (legacyPayload.estimates) {
-                    existing.payload.estimates = { ...legacyPayload.estimates, ...existing.payload.estimates };
-                }
-            } else {
-                sections.splice(legacyInsertIndex, 0, {
-                    id: legacyId || createSectionId(),
-                    type: 'description',
-                    payload: legacyPayload,
-                    createdAt: legacyCreatedAt,
-                } as unknown as TaskSection);
-            }
-        }
-    }
-    return sections.length > 0 ? sections : undefined;
-}
-
-/* ---------------- 旧字段迁移 ---------------- */
-
-/**
- * 由旧版任务字段生成板块数组（一次性迁移使用）。
- * 旧字段顺序：清单 / 描述（日描述 + 本周描述合并） / 阶段目标 / 目标 / 文件 / 习惯。
- */
-export function createSectionsFromLegacy(raw: Record<string, unknown>): TaskSection[] | undefined {
-    const sections: TaskSection[] = [];
-    const push = (type: SectionType, payload: unknown) => {
-        if (!payload) return;
-        // 旧数据里的空载荷不生成板块（新数据中的空板块由显式写入产生，不会走到这里）
-        if (SECTION_REGISTRY[type].isEmpty(payload)) return;
-        sections.push({ id: createSectionId(), type, payload, createdAt: 0 } as unknown as TaskSection);
-    };
-    push('checklist', SECTION_REGISTRY.checklist.parsePayload(raw.checklist));
-    push('description', parseLegacyDescriptionPayload(raw.weekGoals, raw.dayGoals));
-    push('goals', SECTION_REGISTRY.goals.parsePayload(raw.goals));
-    push('files', SECTION_REGISTRY.files.parsePayload({ fileDir: raw.fileDir, fileTimestamp: raw.fileTimestamp }));
-    push('habit', SECTION_REGISTRY.habit.parsePayload(raw.habit));
     return sections.length > 0 ? sections : undefined;
 }
 
@@ -268,37 +194,6 @@ export function setWeekNote(task: PrototypeTask, weekKey: string, note: string):
     const section = existing ?? ensureSection(task, 'description');
     section.payload.notes[weekKey] = note;
     section.updatedAt = Date.now();
-}
-
-/* ---------------- 阶段目标 ---------------- */
-
-/** 读取某周的阶段目标（该周为截止时间点） */
-export function getStageGoalEntries(task: PrototypeTask, weekKey: string): TaskStageGoalEntry[] {
-    return getSection(task, 'stageGoals')?.payload.entries[weekKey] ?? [];
-}
-
-/** 写入某周的阶段目标（空数组即删除该周条目） */
-export function setStageGoalEntries(task: PrototypeTask, weekKey: string, entries: TaskStageGoalEntry[]): void {
-    const existing = getSection(task, 'stageGoals');
-    if (!existing && entries.length === 0) return;
-    const section = existing ?? ensureSection(task, 'stageGoals');
-    if (entries.length === 0) delete section.payload.entries[weekKey];
-    else section.payload.entries[weekKey] = entries;
-    section.updatedAt = Date.now();
-}
-
-/** 追加一条阶段目标 */
-export function appendStageGoal(task: PrototypeTask, weekKey: string, text: string): void {
-    const trimmed = text.trim();
-    if (!trimmed) return;
-    setStageGoalEntries(task, weekKey, [
-        ...getStageGoalEntries(task, weekKey),
-        {
-            id: `goal_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-            text: trimmed,
-            createdAt: Date.now(),
-        },
-    ]);
 }
 
 /* ---------------- 目标 ---------------- */

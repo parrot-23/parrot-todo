@@ -89,7 +89,7 @@ export class GoalEditor {
             onChange: (week) => this.handleWeekChange(week),
         });
         this.datePicker = new DatePicker(control, {
-            value: this.config.deadlineDate ?? this.derivedSunday(),
+            value: this.config.deadlineDate,
             placeholder: t('datePicker.placeholder'),
             clearable: true,
             ariaLabel: t('panel.goalDeadlineDate'),
@@ -108,7 +108,7 @@ export class GoalEditor {
             this.clearDeadline();
             return;
         }
-        const week = this.currentWeek ?? this.weekFromDeadlineDate();
+        const week = this.currentWeek;
         if (week === undefined) {
             this.currentYear = year;
             this.weekSelect?.setOptions(this.weekOptions());
@@ -186,23 +186,10 @@ export class GoalEditor {
         return t('panel.goalWeekOption', { week, month, day, weekday: t('week.sunday') });
     }
 
-    /** 当前周次对应的周日（用于只存了周、未存日期时展示） */
-    private derivedSunday(): string | undefined {
-        if (this.currentYear === undefined || this.currentWeek === undefined) return undefined;
-        return makeDayKeyFromWeek(makeWeekKey(this.currentYear, this.currentWeek), 7);
-    }
-
-    /** 从已有截止日期推算周次（兼容只存日期、未存周次的旧数据） */
-    private weekFromDeadlineDate(): number | undefined {
-        if (!this.config.deadlineDate) return undefined;
-        const date = new Date(`${this.config.deadlineDate}T00:00:00`);
-        return Number.isNaN(date.getTime()) ? undefined : getISOWeek(date);
-    }
-
     /** 截止时间提示：按截止日期与今天计算剩余天数，未设置时隐藏 */
     private updateDeadlineHint(): void {
         if (!this.deadlineHintEl) return;
-        const target = this.config.deadlineDate ?? this.derivedSunday();
+        const target = this.config.deadlineDate;
         const due = target ? new Date(`${target}T00:00:00`) : null;
         if (!due || Number.isNaN(due.getTime())) {
             this.deadlineHintEl.setText('');

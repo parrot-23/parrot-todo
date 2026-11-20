@@ -26,7 +26,6 @@ import {
     getDayGoalEntries,
     getSection,
     getSectionDisplay,
-    getStageGoalEntries,
     getTaskFileDir,
     getTaskFileTimestamp,
     getTaskGoalConfig,
@@ -36,7 +35,6 @@ import {
     setChecklist,
     setDayGoalEntries,
     setSectionDisplay,
-    setStageGoalEntries,
     setTaskFileTimestamp,
     setTaskGoalConfig,
     setTaskGoals,
@@ -72,7 +70,7 @@ const KIND_OPTIONS: { value: TaskKind; icon?: string; labelKey: LabelKey }[] = [
 ];
 
 /** 板块宿主配置 */
-/** 不在选项卡中展示的板块类型：目标 / 习惯已通过任务类型入口展示，不再占用选项卡 */
+/** 不在选项卡中展示的板块类型：目标 / 习惯已通过任务类型入口展示；阶段目标为旧版周目标体系，仅保留数据不再展示 */
 const HIDDEN_SECTION_TYPES: SectionType[] = ['goals', 'habit'];
 
 /** 配置页允许调整显示设置的板块类型；其余类型固定按「自动」（有内容才显示）处理 */
@@ -430,14 +428,6 @@ export class SectionHost {
         if (type === 'files') {
             return `(${listTaskFiles(this.options.app, getTaskFileDir(task)).length})`;
         }
-        if (type === 'stageGoals') {
-            const entries = getSection(task, 'stageGoals')?.payload.entries ?? {};
-            const pending = Object.values(entries).reduce(
-                (sum, list) => sum + list.filter((item) => !item.done).length,
-                0,
-            );
-            return pending > 0 ? `(${pending})` : '';
-        }
         return '';
     }
 
@@ -449,9 +439,6 @@ export class SectionHost {
                 return;
             case 'description':
                 this.renderDescription(body, task);
-                return;
-            case 'stageGoals':
-                this.renderStageGoals(body, task);
                 return;
             case 'goals':
                 this.renderGoals(body, task);
@@ -856,63 +843,6 @@ export class SectionHost {
                 finish(false);
             }
         });
-    }
-
-    /* ---------------- 阶段目标 ---------------- */
-
-    /** 阶段目标：按截止周分组展示（编辑入口在「板块 → 目标」面板的周格悬浮面板） */
-    private renderStageGoals(body: HTMLElement, task: PrototypeTask): void {
-        const wrap = body.createDiv({ cls: 'task-section-weekgoals' });
-        const entries = getSection(task, 'stageGoals')?.payload.entries ?? {};
-        const weekKeys = Object.keys(entries).sort((a, b) => (a < b ? 1 : a > b ? -1 : 0));
-        if (weekKeys.length === 0) {
-            wrap.createDiv({ cls: 'task-section-empty', text: t('panel.sectionStageGoalsEmpty') });
-            return;
-        }
-        for (const weekKey of weekKeys) {
-            const group = wrap.createDiv({ cls: 'task-section-weekgoals-group' });
-            const matched = weekKey.match(/^(\d{4})-W(\d{2})$/);
-            group.createDiv({
-                cls: 'task-section-weekgoals-title',
-                text: matched ? `${matched[1]} 第${Number(matched[2])}周` : weekKey,
-            });
-            const list = group.createDiv({ cls: 'task-section-list' });
-            for (const goal of entries[weekKey]) {
-                const row = list.createDiv({ cls: 'task-section-item' });
-                row.toggleClass('is-done', goal.done === true);
-                const checkbox = row.createEl('input', { cls: 'task-section-check', attr: { type: 'checkbox' } });
-                checkbox.checked = goal.done === true;
-                checkbox.addEventListener('change', () => {
-                    const next = getStageGoalEntries(task, weekKey).map((item) =>
-                        item.id === goal.id ? { ...item, ...(checkbox.checked ? { done: true } : { done: undefined }) } : item,
-                    );
-                    // done: undefined 会在保存时被丢弃
-                    setStageGoalEntries(task, weekKey, next.map((item) => {
-                        if (item.done === undefined) {
-                            const { done: _done, ...rest } = item;
-                            return rest;
-                        }
-                        return item;
-                    }));
-                    void this.commit(task);
-                });
-                const main = row.createDiv({ cls: 'task-section-item-main' });
-                main.createSpan({ cls: 'task-section-item-text', text: goal.text });
-                const delBtn = row.createEl('button', {
-                    cls: 'task-section-item-delete',
-                    text: '×',
-                    attr: { type: 'button', 'aria-label': t('common.delete') },
-                });
-                delBtn.addEventListener('click', () => {
-                    setStageGoalEntries(
-                        task,
-                        weekKey,
-                        getStageGoalEntries(task, weekKey).filter((item) => item.id !== goal.id),
-                    );
-                    void this.commit(task);
-                });
-            }
-        }
     }
 
     /* ---------------- 目标 ---------------- */
