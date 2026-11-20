@@ -6934,7 +6934,7 @@ button.swimlane-section-card-settings {
     position: relative;
     display: inline-flex;
     align-items: center;
-    gap: 2px;
+    gap: 6px;
     padding: 0;
     border: 1px solid transparent;
     border-radius: 6px;
@@ -15230,6 +15230,42 @@ body.plan-annual-dragging {
     background-repeat: repeat;
 }
 
+/* ======================== 雪原主题（仅界面视图背景） ======================== */
+/* 视图底色：以 #F6F6F6 为主，仅边缘极淡冷灰过渡，避免整体发寒 */
+.interface-view.is-theme-snowfield {
+    background-color: #f6f6f6;
+    background-image:
+        /* 雪丘：极淡的中性灰椭圆晕染，模拟雪面起伏（降低冷蓝成分） */
+        radial-gradient(ellipse 62% 46% at 24% 32%, rgba(170, 176, 184, 0.1), transparent 72%),
+        radial-gradient(ellipse 56% 42% at 76% 64%, rgba(160, 170, 182, 0.08), transparent 72%),
+        radial-gradient(ellipse 52% 38% at 46% 90%, rgba(170, 176, 184, 0.07), transparent 72%),
+        /* 底层：#F6F6F6 大面积铺开，只在右下角极淡过渡 */
+        linear-gradient(165deg, #f6f6f6 0%, #f6f6f6 62%, #f3f4f5 100%);
+    background-size:
+        100% 100%,
+        100% 100%,
+        100% 100%,
+        100% 100%;
+    background-position:
+        0 0,
+        0 0,
+        0 0,
+        0 0;
+    background-repeat: no-repeat, no-repeat, no-repeat, no-repeat;
+}
+
+/* 兜底：即使 view-content 仍带有内边距，整块标签页区域也保持浅灰白 */
+.parrot-plan-main.view-content:has(.interface-view.is-theme-snowfield) {
+    background-color: #f6f6f6;
+}
+
+/* 编辑模式：中性灰网点叠加在雪面之上 */
+.interface-view.is-editing.is-theme-snowfield {
+    background-image: radial-gradient(circle at 0 0, rgba(107, 114, 128, 0.22) 1.4px, transparent 1.4px);
+    background-size: 30px 30px;
+    background-repeat: repeat;
+}
+
 /* ============================================================
    界面视图按钮主题统一（覆盖 Obsidian 全局 button 背景 / 文字色）
    原因：Obsidian 的 button:not(.clickable-icon) 特异性为 (0,1,1)，
@@ -16444,6 +16480,26 @@ button.interface-today-tasks-add {
     color: rgba(255, 255, 255, 0.6);
 }
 
+/* 登场动画：时长由 --sprite-enter 注入（取引擎 spriteEnter，规范 §4.5 / §7.4） */
+.story-sprite.is-entering {
+    animation: story-sprite-enter var(--sprite-enter, 0.2s) ease-out;
+}
+
+@keyframes story-sprite-enter {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* 居中槽位用 transform 居中，登场动画需保留水平位移 */
+.story-sprite.pos-center.is-entering {
+    animation-name: story-sprite-enter-center;
+}
+
+@keyframes story-sprite-enter-center {
+    from { opacity: 0; transform: translateX(-50%) translateY(12px); }
+    to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
 /* 说话震动：bump-0 / bump-1 交替，切换类名即重播（规范 §7.4.3） */
 .story-sprite.bump-0 .story-sprite-image {
     animation: story-sprite-bump-a 0.36s ease-out;
@@ -16638,9 +16694,10 @@ button.interface-today-tasks-add {
     background: rgba(51, 112, 255, 0.28);
 }
 
-/* 无障碍：减少动态效果时关闭背景淡入 / 说话震动 / 物品弹入（规范 §7.8） */
+/* 无障碍：减少动态效果时关闭背景淡入 / 立绘登场 / 说话震动 / 物品弹入（规范 §7.8） */
 @media (prefers-reduced-motion: reduce) {
     .story-stage-bg,
+    .story-sprite.is-entering,
     .story-sprite.bump-0 .story-sprite-image,
     .story-sprite.bump-1 .story-sprite-image,
     .story-item {

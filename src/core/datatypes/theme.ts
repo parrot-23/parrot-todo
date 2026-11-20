@@ -4,8 +4,8 @@
 /** 主题来源：官方内置 / 本地自定义 */
 export type ThemeSource = 'official' | 'local';
 
-/** 默认主题 id（深空） */
-export const DEFAULT_THEME_ID = 'deepspace';
+/** 默认主题 id（雪原） */
+export const DEFAULT_THEME_ID = 'snowfield';
 
 /** 界面主题（id / name / source 骨架） */
 export interface Theme {
@@ -29,7 +29,7 @@ export interface ThemeData {
     themeVariables: Record<string, Record<string, number>>;
 }
 
-/** 默认主题数据（默认应用深空，列表为空占位） */
+/** 默认主题数据（默认应用雪原，列表为空占位） */
 export function defaultThemeData(): ThemeData {
     return { currentThemeId: DEFAULT_THEME_ID, officialThemes: [], localThemes: [], themeVariables: {} };
 }

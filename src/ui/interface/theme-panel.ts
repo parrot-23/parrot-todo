@@ -107,7 +107,7 @@ export class ThemePanel extends FloatingPanel {
     /** 「当前主题」选项卡：展示主题名称、关键配色与关键变量 */
     private renderCurrentTheme(contentEl: HTMLElement): void {
         const theme = getThemeDefinition(this.panelOptions.getCurrentThemeId());
-        const name = theme ? t(theme.nameKey) : t('theme.blank');
+        const name = theme ? t(theme.nameKey) : t('theme.snowfield');
 
         // 主题名称
         const nameSection = contentEl.createDiv({ cls: 'theme-current-section' });

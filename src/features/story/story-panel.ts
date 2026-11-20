@@ -14,6 +14,7 @@ import { setIcon } from 'obsidian';
 
 import { t } from '../../core/i18n';
 import {
+    backgroundFadeSeconds,
     createPlayer,
     DEFAULT_PLAYBACK_TIMING,
     stepDelaySeconds,
@@ -530,6 +531,7 @@ export class StoryPanel extends FloatingPanel {
         for (const sprite of sprites) {
             alive.add(sprite.assetId);
             let el = this.spriteEls.get(sprite.assetId);
+            const isNew = !el;
             if (!el) {
                 el = layer.createDiv({ cls: 'story-sprite' });
                 const img = el.createEl('img', {
@@ -547,8 +549,13 @@ export class StoryPanel extends FloatingPanel {
                 this.spriteEls.set(sprite.assetId, el);
             }
 
-            // 位置
+            // 位置（className 会重置类名，登场 / 震动类名需在其后追加）
             el.className = `story-sprite pos-${sprite.position}`;
+            // 登场动画：时长取引擎 spriteEnter（§4.5 / §7.4）
+            if (isNew) {
+                el.addClass('is-entering');
+                el.style.setProperty('--sprite-enter', `${DEFAULT_PLAYBACK_TIMING.spriteEnter}s`);
+            }
             // 说话震动：按 talkCount % 2 交替挂类名，切换类名让 CSS 动画重播
             if (sprite.talkCount > 0) el.addClass(`bump-${sprite.talkCount % 2}`);
             // 名牌
@@ -1177,14 +1184,9 @@ export class StoryPanel extends FloatingPanel {
         }
     }
 
-    /** 背景淡入秒数：剧本写了 fade_in_Ns 优先，否则取引擎默认（§4.5） */
+    /** 背景淡入秒数：直接用引擎函数，剧本写了 fade_in_Ns 时优先（§4.5） */
     private bgFadeSeconds(cue: StageCue): number {
-        const match = /fade_in_([\d.]+)s/.exec(cue.transition ?? '');
-        if (match) {
-            const seconds = Number(match[1]);
-            if (Number.isFinite(seconds) && seconds >= 0) return seconds;
-        }
-        return DEFAULT_PLAYBACK_TIMING.backgroundFadeIn;
+        return backgroundFadeSeconds(cue.raw ?? null, DEFAULT_PLAYBACK_TIMING);
     }
 
     /**
