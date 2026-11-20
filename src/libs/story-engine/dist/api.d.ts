@@ -742,6 +742,47 @@ export declare function formatStep(step: Step, resolveAssetName: (assetId: strin
 export declare function diagnosticSource(code: string): DiagnosticSource;
 /** 改菜单 / 编排 / 情节线后需要就地重算的诊断域 */
 export declare function isLocalDiagnostic(code: string): boolean;
+export interface PlaybackTiming {
+	/** 未单独分类的指令，以及旧动画预览通道的每步停留秒数 */
+	step: number;
+	/** 剧情片段切换（@plot 边界）时的空白秒数；0 = 边界帧立即跳过、不占用播放间隔 */
+	labelGap: number;
+	/** 台词 / 心声 / 旁白 / 动作之后的停留秒数 */
+	dialogue: number;
+	/** 背景切换之后的停留秒数 */
+	background: number;
+	/** 背景淡入动画时长；剧本写了 `fade_in_Ns` 时以剧本为准 */
+	backgroundFadeIn: number;
+	/** 立绘出现之后的停留秒数 */
+	sprite: number;
+	/** 立绘登场动画时长（Step.enter 只是布尔标志，时长取这里） */
+	spriteEnter: number;
+	/** 关键物品浮层展示秒数（同时作为该指令的停留时间） */
+	item: number;
+	/** 音乐 / 音效 / 特效 / 状态 / 任务 / 分支等其它指令之后的停留秒数 */
+	other: number;
+	/** 有可见指令时的间隔下限，防止 setTimeout 设成 0 造成刷屏；labelGap 不受此限 */
+	minStep: number;
+}
+/**
+ * 引擎定义的播放节奏（只读常量）。
+ * 编辑器播放预览、动画预览与右侧参数面板都直接引用它；要改默认值只能改引擎并重新构建。
+ */
+export declare const DEFAULT_PLAYBACK_TIMING: Readonly<PlaybackTiming>;
+/**
+ * 一条指令显示多久后推进到下一条。
+ *
+ * `step === null` 表示片段边界：runtime 这一帧只做了跳转（enter 事件），
+ * 没有产出 cue，画面已清空。此时直接返回 labelGap，允许 0（立即推进）；
+ * minStep 只约束下面「有可见指令」的间隔，避免刷屏。
+ */
+export declare function stepDelaySeconds(step: Step | null, timing?: Readonly<PlaybackTiming>): number;
+/**
+ * 本次背景切换的淡入秒数。
+ * 剧本显式写了 `transition: "fade_in_2s"`（见 types.ts / label-parser.ts）时优先，
+ * 否则用引擎默认的 backgroundFadeIn。
+ */
+export declare function backgroundFadeSeconds(step: Step | null, timing?: Readonly<PlaybackTiming>): number;
 /** 诊断（比内部 Diagnostic 更扁，去掉 data 等内部字段） */
 export interface StoryIssue {
 	code: string;
@@ -1012,7 +1053,7 @@ export interface PlaybackSnapshot {
 		message: string;
 	} | null;
 }
-/** 播放器：调用方只需要这 6 个方法 */
+/** 播放器：调用方只需要这 7 个方法 */
 export interface StoryPlayer {
 	/** 订阅事件，返回退订函数 */
 	on(listener: (e: PlayEvent) => void): () => void;
@@ -1024,6 +1065,11 @@ export interface StoryPlayer {
 	next(): PlaybackStep;
 	/** 推进一帧并返回本条 cue（编辑器逐条播放用） */
 	advance(): AdvanceResult;
+	/**
+	 * 预览下一步的指令类型（不推进、不派发事件）；null = 菜单位置 / 片段出口 / 未开始。
+	 * 宿主可据此做连发合并：连续 `sprite` 之间不额外等待，整组只消耗一次间隔。
+	 */
+	peekStepType(): Step["type"] | null;
 	/** 在当前菜单里选一项（传 resultId），返回是否成功 */
 	choose(resultId: string): boolean;
 	/** 当前状态快照 */

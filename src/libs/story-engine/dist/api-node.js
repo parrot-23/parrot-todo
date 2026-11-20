@@ -224,7 +224,14 @@ function loadLibrary(json) {
         for (const [id, item] of Object.entries(parsed.items)) {
           const a = item;
           if (a && typeof a === "object" && a.name != null && a.kind != null) {
-            lib.data.items[id] = { id, kind: a.kind, name: String(a.name), path: String(a.path ?? "") };
+            lib.data.items[id] = {
+              id,
+              kind: a.kind,
+              name: String(a.name),
+              path: String(a.path ?? ""),
+              // meta 是可选的扩展字段（如立绘大小 size），保留以便编辑器读写
+              ...a.meta && typeof a.meta === "object" ? { meta: a.meta } : {}
+            };
           }
         }
       }
@@ -2315,6 +2322,24 @@ var LabelRuntime = class {
     this.emit({ type: "end", reason: "error" });
   }
   /**
+   * 预览当前步位置的下一条指令类型（**不推进、不派发事件、不改状态**）。
+   *
+   * 宿主用它做连发合并：例如连续 `@sprite` 视为同一组，同一帧全部上台，
+   * 整组只消耗一次 `sprite` 停留时长。
+   *
+   * 返回 `null` 表示下一步不是普通步骤：菜单位置、片段出口、未开始或已结束。
+   */
+  peekStepType() {
+    if (this.state.status !== "playing") return null;
+    const label = this.label;
+    if (!label) return null;
+    for (const menu of this.menusForLabel(label.id)) {
+      if (this.consumedMenus.has(menu.id)) continue;
+      if (this.menuPosition(menu, label) === this.state.stepIndex) return null;
+    }
+    return label.steps[this.state.stepIndex]?.type ?? null;
+  }
+  /**
    * 推进一帧：
    *  - "step" 播放了一步
    *  - "pause" 遇到菜单，等待 choose
@@ -3199,6 +3224,63 @@ function formatStep(step, resolveAssetName) {
   }
 }
 
+// src/playback-timing.ts
+var DEFAULT_PLAYBACK_TIMING = Object.freeze({
+  step: 1,
+  labelGap: 0,
+  dialogue: 1.1,
+  background: 0.4,
+  backgroundFadeIn: 0.3,
+  sprite: 0.3,
+  spriteEnter: 0.2,
+  item: 1.8,
+  other: 0.1,
+  minStep: 0.1
+});
+function clampStep(seconds, timing) {
+  if (!Number.isFinite(seconds) || seconds < 0) return timing.minStep;
+  return Math.max(timing.minStep, seconds);
+}
+function stepDelaySeconds(step, timing = DEFAULT_PLAYBACK_TIMING) {
+  if (step === null) {
+    return Number.isFinite(timing.labelGap) && timing.labelGap >= 0 ? timing.labelGap : 0;
+  }
+  let seconds;
+  switch (step.type) {
+    case "dialog":
+    case "narration":
+      seconds = timing.dialogue;
+      break;
+    case "bg":
+      seconds = timing.background;
+      break;
+    case "sprite":
+      seconds = timing.sprite;
+      break;
+    case "item":
+      seconds = timing.item;
+      break;
+    case "bgm":
+    case "sfx":
+    case "effect":
+    case "flag":
+    case "task":
+    case "branch":
+      seconds = timing.other;
+      break;
+    default:
+      seconds = timing.step;
+      break;
+  }
+  return clampStep(seconds, timing);
+}
+function backgroundFadeSeconds(step, timing = DEFAULT_PLAYBACK_TIMING) {
+  const transition = step?.type === "bg" ? step.transition : void 0;
+  const matched = transition?.match(/(\d+(?:\.\d+)?)\s*s?$/i);
+  const seconds = matched ? Number(matched[1]) : timing.backgroundFadeIn;
+  return Number.isFinite(seconds) && seconds >= 0 ? seconds : timing.backgroundFadeIn;
+}
+
 // src/api.ts
 function openProject(root, io, options = {}) {
   return toStoryProject(loadProject(root, io, options));
@@ -3373,6 +3455,9 @@ function createPlayer(target, options = {}) {
       return runtime.reset(labelId);
     },
     next,
+    peekStepType() {
+      return runtime.peekStepType();
+    },
     advance() {
       const result = next();
       const cue = lastCue ?? void 0;
@@ -3603,6 +3688,7 @@ function openProjectFromDisk(root, options = {}) {
   return openProject(root, createNodeIO(root), options);
 }
 export {
+  DEFAULT_PLAYBACK_TIMING,
   LABEL_POSITIONS,
   LEGACY_PROJECT_FILES,
   PLOTLINE_TIER_NAME,
@@ -3614,6 +3700,7 @@ export {
   assetDisplayName,
   assetOf,
   assetsOf,
+  backgroundFadeSeconds,
   bindAssetPath,
   buildFlagCondition,
   collectAssets,
@@ -3664,6 +3751,7 @@ export {
   setAssetPath,
   snapshotIO,
   stepChannel,
+  stepDelaySeconds,
   stepTitle,
   syncPlotlines
 };

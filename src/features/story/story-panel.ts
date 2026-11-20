@@ -2,12 +2,21 @@
 // 左侧垂直菜单（历史 / 官方 / 本地）+ 左下角「配置」；
 // 官方页扫描官方剧本目录下的剧本项目，点击「预览」把剧本加入历史并跳转到历史页；
 // 历史页左侧历史卡片、右侧预览窗口，底部「播放」通过 story-engine 加载项目并开始播放。
-// 预览按规范 §7 绘制舞台：背景 → 立绘 → 物品 → 对话框 → 菜单。
+//
+// 舞台渲染严格对齐《story-engine 调用规范》§7：
+//   - 累积状态模型（bg / sprites / bubble / item），enter 事件清空全部；
+//   - 立绘只有 left / center / right 三槽位，缺省按 left → center → right 让位；
+//   - 未绑定真实图片的立绘不进舞台（不占槽位、不渲染、不震动）；
+//   - 说话反馈改为立绘上跳震动（bump-0 / bump-1 交替），不再高亮 / 淡化；
+//   - 气泡抬头按角色散列配色（我=白、旁白=蓝）；
+//   - 播放节奏一律取引擎 DEFAULT_PLAYBACK_TIMING（§4.5），连续立绘合并为一组。
 import { setIcon } from 'obsidian';
 
 import { t } from '../../core/i18n';
 import {
     createPlayer,
+    DEFAULT_PLAYBACK_TIMING,
+    stepDelaySeconds,
     type ChoiceMenu,
     type PlayEvent,
     type StageCue,
@@ -64,50 +73,100 @@ interface StoryHistoryItem {
 /** 播放状态（idle = 尚未开始） */
 type StoryPlayState = 'idle' | 'playing' | 'menu' | 'finished' | 'error';
 
-/** 立绘槽位 */
-type SpritePosition = 'left' | 'center' | 'right';
+/** 立绘槽位（规范 §7.4.1：只有三个） */
+type SpriteSlot = 'left' | 'center' | 'right';
 
-/** 在场立绘 */
+/** 在场立绘（规范 §7.1 的 StageModel.sprites） */
 interface StorySprite {
-    /** 归一化后的角色键（assetId / assetName / assetPath），同一角色只保留一个 */
-    key: string;
+    /** 素材 id，同一角色只保留一个 */
+    assetId: string;
     name: string;
     path: string;
-    position: SpritePosition;
+    position: SpriteSlot;
+    pose?: string;
+    /** 说话计数：每次被 say / inner / act 命中 +1，渲染时按 % 2 交替挂 bump 类名 */
+    talkCount: number;
 }
 
-/** 对话框内容 */
+/** 对话框内容（规范 §7.5：任何时刻最多一个） */
 interface StoryBubble {
+    /** 抬头文案（含「（心声）」「（动作）」后缀） */
     title: string;
     text: string;
     /** actor = 角色侧（say / inner / act），narrator = 旁白（vo） */
     tone: 'actor' | 'narrator';
+    /** 原始角色名（旁白为 null），抬头配色按它取 */
+    speaker: string | null;
 }
 
-/** 舞台画面状态（一份快照，重绘时直接读它） */
+/** 舞台画面状态（规范 §7.1：累积状态 + 声明式重绘） */
 interface StoryStageView {
     labelName: string;
-    bgPath: string;
-    bgFade: boolean;
+    bg: { path: string; fadeSeconds: number } | null;
     sprites: StorySprite[];
     bubble: StoryBubble | null;
     item: { path: string; name: string; seq: number } | null;
-    /** 当前施动角色（用于立绘高亮） */
-    active: string | null;
-    /** 是否正在做动作（立绘浮动） */
-    acting: boolean;
 }
 
-const SPRITE_SLOTS: SpritePosition[] = ['left', 'center', 'right'];
+/** 舞台各层容器（只创建一次，后续增量更新） */
+interface StoryStageEls {
+    host: HTMLElement;
+    bg: HTMLElement;
+    chip: HTMLElement;
+    spriteLayer: HTMLElement;
+    item: HTMLElement;
+    dialog: HTMLElement;
+    menu: HTMLElement;
+    end: HTMLElement;
+    error: HTMLElement;
+    hint: HTMLElement;
+}
 
-/** 把作者写的位置归一化成三个槽位之一（兼容左/中/右、l/c/r 等别名） */
-function normalizeSpritePosition(raw: string | undefined): SpritePosition | null {
+const SPRITE_SLOTS: SpriteSlot[] = ['left', 'center', 'right'];
+
+/** 位置别名 → 槽位（规范 §7.4.1） */
+const SLOT_ALIASES: Record<string, SpriteSlot> = {
+    left: 'left', l: 'left', left_side: 'left', leftside: 'left', 'left-side': 'left',
+    左: 'left', 左边: 'left', 左侧: 'left',
+    center: 'center', centre: 'center', middle: 'center', mid: 'center', c: 'center',
+    中: 'center', 中间: 'center', 中央: 'center',
+    right: 'right', r: 'right', right_side: 'right', rightside: 'right', 'right-side': 'right',
+    右: 'right', 右边: 'right', 右侧: 'right',
+};
+
+/** 归一化站位；null = 没写或写了不认识的值 */
+function normalizeSlot(raw: string | undefined): SpriteSlot | null {
     const value = (raw ?? '').trim().toLowerCase();
-    if (!value) return null;
-    if (['左', 'l', 'left', 'left_side', 'leftside', 'left-side'].includes(value)) return 'left';
-    if (['右', 'r', 'right', 'right_side', 'rightside', 'right-side'].includes(value)) return 'right';
-    if (['中', 'c', 'center', 'centre', 'mid', 'middle'].includes(value)) return 'center';
-    return null;
+    return value ? SLOT_ALIASES[value] ?? null : null;
+}
+
+/** 期望槽位空着就用它，否则按 left → center → right 找第一个空位，全满回落到期望值 */
+function pickSlot(desired: SpriteSlot | null, occupied: SpriteSlot[]): SpriteSlot {
+    if (desired && !occupied.includes(desired)) return desired;
+    return SPRITE_SLOTS.find((slot) => !occupied.includes(slot)) ?? desired ?? 'left';
+}
+
+/** 立绘是否绑定了真实图片（规范 §7.4：空串或占位路径不进舞台） */
+function hasRealSpriteImage(path: string | undefined): boolean {
+    return /\.(png|jpe?g|webp|gif|bmp|avif|svg)$/i.test(path ?? '');
+}
+
+/** 抬头配色调色板（规范 §7.5） */
+const SPEAKER_PALETTE = ['#ffd479', '#8be0a4', '#f49ac2', '#8fd3ff', '#c9a7ff', '#ffb37a', '#7fe6dc', '#e8e07f'];
+/** 第一人称主角固定白色 */
+const SELF_SPEAKERS = ['我', '自己', '本人'];
+/** 旁白蓝 */
+const NARRATOR_COLOR = '#9dc0ff';
+
+/** 按角色名散列到调色板（同名永远同色） */
+function speakerColor(name: string | null): string {
+    if (!name) return NARRATOR_COLOR;
+    if (SELF_SPEAKERS.includes(name.trim())) return '#ffffff';
+    let hash = 0;
+    for (let i = 0; i < name.length; i += 1) {
+        hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+    }
+    return SPEAKER_PALETTE[hash % SPEAKER_PALETTE.length];
 }
 
 /** 剧本面板 */
@@ -143,11 +202,28 @@ export class StoryPanel extends FloatingPanel {
     private playState: StoryPlayState = 'idle';
     private errorMessage = '';
 
-    /** 舞台画面 */
+    /** 舞台画面（累积状态模型） */
     private stage: StoryStageView = this.emptyStage();
     /** 物品浮出的自动淡出定时器 */
     private itemTimer: number | null = null;
     private itemSeq = 0;
+    /** 自动播放定时器 */
+    private tickTimer: number | null = null;
+    /** 是否自动播放（false = 手动「下一步」） */
+    private autoPlay = true;
+
+    /** 舞台各层容器（增量更新用，切换剧本 / 重绘时重建） */
+    private stageEls: StoryStageEls | null = null;
+    /** 立绘节点缓存：assetId → 元素 */
+    private spriteEls = new Map<string, HTMLElement>();
+    /** 对话框节点缓存 */
+    private dialogEls: { box: HTMLElement; speaker: HTMLElement; text: HTMLElement } | null = null;
+    /** 当前背景键（path|fade），用于判断是否需要替换背景图 */
+    private bgKey = '';
+    /** 已渲染的物品序号 */
+    private itemSeqRendered = 0;
+    /** 当前菜单键，用于判断是否需要重建按钮 */
+    private menuKey = '';
 
     constructor(options: StoryPanelOptions = {}) {
         super({
@@ -180,12 +256,20 @@ export class StoryPanel extends FloatingPanel {
         this.localDirConfigPanel?.close();
         this.disposePlayer();
         this.clearItemTimer();
+        this.clearTickTimer();
         super.close();
     }
 
     /** 渲染面板内容：左侧菜单栏 + 右侧内容区 */
     private renderContent(): void {
+        // 播放中只做增量更新：不重建面板骨架，避免背景图反复销毁重建导致闪烁
+        if (this.canUpdateInPlace()) {
+            this.updatePlaybackView();
+            return;
+        }
+
         this.body.empty();
+        this.resetStageEls();
 
         const layout = this.body.createDiv({ cls: 'story-panel-layout' });
         this.renderSidebar(layout.createDiv({ cls: 'story-panel-sidebar' }));
@@ -198,6 +282,44 @@ export class StoryPanel extends FloatingPanel {
         } else {
             this.renderList(content, this.activeMenu);
         }
+    }
+
+    /** 当前 DOM 是否可以直接增量更新（历史页 + 已选中剧本 + 舞台骨架已建立） */
+    private canUpdateInPlace(): boolean {
+        if (this.configActive || this.activeMenu !== 'history') return false;
+        if (!this.activeDir || !this.stageEls) return false;
+        return this.stageEls.host.isConnected;
+    }
+
+    /** 播放中的增量更新：只刷新舞台各层与底部状态栏 */
+    private updatePlaybackView(): void {
+        const els = this.stageEls;
+        if (!els) return;
+        this.renderStage(els.host, this.activeDir ?? '');
+        this.updateFooter();
+    }
+
+    /** 底部状态栏增量更新：只改状态文案与按钮 */
+    private updateFooter(): void {
+        const footer = this.body.querySelector('.story-panel-preview-footer');
+        if (!footer) return;
+        const status = footer.querySelector('.story-panel-preview-status');
+        if (status) status.textContent = this.statusText();
+        const actions = footer.querySelector('.story-panel-preview-actions');
+        if (actions) {
+            actions.replaceChildren();
+            this.renderFooterActions(actions as HTMLElement);
+        }
+    }
+
+    /** 清空舞台节点缓存（面板骨架重建时调用） */
+    private resetStageEls(): void {
+        this.stageEls = null;
+        this.spriteEls.clear();
+        this.dialogEls = null;
+        this.bgKey = '';
+        this.itemSeqRendered = 0;
+        this.menuKey = '';
     }
 
     /** 左侧垂直菜单栏：历史 / 官方 / 本地，底部为配置按钮 */
@@ -266,13 +388,16 @@ export class StoryPanel extends FloatingPanel {
         this.renderPreview(wrap.createDiv({ cls: 'story-panel-preview' }));
     }
 
-    /** 预览窗口：标题 + 舞台 + 底部播放栏 */
+    /** 预览窗口：标题栏（含自动播放开关）+ 舞台 + 底部播放栏 */
     private renderPreview(preview: HTMLElement): void {
         const active = this.history.find((item) => item.dir === this.activeDir) ?? null;
-        preview.createDiv({
+
+        const header = preview.createDiv({ cls: 'story-panel-preview-header' });
+        header.createDiv({
             cls: 'story-panel-preview-title',
             text: active ? active.name : t('story.previewTitle'),
         });
+        if (active) this.renderAutoPlayToggle(header);
 
         const body = preview.createDiv({ cls: 'story-panel-preview-body' });
         if (!active) {
@@ -285,85 +410,220 @@ export class StoryPanel extends FloatingPanel {
         this.renderFooter(preview);
     }
 
-    /** 舞台：背景 → 立绘 → 物品 → 对话框 → 菜单（对齐规范 §7 的层序） */
-    private renderStage(host: HTMLElement, projectDir: string): void {
-        const stage = this.stage;
+    /** 右上角自动播放开关：自动播放 / 手动「下一步」 */
+    private renderAutoPlayToggle(header: HTMLElement): void {
+        const btn = header.createEl('button', {
+            cls: 'story-panel-autoplay-btn',
+            attr: { type: 'button' },
+        });
+        this.applyAutoPlayButtonState(btn);
+        btn.addEventListener('click', () => this.toggleAutoPlay());
+    }
 
-        if (stage.bgPath) {
-            const bg = host.createEl('img', {
-                cls: 'story-stage-bg',
-                attr: { src: resolveAssetUrl(projectDir, stage.bgPath), alt: '' },
-            });
-            if (stage.bgFade) bg.addClass('is-fade');
-        } else if (this.playState !== 'idle') {
-            host.createDiv({ cls: 'story-stage-bg-empty', text: t('story.bgUnbound') });
-        }
+    /** 按当前 autoPlay 状态刷新开关按钮的图标、文案与高亮 */
+    private applyAutoPlayButtonState(btn: HTMLElement): void {
+        const label = this.autoPlay ? t('story.autoPlayOn') : t('story.autoPlayOff');
+        btn.toggleClass('is-on', this.autoPlay);
+        btn.setAttribute('aria-label', label);
+        btn.setAttribute('title', label);
+        btn.replaceChildren();
+        setIcon(btn.createSpan({ cls: 'story-panel-autoplay-icon' }), this.autoPlay ? 'pause' : 'play');
+        btn.createSpan({ cls: 'story-panel-autoplay-label', text: label });
+    }
 
-        if (stage.labelName) {
-            host.createDiv({ cls: 'story-stage-chip', text: stage.labelName });
-        }
-
-        for (const sprite of stage.sprites) {
-            const el = host.createDiv({ cls: `story-sprite pos-${sprite.position}` });
-            el.toggleClass('is-active', !!stage.active && stage.active === sprite.name);
-            el.toggleClass('is-dim', !!stage.active && stage.active !== sprite.name);
-            el.toggleClass('is-animating', stage.acting && stage.active === sprite.name);
-            el.createEl('img', { attr: { src: resolveAssetUrl(projectDir, sprite.path), alt: sprite.name } });
-        }
-
-        if (stage.item) {
-            const box = host.createDiv({ cls: 'story-item' });
-            box.createEl('img', { attr: { src: resolveAssetUrl(projectDir, stage.item.path), alt: '' } });
-            box.createDiv({ cls: 'story-item-name', text: stage.item.name });
-        }
-
-        if (this.playState === 'idle') {
-            const hint = host.createDiv({ cls: 'story-stage-hint' });
-            hint.createDiv({ text: t('story.stageIdle') });
-            hint.createDiv({ cls: 'story-stage-hint-path', text: projectDir });
-        } else {
-            this.renderDialog(host);
-        }
-
-        if (this.menu) {
-            const menuBox = host.createDiv({ cls: 'story-stage-menu' });
-            if (this.menu.title) {
-                menuBox.createDiv({ cls: 'story-stage-menu-title', text: this.menu.title });
-            }
-            for (const option of this.menu.options) {
-                const btn = menuBox.createEl('button', {
-                    cls: 'story-stage-menu-option',
-                    attr: { type: 'button' },
-                    text: option.text,
-                });
-                btn.addEventListener('click', () => this.choose(option.resultId));
-            }
-        }
-
-        if (this.playState === 'finished') {
-            host.createDiv({ cls: 'story-stage-end', text: t('story.endHint') });
-        }
-
-        if (this.playState === 'error' && this.errorMessage) {
-            host.createDiv({ cls: 'story-stage-error', text: this.errorMessage });
+    /** 切换自动播放：关闭时停掉定时器，开启时从当前进度继续推进 */
+    private toggleAutoPlay(): void {
+        this.autoPlay = !this.autoPlay;
+        this.clearTickTimer();
+        // 播放中走增量更新，标题栏不会重建，需就地刷新开关按钮
+        const btn = this.body.querySelector('.story-panel-autoplay-btn');
+        if (btn) this.applyAutoPlayButtonState(btn as HTMLElement);
+        this.renderContent();
+        if (this.autoPlay && this.playState === 'playing') {
+            this.tickTimer = window.setTimeout(() => {
+                this.tickTimer = null;
+                this.advance();
+            }, 0);
         }
     }
 
-    /** 对话框：actor / narrator 两种色调，同一时刻只显示一个气泡 */
-    private renderDialog(host: HTMLElement): void {
-        if (!this.stage.bubble) return;
-        const layer = host.createDiv({ cls: 'story-dialog-layer' });
-        const box = layer.createDiv({ cls: `story-dialog-box tone-${this.stage.bubble.tone}` });
-        box.createDiv({ cls: 'story-dialog-speaker', text: this.stage.bubble.title });
-        box.createDiv({ cls: 'story-dialog-text', text: this.stage.bubble.text });
+    /** 舞台：背景 → 立绘 → 物品 → 对话框 → 菜单（对齐规范 §7.2 的层序） */
+    private renderStage(host: HTMLElement, projectDir: string): void {
+        // 舞台骨架只建一次；后续推进只更新变化的层，避免整块重建导致闪烁（规范 §7.1 幂等重绘）
+        if (this.stageEls?.host !== host) {
+            this.stageEls = this.buildStageSkeleton(host);
+        }
+        const els = this.stageEls;
+        const stage = this.stage;
+
+        // 1 背景层：仅在背景变化时替换 <img>，避免每步重新解码图片
+        const bgKey = stage.bg ? `${stage.bg.path}|${stage.bg.fadeSeconds}` : '';
+        if (bgKey !== this.bgKey) {
+            this.bgKey = bgKey;
+            els.bg.replaceChildren();
+            if (stage.bg) {
+                const bg = els.bg.createEl('img', {
+                    cls: 'story-stage-bg',
+                    attr: { src: resolveAssetUrl(projectDir, stage.bg.path), alt: '' },
+                });
+                bg.style.setProperty('--story-bg-fade', `${stage.bg.fadeSeconds}s`);
+            } else if (this.playState !== 'idle') {
+                els.bg.createDiv({ cls: 'story-stage-bg-empty', text: t('story.bgUnbound') });
+            }
+        }
+
+        // 片段名
+        if (els.chip.getText() !== stage.labelName) els.chip.setText(stage.labelName);
+        els.chip.toggleClass('is-hidden', !stage.labelName);
+
+        // 2 立绘层：按 assetId 复用节点，只更新位置 / 表情 / 震动类名
+        this.syncSprites(els.spriteLayer, projectDir);
+
+        // 3 关键物品层：按 seq 判断是否需要重建
+        if (stage.item) {
+            if (this.itemSeqRendered !== stage.item.seq) {
+                this.itemSeqRendered = stage.item.seq;
+                els.item.replaceChildren();
+                const box = els.item.createDiv({ cls: 'story-item' });
+                box.createEl('img', { attr: { src: resolveAssetUrl(projectDir, stage.item.path), alt: '' } });
+                box.createDiv({ cls: 'story-item-name', text: stage.item.name });
+            }
+        } else if (this.itemSeqRendered !== 0) {
+            this.itemSeqRendered = 0;
+            els.item.replaceChildren();
+        }
+
+        // 5 对话框层：只改文字与色调，不重建框体
+        this.syncDialog(els.dialog, projectDir);
+
+        // 6 菜单层（z-index 高于物品层，避免被物品卡片压住）
+        this.syncMenu(els.menu);
+
+        // 结束 / 错误提示
+        els.end.toggleClass('is-hidden', this.playState !== 'finished');
+        const errorText = this.playState === 'error' ? this.errorMessage : '';
+        if (els.error.getText() !== errorText) els.error.setText(errorText);
+        els.error.toggleClass('is-hidden', !errorText);
+    }
+
+    /** 建立舞台骨架：各层容器只创建一次，后续复用 */
+    private buildStageSkeleton(host: HTMLElement): StoryStageEls {
+        const bg = host.createDiv({ cls: 'story-stage-bg-layer' });
+        const chip = host.createDiv({ cls: 'story-stage-chip is-hidden' });
+        const spriteLayer = host.createDiv({ cls: 'story-sprite-layer' });
+        const item = host.createDiv({ cls: 'story-item-layer' });
+        const hint = host.createDiv({ cls: 'story-stage-hint' });
+        hint.createDiv({ text: t('story.stageIdle') });
+        hint.createDiv({ cls: 'story-stage-hint-path', text: this.activeDir ?? '' });
+        const dialog = host.createDiv({ cls: 'story-dialog-layer is-hidden' });
+        const menu = host.createDiv({ cls: 'story-stage-menu is-hidden' });
+        const end = host.createDiv({ cls: 'story-stage-end is-hidden', text: t('story.endHint') });
+        const error = host.createDiv({ cls: 'story-stage-error is-hidden' });
+        return { host, bg, chip, spriteLayer, item, dialog, menu, end, error, hint };
+    }
+
+    /** 立绘层增量同步：按 assetId 复用节点 */
+    private syncSprites(layer: HTMLElement, projectDir: string): void {
+        const sprites = this.stage.sprites;
+        const alive = new Set<string>();
+
+        for (const sprite of sprites) {
+            alive.add(sprite.assetId);
+            let el = this.spriteEls.get(sprite.assetId);
+            if (!el) {
+                el = layer.createDiv({ cls: 'story-sprite' });
+                const img = el.createEl('img', {
+                    cls: 'story-sprite-image',
+                    attr: { src: resolveAssetUrl(projectDir, sprite.path), alt: sprite.name },
+                });
+                // 已绑定但读图失败：换成虚线占位（规范 §7.4）
+                img.addEventListener('error', () => {
+                    img.remove();
+                    if (!el?.querySelector('.story-sprite-empty')) {
+                        el?.createDiv({ cls: 'story-sprite-empty', text: sprite.name });
+                    }
+                });
+                el.createDiv({ cls: 'story-sprite-name' });
+                this.spriteEls.set(sprite.assetId, el);
+            }
+
+            // 位置
+            el.className = `story-sprite pos-${sprite.position}`;
+            // 说话震动：按 talkCount % 2 交替挂类名，切换类名让 CSS 动画重播
+            if (sprite.talkCount > 0) el.addClass(`bump-${sprite.talkCount % 2}`);
+            // 名牌
+            const nameEl = el.querySelector('.story-sprite-name');
+            const nameText = sprite.pose ? `${sprite.name} · ${sprite.pose}` : sprite.name;
+            if (nameEl && nameEl.textContent !== nameText) nameEl.textContent = nameText;
+        }
+
+        // 移除已下台的立绘
+        this.spriteEls.forEach((el, assetId) => {
+            if (!alive.has(assetId)) {
+                el.remove();
+                this.spriteEls.delete(assetId);
+            }
+        });
+    }
+
+    /** 对话框增量同步：只改文字与色调 */
+    private syncDialog(layer: HTMLElement, _projectDir: string): void {
+        const bubble = this.stage.bubble;
+        const show = this.playState !== 'idle' && !!bubble;
+        layer.toggleClass('is-hidden', !show);
+        this.stageEls?.hint.toggleClass('is-hidden', this.playState !== 'idle');
+        if (!show || !bubble) return;
+
+        if (!this.dialogEls) {
+            const box = layer.createDiv({ cls: 'story-dialog-box' });
+            const speaker = box.createDiv({ cls: 'story-dialog-speaker' });
+            const text = box.createDiv({ cls: 'story-dialog-text' });
+            this.dialogEls = { box, speaker, text };
+        }
+        const { box, speaker, text } = this.dialogEls;
+        box.className = `story-dialog-box tone-${bubble.tone}`;
+        if (speaker.textContent !== bubble.title) speaker.textContent = bubble.title;
+        speaker.style.setProperty('color', speakerColor(bubble.speaker));
+        if (text.textContent !== bubble.text) text.textContent = bubble.text;
+    }
+
+    /** 菜单增量同步：菜单内容变化时才重建按钮 */
+    private syncMenu(layer: HTMLElement): void {
+        const menu = this.menu;
+        layer.toggleClass('is-hidden', !menu);
+        if (!menu) {
+            this.menuKey = '';
+            layer.replaceChildren();
+            return;
+        }
+        const key = `${menu.menuId}|${menu.title}|${menu.jump}|${menu.options.map((o) => o.resultId).join(',')}`;
+        if (key === this.menuKey) return;
+        this.menuKey = key;
+
+        layer.replaceChildren();
+        if (menu.title) layer.createDiv({ cls: 'story-stage-menu-title', text: menu.title });
+        if (menu.jump === 'back') {
+            layer.createDiv({ cls: 'story-stage-menu-hint', text: t('story.menuBackHint') });
+        }
+        for (const option of menu.options) {
+            const btn = layer.createEl('button', {
+                cls: 'story-stage-menu-option',
+                attr: { type: 'button' },
+                text: option.text,
+            });
+            btn.addEventListener('click', () => this.choose(option.resultId));
+        }
     }
 
     /** 预览窗口底部：播放状态 + 播放 / 下一步 / 重播按钮 */
     private renderFooter(preview: HTMLElement): void {
         const footer = preview.createDiv({ cls: 'story-panel-preview-footer' });
         footer.createSpan({ cls: 'story-panel-preview-status', text: this.statusText() });
+        this.renderFooterActions(footer.createDiv({ cls: 'story-panel-preview-actions' }));
+    }
 
-        const actions = footer.createDiv({ cls: 'story-panel-preview-actions' });
+    /** 底部按钮：按播放状态渲染（增量更新时也复用） */
+    private renderFooterActions(actions: HTMLElement): void {
         if (this.playState === 'idle' || this.playState === 'finished' || this.playState === 'error') {
             const btn = actions.createEl('button', {
                 cls: 'story-panel-play-btn is-primary',
@@ -375,7 +635,8 @@ export class StoryPanel extends FloatingPanel {
             return;
         }
 
-        if (this.playState === 'playing') {
+        // 手动模式才显示「下一步」；自动播放由右上角开关控制
+        if (this.playState === 'playing' && !this.autoPlay) {
             const btn = actions.createEl('button', {
                 cls: 'story-panel-play-btn',
                 attr: { type: 'button' },
@@ -797,25 +1058,45 @@ export class StoryPanel extends FloatingPanel {
         this.advance();
     }
 
-    /** 推进到下一条演出 */
+    /**
+     * 推进到下一条演出。
+     * 自动播放时按引擎节奏参数（§4.5）安排下一次推进；连续立绘合并为一组。
+     */
     private advance(): void {
         if (!this.player) return;
+        this.clearTickTimer();
+
+        let delaySeconds = 0;
         try {
-            const step = this.player.next();
-            if (step === 'menu') {
+            const result = this.player.advance();
+            if (result.result === 'menu') {
                 this.menu = this.player.snapshot().menu;
                 this.playState = 'menu';
-            } else if (step === 'finished' || step === 'idle') {
+            } else if (result.result === 'finished' || result.result === 'idle') {
                 this.playState = 'finished';
-            } else if (step === 'error') {
+            } else if (result.result === 'error') {
                 this.playState = 'error';
                 this.errorMessage = this.player.snapshot().error?.message ?? '';
+            } else {
+                this.playState = 'playing';
+                const step = result.cue?.raw ?? null;
+                // 连续立绘合并：下一条仍是 sprite 时不等待，整组只消耗一次 sprite 时长
+                const queued = step?.type === 'sprite' && this.player.peekStepType() === 'sprite';
+                delaySeconds = queued ? 0 : stepDelaySeconds(step, DEFAULT_PLAYBACK_TIMING);
             }
         } catch (err) {
             this.playState = 'error';
             this.errorMessage = err instanceof Error ? err.message : String(err);
         }
+
         this.renderContent();
+
+        if (this.autoPlay && this.playState === 'playing') {
+            this.tickTimer = window.setTimeout(() => {
+                this.tickTimer = null;
+                this.advance();
+            }, Math.max(0, delaySeconds) * 1000);
+        }
     }
 
     /** 选择菜单选项后继续 */
@@ -846,12 +1127,14 @@ export class StoryPanel extends FloatingPanel {
         }
     }
 
-    /** 按规范 §7.6 把一条 cue 应用到画面 */
+    /** 按规范 §7.1 把一条 cue 应用到累积状态模型 */
     private applyCue(cue: StageCue): void {
         switch (cue.kind) {
             case 'bg':
-                this.stage.bgPath = cue.assetPath ?? '';
-                this.stage.bgFade = !!cue.transition && cue.transition.indexOf('fade') === 0;
+                this.stage.bg = {
+                    path: cue.assetPath ?? '',
+                    fadeSeconds: this.bgFadeSeconds(cue),
+                };
                 break;
             case 'sprite':
                 this.applySprite(cue);
@@ -863,9 +1146,9 @@ export class StoryPanel extends FloatingPanel {
                     title: cue.kind === 'inner' ? `${name}${t('story.innerSuffix')}` : name,
                     text: cue.kind === 'say' ? `“${cue.text ?? ''}”` : cue.text ?? '',
                     tone: 'actor',
+                    speaker: name || null,
                 };
-                this.stage.active = name || null;
-                this.stage.acting = false;
+                this.bumpSpeaker(name || null);
                 break;
             }
             case 'act':
@@ -873,61 +1156,79 @@ export class StoryPanel extends FloatingPanel {
                     title: `${cue.speaker || t('story.narrator')}${t('story.actSuffix')}`,
                     text: cue.text ?? '',
                     tone: 'actor',
+                    speaker: cue.speaker || null,
                 };
-                this.stage.active = cue.speaker || null;
-                this.stage.acting = true;
+                this.bumpSpeaker(cue.speaker || null);
                 break;
             case 'vo':
-                this.stage.bubble = { title: t('story.narrator'), text: cue.text ?? '', tone: 'narrator' };
-                this.stage.active = null;
-                this.stage.acting = false;
+                this.stage.bubble = {
+                    title: t('story.narrator'),
+                    text: cue.text ?? '',
+                    tone: 'narrator',
+                    speaker: null,
+                };
                 break;
             case 'item':
                 this.showItem(cue);
                 break;
             default:
-                // bgm / sfx / fx / state / task 不改变三层画面
+                // bgm / sfx / fx / state / task 不改变舞台四层
                 break;
         }
     }
 
-    /** 立绘上台 / 更新：同一角色只保留一个，缺省位置按 left → center → right 让位 */
+    /** 背景淡入秒数：剧本写了 fade_in_Ns 优先，否则取引擎默认（§4.5） */
+    private bgFadeSeconds(cue: StageCue): number {
+        const match = /fade_in_([\d.]+)s/.exec(cue.transition ?? '');
+        if (match) {
+            const seconds = Number(match[1]);
+            if (Number.isFinite(seconds) && seconds >= 0) return seconds;
+        }
+        return DEFAULT_PLAYBACK_TIMING.backgroundFadeIn;
+    }
+
+    /**
+     * 立绘上台 / 更新（规范 §7.4.2）：
+     * 按 assetId 唯一；未绑定真实图片的不进舞台、不占槽位。
+     */
     private applySprite(cue: StageCue): void {
-        const key = cue.assetId || cue.assetName || cue.assetPath || `sprite-${this.stage.sprites.length}`;
-        const desired = normalizeSpritePosition(cue.position);
-        const existing = this.stage.sprites.find((sprite) => sprite.key === key);
+        if (!hasRealSpriteImage(cue.assetPath)) return;
+
+        const assetId = cue.assetId || cue.assetName || cue.assetPath || '';
+        const desired = normalizeSlot(cue.position);
+        const existing = this.stage.sprites.find((sprite) => sprite.assetId === assetId);
 
         if (existing) {
             if (cue.assetPath) existing.path = cue.assetPath;
             if (cue.assetName) existing.name = cue.assetName;
-            if (desired && !this.stage.sprites.some((sprite) => sprite !== existing && sprite.position === desired)) {
-                existing.position = desired;
+            if (cue.pose) existing.pose = cue.pose;
+            // 已上台且本次写了位置、且该槽位没被其他角色占 → 移动
+            if (desired) {
+                const others = this.stage.sprites
+                    .filter((sprite) => sprite !== existing)
+                    .map((sprite) => sprite.position);
+                if (!others.includes(desired)) existing.position = desired;
             }
         } else {
             this.stage.sprites.push({
-                key,
-                name: cue.assetName || key,
+                assetId,
+                name: cue.assetName || assetId,
                 path: cue.assetPath ?? '',
-                position: this.firstFreeSlot(desired),
+                position: pickSlot(desired, this.stage.sprites.map((sprite) => sprite.position)),
+                pose: cue.pose,
+                talkCount: 0,
             });
         }
-
-        this.stage.active = cue.assetName || existing?.name || null;
-        this.stage.acting = false;
     }
 
-    /** 找第一个空槽位；作者指定且空着就用指定值，全满时回落到期望值 */
-    private firstFreeSlot(desired: SpritePosition | null): SpritePosition {
-        const used = (slot: SpritePosition): boolean =>
-            this.stage.sprites.some((sprite) => sprite.position === slot);
-        if (desired && !used(desired)) return desired;
-        for (const slot of SPRITE_SLOTS) {
-            if (!used(slot)) return slot;
-        }
-        return desired ?? 'center';
+    /** 说话反馈：按名字匹配在场立绘，计数 +1 触发一次上跳（规范 §7.4.3） */
+    private bumpSpeaker(name: string | null): void {
+        if (!name) return;
+        const sprite = this.stage.sprites.find((item) => item.name === name);
+        if (sprite) sprite.talkCount += 1;
     }
 
-    /** 关键物品：画面中心浮出，2.8s 后自动淡出 */
+    /** 关键物品：画面中心浮出，按引擎参数计时后自动淡出（规范 §7.6） */
     private showItem(cue: StageCue): void {
         this.clearItemTimer();
         this.itemSeq += 1;
@@ -943,7 +1244,7 @@ export class StoryPanel extends FloatingPanel {
                 this.stage.item = null;
                 this.renderContent();
             }
-        }, 2800);
+        }, DEFAULT_PLAYBACK_TIMING.item * 1000);
     }
 
     private clearItemTimer(): void {
@@ -953,17 +1254,21 @@ export class StoryPanel extends FloatingPanel {
         }
     }
 
+    private clearTickTimer(): void {
+        if (this.tickTimer !== null) {
+            window.clearTimeout(this.tickTimer);
+            this.tickTimer = null;
+        }
+    }
+
     /** 空舞台（新片段进入时调用，清空背景 / 立绘 / 气泡 / 物品） */
     private emptyStage(labelName = ''): StoryStageView {
         return {
             labelName,
-            bgPath: '',
-            bgFade: false,
+            bg: null,
             sprites: [],
             bubble: null,
             item: null,
-            active: null,
-            acting: false,
         };
     }
 
@@ -982,6 +1287,7 @@ export class StoryPanel extends FloatingPanel {
     }
 
     private disposePlayer(): void {
+        this.clearTickTimer();
         if (this.offPlayer) {
             try {
                 this.offPlayer();

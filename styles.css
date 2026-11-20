@@ -16062,12 +16062,58 @@ button.interface-today-tasks-add {
     flex-direction: column;
 }
 
-.story-panel-preview-title {
-    padding: 10px 14px;
+.story-panel-preview-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 10px 6px 14px;
     border-bottom: 1px solid var(--sdt-card-border, var(--background-modifier-border));
+}
+
+.story-panel-preview-title {
+    padding: 4px 0;
     font-size: 12px;
     font-weight: 600;
     color: var(--sdt-text-primary, var(--text-normal));
+}
+
+/* 右上角自动播放开关：开启=蓝色边框+蓝字，关闭=灰色边框+灰字 */
+.story-panel-autoplay-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 9px;
+    border: 1px solid var(--sdt-card-border, var(--background-modifier-border));
+    border-radius: 999px;
+    background: transparent;
+    box-shadow: none;
+    font-size: 11px;
+    color: var(--sdt-text-secondary, var(--text-muted));
+    cursor: pointer;
+}
+
+.story-panel-autoplay-btn:hover {
+    background: var(--sdt-interactive-hover, var(--background-modifier-hover));
+}
+
+.story-panel-autoplay-btn.is-on {
+    border-color: var(--interactive-accent);
+    color: var(--interactive-accent);
+}
+
+.story-panel-autoplay-btn.is-on:hover {
+    background: var(--sdt-interactive-hover, var(--background-modifier-hover));
+}
+
+.story-panel-autoplay-icon {
+    display: inline-flex;
+    align-items: center;
+}
+
+.story-panel-autoplay-icon .svg-icon {
+    width: 13px;
+    height: 13px;
 }
 
 .story-panel-preview-body {
@@ -16275,17 +16321,37 @@ button.interface-today-tasks-add {
     overflow-wrap: anywhere;
 }
 
-/* 舞台：背景 → 立绘 → 物品（z-index 5）→ 对话框 → 菜单 */
+/* 舞台：背景 → 立绘 → 物品（z-index 5）→ 对话框 → 菜单（z-index 6） */
+.story-stage-bg-layer {
+    position: absolute;
+    inset: 0;
+}
+
+.story-item-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    pointer-events: none;
+}
+
+/* 增量更新用：隐藏层不占位、不拦截交互 */
+.story-stage-bg-layer.is-hidden,
+.story-stage-chip.is-hidden,
+.story-dialog-layer.is-hidden,
+.story-stage-menu.is-hidden,
+.story-stage-end.is-hidden,
+.story-stage-error.is-hidden,
+.story-stage-hint.is-hidden {
+    display: none;
+}
+
 .story-stage-bg {
     position: absolute;
     inset: 0;
     width: 100%;
     height: 100%;
     object-fit: cover;
-}
-
-.story-stage-bg.is-fade {
-    animation: story-bg-fade 0.5s ease;
+    animation: story-bg-fade var(--story-bg-fade, 0.3s) ease-out;
 }
 
 @keyframes story-bg-fade {
@@ -16314,14 +16380,21 @@ button.interface-today-tasks-add {
     color: rgba(255, 255, 255, 0.7);
 }
 
-/* 立绘：left / center / right 三个槽位，站在对话框上沿之上 */
+/* 立绘层：底边贴舞台底，下半身被对话框盖住（规范 §7.4） */
+.story-sprite-layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
 .story-sprite {
     position: absolute;
-    bottom: 26%;
+    bottom: 0;
+    height: 75%;
     display: flex;
     flex-direction: column;
     align-items: center;
-    transition: opacity 0.25s ease, filter 0.25s ease;
+    justify-content: flex-end;
 }
 
 .story-sprite.pos-left {
@@ -16337,38 +16410,59 @@ button.interface-today-tasks-add {
     right: 8%;
 }
 
-.story-sprite img {
-    max-height: 46vh;
-    max-width: 38%;
+.story-sprite-image {
+    height: 100%;
+    width: auto;
     object-fit: contain;
     filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.4));
 }
 
-.story-sprite.is-active img {
-    filter: drop-shadow(0 0 16px rgba(126, 167, 255, 0.75)) drop-shadow(0 4px 12px rgba(0, 0, 0, 0.4));
+/* 名牌在头顶上方，避开对话框 */
+.story-sprite-name {
+    position: absolute;
+    top: -22px;
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.45);
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.85);
 }
 
-.story-sprite.is-dim {
-    opacity: 0.4;
-    filter: saturate(0.55) brightness(0.8);
+/* 已绑定但读图失败的兜底占位 */
+.story-sprite-empty {
+    width: 120px;
+    height: 170px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px dashed rgba(255, 255, 255, 0.3);
+    border-radius: 8px;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.6);
 }
 
-.story-sprite.is-animating {
-    animation: story-sprite-bob 0.9s ease-in-out infinite;
+/* 说话震动：bump-0 / bump-1 交替，切换类名即重播（规范 §7.4.3） */
+.story-sprite.bump-0 .story-sprite-image {
+    animation: story-sprite-bump-a 0.36s ease-out;
 }
 
-.story-sprite.pos-center.is-animating {
-    animation-name: story-sprite-bob-center;
+.story-sprite.bump-1 .story-sprite-image {
+    animation: story-sprite-bump-b 0.36s ease-out;
 }
 
-@keyframes story-sprite-bob {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-5px); }
+@keyframes story-sprite-bump-a {
+    0% { transform: translateY(0); }
+    35% { transform: translateY(-20px); }
+    100% { transform: translateY(0); }
 }
 
-@keyframes story-sprite-bob-center {
-    0%, 100% { transform: translateX(-50%) translateY(0); }
-    50% { transform: translateX(-50%) translateY(-5px); }
+@keyframes story-sprite-bump-b {
+    0% { transform: translateY(0); }
+    35% { transform: translateY(-20px); }
+    100% { transform: translateY(0); }
 }
 
 /* 关键物品：画面中心浮出，2.8s 后由脚本淡出 */
@@ -16406,54 +16500,52 @@ button.interface-today-tasks-add {
     to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 }
 
-/* 对话框：actor / narrator 两种色调 */
+/* 对话框：占舞台高 1/3，自上而下渐隐（规范 §7.5） */
 .story-dialog-layer {
     position: absolute;
     left: 0;
     right: 0;
     bottom: 0;
+    height: 33.333%;
+    box-sizing: border-box;
     display: flex;
     justify-content: center;
-    padding: 0 16px 18px;
+    padding: 0 24px;
     pointer-events: none;
 }
 
 .story-dialog-box {
-    width: min(86%, 720px);
-    min-height: 96px;
-    padding: 14px 16px;
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    width: min(78%, 960px);
+    height: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
+    padding: 24px 20px 40px;
+    border: none;
     border-radius: 10px;
-    background: rgba(0, 0, 0, 0.72);
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.82) 0%, rgba(0, 0, 0, 0.55) 55%, rgba(0, 0, 0, 0) 100%);
     color: #fff;
 }
 
-.story-dialog-box.tone-actor {
-    border-color: rgba(126, 167, 255, 0.35);
-}
-
 .story-dialog-box.tone-narrator {
-    background: rgba(20, 20, 26, 0.7);
+    background: linear-gradient(to bottom, rgba(18, 18, 26, 0.82) 0%, rgba(18, 18, 26, 0.55) 55%, rgba(18, 18, 26, 0) 100%);
+    font-style: italic;
+    color: #9dc0ff;
 }
 
 .story-dialog-box.tone-narrator .story-dialog-speaker {
+    font-style: normal;
     font-weight: 500;
-    color: rgba(255, 255, 255, 0.6);
-}
-
-.story-dialog-box.tone-narrator .story-dialog-text {
-    font-style: italic;
 }
 
 .story-dialog-speaker {
     margin-bottom: 4px;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 600;
-    color: #7ea7ff;
+    color: #fff;
 }
 
 .story-dialog-text {
-    font-size: 13px;
+    font-size: 14px;
     line-height: 1.6;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
@@ -16484,7 +16576,7 @@ button.interface-today-tasks-add {
     position: absolute;
     left: 0;
     right: 0;
-    bottom: 24%;
+    bottom: calc(33.333% + 14px);
     text-align: center;
     font-size: 13px;
     color: rgba(255, 255, 255, 0.6);
@@ -16523,6 +16615,12 @@ button.interface-today-tasks-add {
     color: #fff;
 }
 
+.story-stage-menu-hint {
+    text-align: center;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.68);
+}
+
 .story-stage-menu-option {
     padding: 9px 12px;
     border: 1px solid rgba(255, 255, 255, 0.25);
@@ -16538,6 +16636,16 @@ button.interface-today-tasks-add {
 .story-stage-menu-option:hover {
     border-color: #3370ff;
     background: rgba(51, 112, 255, 0.28);
+}
+
+/* 无障碍：减少动态效果时关闭背景淡入 / 说话震动 / 物品弹入（规范 §7.8） */
+@media (prefers-reduced-motion: reduce) {
+    .story-stage-bg,
+    .story-sprite.bump-0 .story-sprite-image,
+    .story-sprite.bump-1 .story-sprite-image,
+    .story-item {
+        animation: none;
+    }
 }
 
 /* 预览窗口底部：状态 + 播放 / 下一步 / 重播 */
