@@ -307,7 +307,7 @@ export class TaskPanel extends FloatingPanel {
         hours.forEach((value, i) => {
             const bar = bars.createDiv({ cls: 'task-panel-week-bar' });
             const ratio = scaleHours > 0 ? Math.min(1, value / scaleHours) : 0;
-            bar.style.height = `${Math.round(ratio * 100)}%`;
+            bar.setCssStyles({ height: `${Math.round(ratio * 100)}%` });
             if (value <= 0) bar.addClass('is-empty');
             bar.setAttribute('aria-label', t('panel.taskWeekDurationTip', {
                 week: weeks[i].label,

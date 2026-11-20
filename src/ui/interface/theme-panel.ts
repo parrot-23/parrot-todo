@@ -127,7 +127,7 @@ export class ThemePanel extends FloatingPanel {
                 if (!value) continue;
                 const item = grid.createDiv({ cls: 'theme-color-item' });
                 const swatch = item.createDiv({ cls: 'theme-color-swatch' });
-                swatch.style.backgroundColor = value;
+                swatch.setCssStyles({ backgroundColor: value });
                 const meta = item.createDiv({ cls: 'theme-color-meta' });
                 meta.createDiv({ cls: 'theme-color-label', text: t(labelKey) });
                 meta.createDiv({ cls: 'theme-color-value', text: value });
@@ -212,14 +212,14 @@ export class ThemePanel extends FloatingPanel {
                 const url = this.panelOptions.app.vault.adapter.getResourcePath(
                     `${this.panelOptions.pluginDir}/${assetPath}`,
                 );
-                thumb.style.backgroundImage = `url("${url}")`;
+                thumb.setCssStyles({ backgroundImage: `url("${url}")` });
             } else if (theme.noteKey) {
                 thumb.addClass('is-blank');
                 thumb.createSpan({ cls: 'theme-preview-thumb-note', text: t(theme.noteKey) });
             } else {
                 thumb.addClass('is-plain');
                 // 封面底色跟随主题配色（如田园主题的暖色），未设置时回退默认黑色
-                if (theme.previewColor) thumb.style.backgroundColor = theme.previewColor;
+                if (theme.previewColor) thumb.setCssStyles({ backgroundColor: theme.previewColor });
             }
 
             const info = card.createDiv({ cls: 'theme-preview-info' });

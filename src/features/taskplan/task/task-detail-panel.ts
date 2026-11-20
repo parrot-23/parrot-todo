@@ -916,12 +916,3 @@ export class TaskDetailPanel extends FloatingPanel {
 }
 
 
-/** 完成时间格式化为 MM-DD HH:MM（清单条目上展示） */
-function formatCompletedTime(ts: number): string {
-    const d = new Date(ts);
-    const mo = String(d.getMonth() + 1).padStart(2, '0');
-    const da = String(d.getDate()).padStart(2, '0');
-    const h = String(d.getHours()).padStart(2, '0');
-    const mi = String(d.getMinutes()).padStart(2, '0');
-    return `${mo}-${da} ${h}:${mi}`;
-}

@@ -73,21 +73,6 @@ const STATUS_OPTIONS: {
     { value: 'paused', icon: 'pause', labelKey: 'taskPlan.statusPaused' },
 ];
 
-/** 任务树行 / 泳道行高度（px），两侧共用同一滚动容器，行高一致才能对齐 */
-const ROW_HEIGHT = 26;
-
-/** 季度导航行高度（px） */
-const NAV_ROW_HEIGHT = 28;
-
-/** 周列表头高度（px） */
-const HEADER_HEIGHT = 34;
-
-/** 色块高度（px） */
-const BAR_HEIGHT = 14;
-
-/** 色块左右留白（px） */
-const BAR_INSET = 1;
-
 /** 拖拽启动阈值（px） */
 const DRAG_THRESHOLD = 3;
 

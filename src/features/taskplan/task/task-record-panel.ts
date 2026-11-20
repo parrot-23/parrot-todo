@@ -291,9 +291,11 @@ export class TaskRecordPanel extends FloatingPanel {
         const height = dropdown.offsetHeight;
         const spaceBelow = window.innerHeight - rect.bottom;
         const top = spaceBelow >= height + 8 ? rect.bottom + 4 : Math.max(4, rect.top - height - 4);
-        dropdown.style.left = `${Math.min(rect.left, window.innerWidth - width - 8)}px`;
-        dropdown.style.top = `${top}px`;
-        dropdown.style.width = `${width}px`;
+        dropdown.setCssStyles({
+            left: `${Math.min(rect.left, window.innerWidth - width - 8)}px`,
+            top: `${top}px`,
+            width: `${width}px`,
+        });
 
         const active = dropdown.querySelector<HTMLElement>('.is-selected')
             ?? dropdown.querySelector<HTMLElement>('.task-record-dropdown-item');

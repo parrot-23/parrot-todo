@@ -75,7 +75,7 @@ export class PickerPopover {
         const styles = getComputedStyle(this.triggerEl);
         for (const name of THEME_VARS) {
             const value = styles.getPropertyValue(name).trim();
-            if (value) target.style.setProperty(name, value);
+            if (value) target.setCssProps({ [name]: value });
         }
     }
 
@@ -96,8 +96,7 @@ export class PickerPopover {
             const above = rect.top - 6 - height;
             top = above >= margin ? above : Math.max(margin, window.innerHeight - height - margin);
         }
-        popover.style.left = `${Math.round(left)}px`;
-        popover.style.top = `${Math.round(top)}px`;
+        popover.setCssStyles({ left: `${Math.round(left)}px`, top: `${Math.round(top)}px` });
     }
 
     private readonly handleOutside = (evt: MouseEvent): void => {

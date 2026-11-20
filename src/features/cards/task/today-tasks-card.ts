@@ -282,7 +282,7 @@ export class TodayTasksCard {
                 });
                 // 任务名称前的分类色点（与任务记录卡片一致，未分类为灰色）
                 const category = task.categoryId ? this.categoryRepo.findById(task.categoryId) : undefined;
-                row.createSpan({ cls: 'interface-today-tasks-item-dot' }).style.background = category?.color ?? '#888888';
+                row.createSpan({ cls: 'interface-today-tasks-item-dot' }).setCssStyles({ background: category?.color ?? '#888888' });
                 row.createSpan({ cls: 'interface-today-tasks-item-name', text: task.name });
                 // 当天执行统计：执行次数 + 已执行时长（无执行记录时不显示）
                 const stat = this.executionStats.get(task.id);

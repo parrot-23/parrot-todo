@@ -131,8 +131,7 @@ export class TaskConfigPanel extends FloatingPanel {
 
         // 对齐到胶囊左下角
         const rect = this.typeCapsuleEl.getBoundingClientRect();
-        menu.style.top = `${Math.round(rect.bottom + 4)}px`;
-        menu.style.left = `${Math.round(rect.left)}px`;
+        menu.setCssStyles({ top: `${Math.round(rect.bottom + 4)}px`, left: `${Math.round(rect.left)}px` });
 
         // 点击菜单外、按 Esc、面板滚动时关闭
         const onPointerDown = (downEvt: PointerEvent) => {

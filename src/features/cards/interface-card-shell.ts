@@ -39,8 +39,7 @@ export function createInterfaceCardShell(
     const shellEl = parentEl.createDiv({ cls: `interface-card-shell ${options.cardClass}` });
     shellEl.dataset.cardId = options.cardId;
     if (options.position) {
-        shellEl.style.left = `${options.position.left}px`;
-        shellEl.style.top = `${options.position.top}px`;
+        shellEl.setCssStyles({ left: `${options.position.left}px`, top: `${options.position.top}px` });
     }
 
     if (options.editMode) {
@@ -91,8 +90,7 @@ function mountDragHandle(
                 moveEvt.clientY - mainRect.top - offsetY,
                 mainRect.height - shellRect.height,
             ));
-            shellEl.style.left = `${left}px`;
-            shellEl.style.top = `${top}px`;
+            shellEl.setCssStyles({ left: `${left}px`, top: `${top}px` });
         };
         const onUp = () => {
             handleEl.removeEventListener('pointermove', onMove);

@@ -34,8 +34,8 @@ export function applyThemeColors(container: HTMLElement, colors?: ThemeColors): 
     for (const { key, sdtVar, obsidianVars } of THEME_COLOR_MAP) {
         const value = colors[key];
         if (!value) continue;
-        container.style.setProperty(sdtVar, value);
-        for (const obsidianVar of obsidianVars) container.style.setProperty(obsidianVar, value);
+        container.setCssProps({ [sdtVar]: value });
+        for (const obsidianVar of obsidianVars) container.setCssProps({ [obsidianVar]: value });
     }
 }
 

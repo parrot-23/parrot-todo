@@ -493,7 +493,7 @@ export class CheckPanel extends FloatingPanel {
                 // 任务名称前的分类色点（与卡片底部汇总行的色点一致）
                 const category = this.panelOptions.categoryData.categories
                     .find((item) => item.id === task?.categoryId);
-                row.createSpan({ cls: 'check-records-item-dot' }).style.background = category?.color ?? '#888888';
+                row.createSpan({ cls: 'check-records-item-dot' }).setCssStyles({ background: category?.color ?? '#888888' });
                 row.createSpan({ cls: 'check-records-item-name', text: name });
                 row.createSpan({ cls: 'check-records-item-duration', text: duration });
                 if (task) {
@@ -558,7 +558,7 @@ export class CheckPanel extends FloatingPanel {
     /** 分类汇总中的单项：色点 + 分类名 + 累计时长 */
     private renderRecordCategoryItem(parentEl: HTMLElement, label: string, color: string, seconds: number): void {
         const item = parentEl.createDiv({ cls: 'check-records-summary-item' });
-        item.createSpan({ cls: 'check-records-summary-dot' }).style.background = color;
+        item.createSpan({ cls: 'check-records-summary-dot' }).setCssStyles({ background: color });
         item.createSpan({ cls: 'check-records-summary-label', text: label });
         item.createSpan({ cls: 'check-records-summary-duration', text: formatDurationSeconds(seconds) });
     }
@@ -789,7 +789,7 @@ export class CheckPanel extends FloatingPanel {
 
         for (const row of rows) {
             const rowEl = wrap.createDiv({ cls: 'check-cat-bars-row' });
-            rowEl.createSpan({ cls: 'check-cat-bars-dot' }).style.background = row.color ?? '#888888';
+            rowEl.createSpan({ cls: 'check-cat-bars-dot' }).setCssStyles({ background: row.color ?? '#888888' });
             rowEl.createSpan({ cls: 'check-cat-bars-label', text: row.label });
             if (planMinutesByCat) {
                 // 每类两条：上方灰色为计划时长，下方分类色为执行时长

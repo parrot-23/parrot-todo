@@ -10,7 +10,6 @@ import { TodayTasksCard } from '../features/cards/task/today-tasks-card';
 import { TodayTasksSimpleCard } from '../features/cards/task/today-tasks-simple-card';
 import { ClockCard } from '../features/cards/clock-card';
 import type { PrototypeTask, PrototypeTaskType } from './datatypes/prototype-task';
-import { t } from './i18n';
 import { AchievementPanel } from '../features/achievement/achievement-panel';
 import { CardPickerPanel } from '../ui/interface/card-picker-panel';
 import { FunctionPanel, type FunctionItemId } from '../ui/interface/function-panel';
@@ -1011,8 +1010,7 @@ export class InterfaceView {
             }
             // 推到左边界仍放不下时保留重叠（空间不足，不再继续越界）
             item.left = Math.max(0, left);
-            item.shellEl.style.left = `${item.left}px`;
-            item.shellEl.style.top = `${item.top}px`;
+            item.shellEl.setCssStyles({ left: `${item.left}px`, top: `${item.top}px` });
             placed.push(item);
         }
     }

@@ -275,9 +275,11 @@ export class GoalBoardPanel extends FloatingPanel {
             const color = this.panelOptions.getCategories().find((category) => category.id === task.categoryId)?.color
                 ?? '#888888';
             const barEl = row.createDiv({ cls: 'plan-annual-bar' });
-            barEl.style.left = `${(range.startIndex / this.quarterWeeks.length) * 100}%`;
-            barEl.style.width = `${((range.endIndex - range.startIndex + 1) / this.quarterWeeks.length) * 100}%`;
-            barEl.style.setProperty('--plan-bar-color', color);
+            barEl.setCssStyles({
+                left: `${(range.startIndex / this.quarterWeeks.length) * 100}%`,
+                width: `${((range.endIndex - range.startIndex + 1) / this.quarterWeeks.length) * 100}%`,
+            });
+            barEl.setCssProps({ '--plan-bar-color': color });
             const status = task.status ?? 'notStarted';
             barEl.toggleClass('is-in-progress', status === 'inProgress');
             barEl.toggleClass('is-done', status === 'done');
@@ -301,11 +303,11 @@ export class GoalBoardPanel extends FloatingPanel {
         });
         const rowHeight = 13;
         const layerHeight = Math.max(26, placements.length * rowHeight + 4);
-        weekLayer.style.height = `${layerHeight}px`;
+        weekLayer.setCssStyles({ height: `${layerHeight}px` });
         const topOffset = (layerHeight - placements.length * rowHeight) / 2;
         placements.forEach(({ goal, cell }, index) => {
             const goalItem = cell.createDiv({ cls: 'goal-board-weekgoal-item' });
-            goalItem.style.top = `${topOffset + index * rowHeight}px`;
+            goalItem.setCssStyles({ top: `${topOffset + index * rowHeight}px` });
             goalItem.toggleClass('is-done', goal.status === 'done');
             goalItem.setAttribute('title', goal.name);
             setIcon(goalItem.createSpan({ cls: 'goal-board-weekgoal-icon' }), 'target');

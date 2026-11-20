@@ -80,7 +80,7 @@ export class CollectPanel extends FloatingPanel {
     /** 设置面板宽度（保持当前定位） */
     private setWidth(width: number): void {
         const root = this.body.closest<HTMLElement>('.floating-panel');
-        if (root) root.style.width = `${width}px`;
+        if (root) root.setCssStyles({ width: `${width}px` });
     }
 
     /** 重建整体布局：左侧收集区 + 可选的右侧梳理区 */
@@ -207,7 +207,7 @@ export class CollectPanel extends FloatingPanel {
     ): void {
         for (const task of tasks.filter((item) => item.parentId === parentId)) {
             const row = parentEl.createDiv({ cls: 'collect-clarify-tree-row' });
-            row.style.marginLeft = `${depth * 14}px`;
+            row.setCssStyles({ marginLeft: `${depth * 14}px` });
             row.dataset.taskId = task.id;
             row.toggleClass('is-selected', task.id === this.selectedTaskId);
             row.createSpan({ cls: 'collect-clarify-tree-label', text: task.name });

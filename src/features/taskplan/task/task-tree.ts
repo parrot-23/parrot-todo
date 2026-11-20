@@ -94,7 +94,7 @@ export class TaskTree {
             ? `task-detail-tree-row ${this.options.rowClass}`
             : 'task-detail-tree-row';
         const row = this.el.createDiv({ cls: base });
-        row.style.marginLeft = `${depth * TREE_DEPTH_INDENT}px`;
+        row.setCssStyles({ marginLeft: `${depth * TREE_DEPTH_INDENT}px` });
         row.dataset.taskId = task.id;
         row.dataset.depth = String(depth);
         row.toggleClass('is-selected', !!this.options.isSelected?.(task));

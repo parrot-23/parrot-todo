@@ -327,9 +327,7 @@ export class FileEditorPanel extends FloatingPanel {
             this.caretEl = scrollDOM.createEl('div', { cls: 'sdt-manual-caret' });
         }
         // 只改位置，不重建元素：重建会让 CSS 动画从头开始，导致闪烁节奏错乱
-        this.caretEl.style.left = `${left}px`;
-        this.caretEl.style.top = `${top}px`;
-        this.caretEl.style.height = `${height}px`;
+        this.caretEl.setCssStyles({ left: `${left}px`, top: `${top}px`, height: `${height}px` });
     }
 
     /** 延后一帧重绘：等 CM6 把选区 / 文档更新写进 state 后再读，避免读到旧状态 */

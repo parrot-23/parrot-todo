@@ -106,7 +106,7 @@ export class TaskSectionsPanel extends FloatingPanel {
             : undefined;
         const pill = titleRow.createDiv({ cls: 'task-sections-category' });
         const dot = pill.createSpan({ cls: 'task-sections-category-dot' });
-        dot.style.background = category?.color ?? '#888888';
+        dot.setCssStyles({ background: category?.color ?? '#888888' });
         pill.createSpan({
             cls: 'task-sections-category-label',
             text: category?.label ?? t('defaultCategory.uncategorized'),

@@ -253,7 +253,7 @@ export class TimeBoxPanel extends FloatingPanel {
 
     /** 把分类颜色应用到格子背景 */
     private applyCellColor(cell: HTMLElement, categoryId: string): void {
-        cell.style.backgroundColor = this.categoryColor(categoryId);
+        cell.setCssStyles({ backgroundColor: this.categoryColor(categoryId) });
         cell.addClass('is-painted');
     }
 

@@ -102,25 +102,26 @@ export class WeekCalendarPanel extends FloatingPanel {
             const dayKey = makeDayKeyFromWeek(this.startWeekKey, col + 1);
             const cell = grid.createDiv({ cls: 'week-calendar-cell' });
             if (dayKey === highlightKey) cell.addClass('is-today');
-            cell.style.minHeight = `${cardsHeight + CELL_DATE_HEIGHT}px`;
+            cell.setCssStyles({ minHeight: `${cardsHeight + CELL_DATE_HEIGHT}px` });
             cell.createDiv({ cls: 'week-calendar-cell-date', text: String(Number(dayKey.slice(8, 10))) });
         }
 
         const layer = grid.createDiv({ cls: 'week-calendar-task-layer' });
-        layer.style.height = `${cardsHeight}px`;
+        layer.setCssStyles({ height: `${cardsHeight}px` });
         for (const segment of segments) {
             const chip = layer.createDiv({ cls: 'week-calendar-cell-task' });
             // 横向：按列宽百分比定位（7 列等分），跨列时宽度为 span 列
             const left = (segment.start - 1) * (100 / 7);
             const width = (segment.end - segment.start + 1) * (100 / 7);
-            chip.style.left = `calc(${left}% + ${TASK_CARD_GAP}px)`;
-            chip.style.width = `calc(${width}% - ${TASK_CARD_GAP * 2}px)`;
-            // 纵向：按泳道序号堆叠
-            chip.style.top = `${TASK_CARD_GAP + segment.lane * (TASK_CARD_HEIGHT + TASK_CARD_GAP)}px`;
+            chip.setCssStyles({
+                left: `calc(${left}% + ${TASK_CARD_GAP}px)`,
+                width: `calc(${width}% - ${TASK_CARD_GAP * 2}px)`,
+                top: `${TASK_CARD_GAP + segment.lane * (TASK_CARD_HEIGHT + TASK_CARD_GAP)}px`,
+            });
             chip.title = segment.task.name;
             // 分类淡色背景 + 任务名称
             const color = categories.find((category) => category.id === segment.task.categoryId)?.color ?? '#888888';
-            chip.style.setProperty('--week-calendar-task-color', color);
+            chip.setCssProps({ '--week-calendar-task-color': color });
             chip.createSpan({ cls: 'week-calendar-cell-task-name', text: segment.task.name });
         }
 
@@ -220,8 +221,8 @@ export class WeekCalendarPanel extends FloatingPanel {
             const item = box.createDiv({ cls: 'week-calendar-task-item' });
             const head = item.createDiv({ cls: 'week-calendar-task-head' });
             const dot = head.createSpan({ cls: 'week-calendar-task-dot' });
-            dot.style.background = categories.find((category) => category.id === task.categoryId)?.color
-                ?? '#888888';
+            dot.setCssStyles({ background: categories.find((category) => category.id === task.categoryId)?.color
+                ?? '#888888' });
             head.createSpan({ cls: 'week-calendar-task-name', text: task.name });
             for (const goal of getDayGoalEntries(task, dayKey)) {
                 const row = item.createDiv({ cls: 'week-calendar-task-goal week-calendar-day-goal' });
@@ -257,8 +258,8 @@ export class WeekCalendarPanel extends FloatingPanel {
             const item = box.createDiv({ cls: 'week-calendar-task-item' });
             const head = item.createDiv({ cls: 'week-calendar-task-head' });
             const dot = head.createSpan({ cls: 'week-calendar-task-dot' });
-            dot.style.background = categories.find((category) => category.id === task.categoryId)?.color
-                ?? '#888888';
+            dot.setCssStyles({ background: categories.find((category) => category.id === task.categoryId)?.color
+                ?? '#888888' });
             head.createSpan({ cls: 'week-calendar-task-name', text: task.name });
         }
     }
