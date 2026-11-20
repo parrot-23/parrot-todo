@@ -17,7 +17,8 @@ import { ThemeRepo } from './src/core/repos/theme-repo';
 import { initI18n, t, getLangDebugInfo } from './src/core/i18n';
 import { getCurrentWeekKey } from './src/core/shared/plan-data';
 import { initLogger, log } from './src/core/shared/logger';
-import { migrateLegacyRecordDb, getRecordStore } from './src/core/db/record-store';
+// 已关闭 .db 记录库功能：保留 import 待后续启用
+// import { migrateLegacyRecordDb, getRecordStore } from './src/core/db/record-store';
 import { getPluginDir } from './src/core/shared/plugin-dir';
 import { ParrotPlanSettingTab } from './src/ui/ob/setting-tab';
 import { RunningTaskStatusBar } from './src/ui/ob/status-bar';
@@ -134,7 +135,8 @@ export default class ParrotPlanPlugin extends Plugin {
         this.repo = new BaseRepo(this);
         await this.repo.load();
         // 后台迁移旧版单文件记录库（无旧库时不加载 wasm，不阻塞启动）
-        void migrateLegacyRecordDb(this.app, getPluginDir(this.app, this));
+        // 已关闭 .db 记录库功能：暂不迁移，保留代码待后续启用
+        // void migrateLegacyRecordDb(this.app, getPluginDir(this.app, this));
         this.gtdRepo = new GtdRepo(this.repo);
         this.pdcaRepo = new PdcaRepo(this.repo);
         this.workbenchRepo = new WorkbenchRepo(this.repo);
@@ -307,7 +309,8 @@ export default class ParrotPlanPlugin extends Plugin {
     async clearAllData(): Promise<void> {
         await this.repo.clearAll();
         // 同时删除按年度拆分的记录库文件
-        await getRecordStore(this.app, getPluginDir(this.app, this)).clearAll();
+        // 已关闭 .db 记录库功能：暂不清理，保留代码待后续启用
+        // await getRecordStore(this.app, getPluginDir(this.app, this)).clearAll();
         const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_MAIN);
         for (const leaf of leaves) {
             if (leaf.view instanceof MainView) {

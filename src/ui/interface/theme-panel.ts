@@ -1,20 +1,11 @@
 ﻿// 主题管理面板：界面视图编辑模式下从「主题」按钮打开。
-// 左右结构：左侧菜单（官方 / 本地），右侧为官方主题预览卡片；
+// 仅展示官方主题预览卡片（已去除左侧「官方 / 本地」菜单）；
 // 预览卡片的数据来自 src/themes 下由代码定义的主题（代码绘制层 + 图片素材）。
 import type { App } from 'obsidian';
 
 import { t } from '../../core/i18n';
 import { THEME_DEFINITIONS } from '../../theme/registry';
 import { FloatingPanel, type FloatingPanelOptions } from '../basic/floating-panel';
-
-/** 左侧菜单项 */
-type ThemeMenuKey = 'official' | 'local';
-
-/** 菜单项定义：key + 文案 key */
-const MENU_ITEMS: { key: ThemeMenuKey; labelKey: Parameters<typeof t>[0] }[] = [
-    { key: 'official', labelKey: 'theme.menuOfficial' },
-    { key: 'local', labelKey: 'theme.menuLocal' },
-];
 
 /** 主题管理面板配置 */
 export interface ThemePanelOptions extends Pick<FloatingPanelOptions, 'container'> {
@@ -30,9 +21,7 @@ export interface ThemePanelOptions extends Pick<FloatingPanelOptions, 'container
 
 export class ThemePanel extends FloatingPanel {
     private readonly panelOptions: ThemePanelOptions;
-    /** 当前选中的菜单项 */
-    private activeKey: ThemeMenuKey = 'official';
-    /** 右侧内容容器 */
+    /** 内容容器 */
     private contentEl: HTMLElement | null = null;
 
     constructor(options: ThemePanelOptions) {
@@ -46,16 +35,7 @@ export class ThemePanel extends FloatingPanel {
         this.setContent((body) => {
             body.addClass('theme-panel');
 
-            // 左侧菜单
-            const menu = body.createDiv({ cls: 'theme-panel-menu' });
-            for (const { key, labelKey } of MENU_ITEMS) {
-                const item = menu.createDiv({ cls: 'theme-panel-menu-item' });
-                item.setText(t(labelKey));
-                item.toggleClass('is-active', key === this.activeKey);
-                item.addEventListener('click', () => this.selectMenu(key));
-            }
-
-            // 右侧内容
+            // 内容（仅官方主题预览卡片）
             this.contentEl = body.createDiv({ cls: 'theme-panel-content' });
             this.renderContent();
         });
@@ -66,31 +46,11 @@ export class ThemePanel extends FloatingPanel {
         this.renderContent();
     }
 
-    /** 切换左侧菜单 */
-    private selectMenu(key: ThemeMenuKey): void {
-        if (this.activeKey === key) return;
-        this.activeKey = key;
-        const menu = this.body.querySelector('.theme-panel-menu');
-        if (menu) {
-            menu.querySelectorAll('.theme-panel-menu-item').forEach((el, index) => {
-                el.toggleClass('is-active', MENU_ITEMS[index].key === key);
-            });
-        }
-        this.renderContent();
-    }
-
-    /** 渲染右侧内容：官方菜单展示主题预览卡片，本地菜单暂为占位 */
+    /** 渲染官方主题预览卡片 */
     private renderContent(): void {
         const contentEl = this.contentEl;
         if (!contentEl) return;
         contentEl.empty();
-        const isOfficial = this.activeKey === 'official';
-        contentEl.toggleClass('is-empty', !isOfficial);
-
-        if (!isOfficial) {
-            contentEl.createDiv({ cls: 'theme-panel-placeholder', text: t('theme.contentPlaceholder') });
-            return;
-        }
 
         const currentThemeId = this.panelOptions.getCurrentThemeId();
         for (const theme of THEME_DEFINITIONS) {

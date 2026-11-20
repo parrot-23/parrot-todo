@@ -672,6 +672,9 @@ export class InterfaceView {
         this.layoutObserver?.disconnect();
         this.layoutObserver = null;
         this.cardShells.clear();
+        // 关闭所有挂载在本视图容器上的浮动面板，避免 container.empty() 销毁其 DOM 后
+        // 面板实例仍保持 opened=true，导致后续 open() 直接返回、点击入口无反应
+        this.closeAllPanels();
         container.empty();
         container.addClass('interface-view');
         container.toggleClass('is-editing', this.editMode);
@@ -811,6 +814,17 @@ export class InterfaceView {
         this.themeDispose = typeof dispose === 'function' ? dispose : null;
     }
 
+    /** 仅重新应用主题（不重绘卡片与面板）：切换主题时保持面板打开 */
+    private reapplyTheme(): void {
+        const container = this.viewEl;
+        if (!container) return;
+        // 停止旧主题动画并移除旧场景层（深空主题的 canvas），避免重复累积
+        this.themeDispose?.();
+        this.themeDispose = null;
+        container.querySelectorAll('.interface-theme-scene').forEach((el) => el.remove());
+        this.applyTheme(container);
+    }
+
     /** 打开功能面板（顶部工具栏「功能」图标入口）：两级菜单 + 内容区直接嵌入各功能面板 */
     openFunctionPanel(): void {
         this.functionPanel ??= new FunctionPanel({
@@ -873,7 +887,8 @@ export class InterfaceView {
                 onApply: (themeId) => {
                     this.themeRepo.setCurrentTheme(themeId);
                     void (this.plugin as Plugin & { saveAll: () => Promise<void> }).saveAll();
-                    if (this.viewEl) void this.renderInto(this.viewEl);
+                    // 仅重应用主题，不重绘卡片与面板，保持主题面板打开
+                    this.reapplyTheme();
                 },
             });
         }
@@ -1036,6 +1051,51 @@ export class InterfaceView {
         this.editMode = !this.editMode;
         if (!this.editMode) this.cardPickerPanel?.close();
         if (this.viewEl) void this.renderInto(this.viewEl);
+    }
+
+    /**
+     * 销毁所有挂载在本视图容器上的浮动面板并置空引用（重绘前调用）。
+     * 不能用 close()：close 只隐藏 root，而 renderInto 的 container.empty() 会把 root 从 DOM 移除，
+     * 之后面板实例仍指向已脱离 DOM 的 root，再次 open() 时 root 无法重新挂载，面板再也打不开。
+     * 因此这里用 destroy() 彻底移除 root，并置 null 让下次 openXxxPanel() 重新创建。
+     */
+    private closeAllPanels(): void {
+        this.datePanel?.destroy();
+        this.datePanel = null;
+        this.taskPanel?.destroy();
+        this.taskPanel = null;
+        this.detailPanels.forEach((panel) => panel.destroy());
+        this.detailPanels.clear();
+        this.timeBoxPanel?.destroy();
+        this.timeBoxPanel = null;
+        this.taskSectionsPanel?.destroy();
+        this.taskSectionsPanel = null;
+        this.cardPickerPanel?.destroy();
+        this.cardPickerPanel = null;
+        this.functionPanel?.destroy();
+        this.functionPanel = null;
+        this.themePanel?.destroy();
+        this.themePanel = null;
+        this.habitPanel?.destroy();
+        this.habitPanel = null;
+        this.goalBoardPanel?.destroy();
+        this.goalBoardPanel = null;
+        this.planAnnualPanel?.destroy();
+        this.planAnnualPanel = null;
+        this.planWeekPanel?.destroy();
+        this.planWeekPanel = null;
+        this.checkPanel?.destroy();
+        this.checkPanel = null;
+        this.collectPanel?.destroy();
+        this.collectPanel = null;
+        this.collectHubPanel?.destroy();
+        this.collectHubPanel = null;
+        this.galleryPanel?.destroy();
+        this.galleryPanel = null;
+        this.achievementPanel?.destroy();
+        this.achievementPanel = null;
+        this.dataPanel?.destroy();
+        this.dataPanel = null;
     }
 
     /** 打开任务板块信息面板：展示指定任务的收集篮子 / 待办改进 / 文件目录 */

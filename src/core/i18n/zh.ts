@@ -308,6 +308,7 @@ export const zh = {
     'theme.menuLocal': '本地',
     'theme.contentPlaceholder': '内容待实现',
     'theme.nameDeepSpace': '深空',
+    'theme.namePastoral': '田园',
     'theme.blank': '空白',
     'theme.blankNote': '不使用任何主题',
     'theme.apply': '应用',

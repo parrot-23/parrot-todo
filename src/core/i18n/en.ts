@@ -310,6 +310,7 @@ export const en: I18nMessages = {
     'theme.menuLocal': 'Local',
     'theme.contentPlaceholder': 'Content to be implemented',
     'theme.nameDeepSpace': 'Deep Space',
+    'theme.namePastoral': 'Pastoral',
     'theme.blank': 'Blank',
     'theme.blankNote': 'No theme applied',
     'theme.apply': 'Apply',
