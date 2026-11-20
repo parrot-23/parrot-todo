@@ -355,13 +355,13 @@ export function createSnowfall(
         for (const tent of tents) drawTent(tent);
         drawFlakes();
 
-        rafId = requestAnimationFrame(render);
+        rafId = window.requestAnimationFrame(render);
     };
 
     const observer = new ResizeObserver(() => resize());
     observer.observe(host);
     resize();
-    rafId = requestAnimationFrame(render);
+    rafId = window.requestAnimationFrame(render);
 
     return () => {
         disposed = true;

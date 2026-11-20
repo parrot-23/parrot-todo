@@ -633,13 +633,13 @@ export function createPastoralScene(canvas: HTMLCanvasElement, host: HTMLElement
         const sorted = [...animals].sort((a, b) => a.y - b.y);
         for (const a of sorted) drawAnimal(a);
 
-        rafId = requestAnimationFrame(render);
+        rafId = window.requestAnimationFrame(render);
     };
 
     const observer = new ResizeObserver(() => resize());
     observer.observe(host);
     resize();
-    rafId = requestAnimationFrame(render);
+    rafId = window.requestAnimationFrame(render);
 
     return () => {
         disposed = true;

@@ -6,7 +6,7 @@
 // 3. 内容变化用 DOM input 事件监听，写回文件带防抖；
 // 4. 全程不创建 leaf、不开标签页、不激活 workspace，因此不会闪烁；
 // 5. 光标由 JS 手动绘制（CM6 的 cursorLayer 在该场景下不生成 .cm-cursor）。
-import { Component, Notice, setIcon } from 'obsidian';
+import { Notice, setIcon } from 'obsidian';
 import type { App, TFile } from 'obsidian';
 
 import { t } from '../../core/i18n';
@@ -549,14 +549,12 @@ export class FileEditorPanel extends FloatingPanel {
         if (!editor) return;
         try {
             // 原生编辑器是 Component：先 unload 再 destroy，避免残留监听
-            if (editor instanceof Component) editor.unload();
-            else editor.unload?.();
+            editor.unload?.();
         } catch {
             // 已卸载时忽略
         }
         try {
-            const destroy = editor.destroy;
-            if (typeof destroy === 'function') destroy();
+            editor.destroy?.();
         } catch {
             // 已销毁时忽略
         }

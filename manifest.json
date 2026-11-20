@@ -1,7 +1,7 @@
 {
   "id": "parrot-todo",
   "name": "Parrot Todo",
-  "version": "3.0.6",
+  "version": "3.0.7",
   "minAppVersion": "1.13.0",
   "description": "A weekly schedule planner with time blocks, event planning, and execution tracking.",
   "author": "parrot-23",
