@@ -643,6 +643,7 @@ export class PlanAnnualPanel extends FloatingPanel {
             const row = this.laneEl.createDiv({ cls: 'plan-annual-lane-row' });
             row.dataset.taskId = task.id;
             row.toggleClass('is-selected', task.id === this.selectedTaskId);
+            row.toggleClass('is-drag-locked', dragLocked);
             row.addEventListener('click', () => this.selectTask(task.id));
 
             // 背景层：每列一个元素，负责竖向分隔线与拖拽新建
@@ -663,6 +664,9 @@ export class PlanAnnualPanel extends FloatingPanel {
 
             // 目标类型任务：在截止周格子显示「目标图标 + 目标名称」
             this.renderGoalMarker(row, task);
+
+            // 目标 / 习惯类型：整行置灰表达不可拖动，且不绘制任何区间色块
+            if (dragLocked) continue;
 
             // 色块层：该任务全年排布区间在当前季度内的部分
             const bar = this.buildLaneBar(task);
@@ -729,27 +733,25 @@ export class PlanAnnualPanel extends FloatingPanel {
             if (bar.clippedEnd) {
                 setIcon(barEl.createSpan({ cls: 'plan-annual-bar-clip is-end' }), 'chevron-right');
             }
-            // 左右拖拽手柄：只移动被拖拽的那一端，另一端保持不动（目标 / 习惯类型不提供手柄）
-            if (!dragLocked) {
-                const startHandle = barEl.createSpan({ cls: 'plan-annual-bar-handle is-start' });
-                startHandle.addEventListener('pointerdown', (evt) => this.startEdgeDrag(
-                    evt,
-                    task,
-                    row,
-                    bar.startWeekKey,
-                    'start',
-                    bar.endWeekKey,
-                ));
-                const endHandle = barEl.createSpan({ cls: 'plan-annual-bar-handle is-end' });
-                endHandle.addEventListener('pointerdown', (evt) => this.startEdgeDrag(
-                    evt,
-                    task,
-                    row,
-                    bar.endWeekKey,
-                    'end',
-                    bar.startWeekKey,
-                ));
-            }
+            // 左右拖拽手柄：只移动被拖拽的那一端，另一端保持不动
+            const startHandle = barEl.createSpan({ cls: 'plan-annual-bar-handle is-start' });
+            startHandle.addEventListener('pointerdown', (evt) => this.startEdgeDrag(
+                evt,
+                task,
+                row,
+                bar.startWeekKey,
+                'start',
+                bar.endWeekKey,
+            ));
+            const endHandle = barEl.createSpan({ cls: 'plan-annual-bar-handle is-end' });
+            endHandle.addEventListener('pointerdown', (evt) => this.startEdgeDrag(
+                evt,
+                task,
+                row,
+                bar.endWeekKey,
+                'end',
+                bar.startWeekKey,
+            ));
         }
     }
 

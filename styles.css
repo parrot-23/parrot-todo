@@ -11453,6 +11453,36 @@ button.task-record-now-btn.is-active {
     color: var(--sdt-text-secondary, var(--text-muted));
 }
 
+/* 时长锁定按钮：闭合锁=锁定（高亮），开锁=未锁定（置灰） */
+button.task-record-duration-lock {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    box-shadow: none;
+    color: var(--sdt-text-secondary, var(--text-muted));
+    cursor: pointer;
+}
+
+button.task-record-duration-lock:hover {
+    background: var(--sdt-hover-bg, var(--background-modifier-hover));
+}
+
+button.task-record-duration-lock.is-locked {
+    color: var(--interactive-accent);
+}
+
+button.task-record-duration-lock svg {
+    width: 14px;
+    height: 14px;
+}
+
 /* 时间/时长候选下拉浮层：无阴影、无边框 */
 .task-record-dropdown {
     position: fixed;
@@ -14023,6 +14053,16 @@ button.picker-trigger.is-open {
 
 .plan-annual-lane-row.is-selected {
     background: var(--sdt-hover-bg, var(--background-modifier-hover));
+}
+
+/* 目标 / 习惯行：不可拖动设置区间，整行常驻浅灰底，悬浮 / 选中时略加深 */
+.plan-annual-lane-row.is-drag-locked {
+    background: color-mix(in srgb, var(--text-muted) 8%, transparent);
+}
+
+.plan-annual-lane-row.is-drag-locked:hover,
+.plan-annual-lane-row.is-drag-locked.is-selected {
+    background: color-mix(in srgb, var(--text-muted) 14%, transparent);
 }
 
 /* 列背景层：每列一个元素，负责竖向分隔线与拖拽新建 */

@@ -46,6 +46,10 @@ export class TaskRecordPanel extends FloatingPanel {
     /** 结束时间行末尾的「次日」标签（跨天时显示） */
     private endNextDayTag!: HTMLElement;
     private durationInput!: HTMLInputElement;
+    /** 时长行末尾的锁定按钮：锁定后修改时间时保持时长，另一端跟随 */
+    private durationLockBtn!: HTMLButtonElement;
+    /** 时长是否锁定（默认锁定） */
+    private durationLocked = true;
     private confirmBtn!: HTMLButtonElement;
 
     /** 「现在开始」/「截止现在」按钮及其对勾图标 */
@@ -96,6 +100,15 @@ export class TaskRecordPanel extends FloatingPanel {
             attr: { inputmode: 'numeric', maxlength: '4' },
         });
         durationField.createSpan({ cls: 'task-record-duration-unit', text: t('panel.recordDurationUnit') });
+        this.durationLockBtn = durationField.createEl('button', {
+            cls: 'task-record-duration-lock',
+            attr: { type: 'button' },
+        });
+        this.durationLockBtn.addEventListener('click', () => {
+            this.durationLocked = !this.durationLocked;
+            this.renderDurationLock();
+        });
+        this.renderDurationLock();
         this.bindDurationInput(this.durationInput);
 
         const actions = form.createDiv({ cls: 'task-record-actions' });
@@ -170,9 +183,7 @@ export class TaskRecordPanel extends FloatingPanel {
             input.value = input.value.replace(/\D/g, '').slice(0, 2);
             // 手动修改后取消该行「现在」按钮的激活态
             this.setNowActive(role, false);
-            // 开始时间变化：按当前时长顺延结束时间；结束时间变化：按起止时间重算时长
-            if (role === 'start') this.syncEndFromDuration();
-            else this.refresh();
+            this.applyTimeEdit(role);
         });
         input.addEventListener('focus', () => {
             input.select();
@@ -253,9 +264,8 @@ export class TaskRecordPanel extends FloatingPanel {
         this.openDropdown(input, items, current, (value) => {
             input.value = String(value).padStart(2, '0');
             this.setNowActive(role, false);
-            // 选中开始时间后按当前时长顺延结束时间，选中结束时间后重算时长
-            if (role === 'start') this.syncEndFromDuration();
-            else this.refresh();
+            // 锁定：保持时长，另一端跟随；未锁定：按起止时间重算时长
+            this.applyTimeEdit(role);
         });
     }
 
@@ -351,6 +361,33 @@ export class TaskRecordPanel extends FloatingPanel {
         this.dropdownPick = null;
     }
 
+    /** 时间点修改后的联动：锁定时保持时长并让另一端跟随，未锁定时重算时长 */
+    private applyTimeEdit(role: 'start' | 'end'): void {
+        if (!this.durationLocked) {
+            this.refresh();
+            return;
+        }
+        const minutes = this.readDuration();
+        if (minutes === null || minutes <= 0 || minutes >= 24 * 60) {
+            // 时长无效时无法联动另一端，退回按起止时间计算时长
+            this.refresh();
+            return;
+        }
+        if (role === 'start') this.syncEndFromDuration();
+        else this.syncStartFromDuration();
+    }
+
+    /** 更新时长行末尾锁图标：锁定为闭合锁，未锁定为开锁 */
+    private renderDurationLock(): void {
+        if (!this.durationLockBtn) return;
+        const label = t(this.durationLocked ? 'panel.recordDurationLocked' : 'panel.recordDurationUnlocked');
+        this.durationLockBtn.empty();
+        setIcon(this.durationLockBtn, this.durationLocked ? 'lock' : 'unlock');
+        this.durationLockBtn.toggleClass('is-locked', this.durationLocked);
+        this.durationLockBtn.title = label;
+        this.durationLockBtn.setAttr('aria-label', label);
+    }
+
     /** 开始时间变化后：按当前时长把结束时间顺延为「开始 + 时长」，跨天时取次日时间点 */
     private syncEndFromDuration(): void {
         const start = this.readTime(this.startField);
@@ -420,15 +457,17 @@ export class TaskRecordPanel extends FloatingPanel {
             this.setTime(this.startField, minutes);
             this.setNowActive('end', false);
             this.setNowActive('start', true);
-            // 开始 = 现在，结束 = 开始 + 时长
-            this.syncEndFromDuration();
+            // 锁定：开始 = 现在，结束 = 开始 + 时长；未锁定：按起止时间重算时长
+            if (this.durationLocked) this.syncEndFromDuration();
+            else this.refresh();
             return;
         }
         this.setTime(this.endField, minutes);
         this.setNowActive('start', false);
         this.setNowActive('end', true);
-        // 结束 = 现在，开始 = 结束 - 时长
-        this.syncStartFromDuration();
+        // 锁定：结束 = 现在，开始 = 结束 - 时长；未锁定：按起止时间重算时长
+        if (this.durationLocked) this.syncStartFromDuration();
+        else this.refresh();
     }
 
     /** 按当前时长把开始时间前推为「结束 - 时长」（配合「截止现在」） */

@@ -301,6 +301,8 @@ export const en: I18nMessages = {
     'panel.checklistDueCancel': 'Cancel',
     'panel.recordDuration': 'Duration',
     'panel.recordDurationUnit': 'min',
+    'panel.recordDurationLocked': 'Duration locked: editing a time keeps the duration and moves the other end',
+    'panel.recordDurationUnlocked': 'Duration unlocked: editing a time recalculates the duration',
     'panel.recordMinutes': '{minutes} min',
     'panel.recordInvalidRange': 'Start and end time cannot be the same',
 

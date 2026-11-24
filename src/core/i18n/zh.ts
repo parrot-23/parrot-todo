@@ -299,6 +299,8 @@ export const zh = {
     'panel.checklistDueCancel': '取消',
     'panel.recordDuration': '时长',
     'panel.recordDurationUnit': '分钟',
+    'panel.recordDurationLocked': '时长锁定：修改时间时保持时长，另一端跟随',
+    'panel.recordDurationUnlocked': '时长未锁定：修改时间时自动重算时长',
     'panel.recordMinutes': '{minutes} 分钟',
     'panel.recordInvalidRange': '开始时间与结束时间不能相同',
 
