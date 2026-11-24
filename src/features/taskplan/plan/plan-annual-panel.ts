@@ -20,7 +20,8 @@ import {
     shiftWeekKey,
 } from '../../../core/shared/plan-data';
 import { applyThemeColors, getCurrentThemeColors } from '../../../theme/theme-colors';
-import { getWeekNote, setWeekNote } from '../../../core/shared/task-sections';
+import { getTaskGoalConfig, getWeekNote, setWeekNote } from '../../../core/shared/task-sections';
+import { getTaskKind } from '../../../core/shared/task-kind';
 import { isTreeTaskCollapsed } from '../../../core/shared/task-tree-collapse';
 import {
     findRootTaskId,
@@ -388,11 +389,18 @@ export class PlanAnnualPanel extends FloatingPanel {
         this.taskTree.render();
     }
 
-    /** 行末尾：任务状态图标（点击弹出状态下拉列表） */
+    /** 行末尾：任务状态图标（点击弹出状态下拉列表）；目标 / 习惯类型改为常显类型图标 */
     private renderTreeStatus(row: HTMLElement, task: PrototypeTask): void {
+        const kind = getTaskKind(task);
+        const statusEl = row.createSpan({ cls: 'plan-tree-status-icon' });
+        if (kind === 'goal' || kind === 'habit') {
+            // 类型图标仅作标识：始终可见，点击不弹出状态下拉面板
+            setIcon(statusEl, kind === 'goal' ? 'target' : 'repeat');
+            return;
+        }
         // 所有状态（含未开始）都绘制状态图标；
         // 未开始的图标仅在悬浮任务条目或选中任务时显示
-        const statusEl = row.createSpan({ cls: 'plan-tree-status-icon plan-annual-status-btn' });
+        statusEl.addClass('plan-annual-status-btn');
         statusEl.toggleClass('is-not-started', (task.status ?? 'notStarted') === 'notStarted');
         setIcon(statusEl, STATUS_ICONS[task.status ?? 'notStarted']);
         statusEl.addEventListener('click', (evt) => {
@@ -629,6 +637,9 @@ export class PlanAnnualPanel extends FloatingPanel {
         const categories = this.panelOptions.getCategories();
         const currentWeekKey = getCurrentWeekKey();
         for (const task of tasks) {
+            // 目标 / 习惯类型任务不允许拖动设置区间（新建与调整起止周均禁用）
+            const kind = getTaskKind(task);
+            const dragLocked = kind === 'goal' || kind === 'habit';
             const row = this.laneEl.createDiv({ cls: 'plan-annual-lane-row' });
             row.dataset.taskId = task.id;
             row.toggleClass('is-selected', task.id === this.selectedTaskId);
@@ -642,11 +653,16 @@ export class PlanAnnualPanel extends FloatingPanel {
                 column.dataset.index = String(index);
                 // 当前周列与表头使用同样的条纹背景，纵向贯通所有泳道行
                 column.toggleClass('is-current', item.weekKey === currentWeekKey);
-                column.addEventListener('pointerdown', (evt) => this.startCreateDrag(evt, task, row, item.weekKey));
+                if (!dragLocked) {
+                    column.addEventListener('pointerdown', (evt) => this.startCreateDrag(evt, task, row, item.weekKey));
+                }
             });
 
             // 子任务向上汇总线：所有后代任务排布的并集，仅视觉展示，不写入排布仓库
             this.renderAggregateLines(row, task);
+
+            // 目标类型任务：在截止周格子显示「目标图标 + 目标名称」
+            this.renderGoalMarker(row, task);
 
             // 色块层：该任务全年排布区间在当前季度内的部分
             const bar = this.buildLaneBar(task);
@@ -713,25 +729,27 @@ export class PlanAnnualPanel extends FloatingPanel {
             if (bar.clippedEnd) {
                 setIcon(barEl.createSpan({ cls: 'plan-annual-bar-clip is-end' }), 'chevron-right');
             }
-            // 左右拖拽手柄：只移动被拖拽的那一端，另一端保持不动
-            const startHandle = barEl.createSpan({ cls: 'plan-annual-bar-handle is-start' });
-            startHandle.addEventListener('pointerdown', (evt) => this.startEdgeDrag(
-                evt,
-                task,
-                row,
-                bar.startWeekKey,
-                'start',
-                bar.endWeekKey,
-            ));
-            const endHandle = barEl.createSpan({ cls: 'plan-annual-bar-handle is-end' });
-            endHandle.addEventListener('pointerdown', (evt) => this.startEdgeDrag(
-                evt,
-                task,
-                row,
-                bar.endWeekKey,
-                'end',
-                bar.startWeekKey,
-            ));
+            // 左右拖拽手柄：只移动被拖拽的那一端，另一端保持不动（目标 / 习惯类型不提供手柄）
+            if (!dragLocked) {
+                const startHandle = barEl.createSpan({ cls: 'plan-annual-bar-handle is-start' });
+                startHandle.addEventListener('pointerdown', (evt) => this.startEdgeDrag(
+                    evt,
+                    task,
+                    row,
+                    bar.startWeekKey,
+                    'start',
+                    bar.endWeekKey,
+                ));
+                const endHandle = barEl.createSpan({ cls: 'plan-annual-bar-handle is-end' });
+                endHandle.addEventListener('pointerdown', (evt) => this.startEdgeDrag(
+                    evt,
+                    task,
+                    row,
+                    bar.endWeekKey,
+                    'end',
+                    bar.startWeekKey,
+                ));
+            }
         }
     }
 
@@ -745,6 +763,33 @@ export class PlanAnnualPanel extends FloatingPanel {
             const line = row.createDiv({ cls: 'plan-annual-agg-line' });
             line.setCssStyles({ left: `${(segment.startIndex / this.quarterWeeks.length) * 100}%`, width: `${((segment.endIndex - segment.startIndex + 1) / this.quarterWeeks.length) * 100}%` });
         }
+    }
+
+    /**
+     * 目标类型任务：在截止周格子显示「目标图标 + 目标名称」。
+     * 截止周不在当前季度时随季度翻页再显示。
+     */
+    private renderGoalMarker(row: HTMLElement, task: PrototypeTask): void {
+        if (getTaskKind(task) !== 'goal') return;
+        const deadlineWeek = getTaskGoalConfig(task).deadlineWeek;
+        if (!deadlineWeek) return;
+        const index = this.quarterWeeks.findIndex((item) => item.weekKey === deadlineWeek);
+        if (index < 0) return;
+        const columnWidth = 100 / this.quarterWeeks.length;
+        const mark = row.createDiv({ cls: 'plan-annual-goal-mark' });
+        mark.setCssStyles({
+            left: `${index * columnWidth}%`,
+            width: `${columnWidth}%`,
+        });
+        mark.setAttribute('title', `${t('panel.taskKindGoal')} · ${task.name}`);
+        setIcon(mark.createSpan({ cls: 'plan-annual-goal-mark-icon' }), 'target');
+        mark.createSpan({ cls: 'plan-annual-goal-mark-name', text: task.name });
+        // 阻止落到背景周列触发新建排布；点击选中该任务
+        mark.addEventListener('pointerdown', (evt) => evt.stopPropagation());
+        mark.addEventListener('click', (evt) => {
+            evt.stopPropagation();
+            this.selectTask(task.id);
+        });
     }
 
     /** 汇总线在当前季度内的分段（按周列下标，连续周合并为一段） */

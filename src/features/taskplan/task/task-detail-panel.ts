@@ -4,6 +4,7 @@
 import { setIcon, type App } from 'obsidian';
 
 import type { PrototypeTask, TaskKind } from '../../../core/datatypes/prototype-task';
+import type { TaskExecutionRecord } from '../../../core/datatypes/task-execution';
 import { getTaskKind } from '../../../core/shared/task-kind';
 import { t } from '../../../core/i18n';
 import type { PlanCategoryData } from '../../../core/shared/plan-category-manager';
@@ -48,6 +49,8 @@ export interface TaskDetailPanelOptions extends Omit<FloatingPanelOptions, 'titl
     onReorderTasks?: (ordered: PrototypeTask[]) => void;
     /** 打开任务配置面板回调（左侧顶部下拉右侧的配置按钮，作用于任务树根任务） */
     onOpenConfig?: (task: PrototypeTask) => void;
+    /** 任务执行记录（任务类型选项卡展示累计已执行时长） */
+    getExecutions?: () => TaskExecutionRecord[];
 }
 
 /** 长按进入拖动的等待时间（毫秒） */
@@ -137,6 +140,7 @@ export class TaskDetailPanel extends FloatingPanel {
             container: options.container,
             registerIgnoreElement: (el) => this.addIgnoreElement(el),
             showKindTab: true,
+            getExecutions: options.getExecutions,
             // 类型或习惯设置变化后立即刷新左侧任务树（行末尾类型图标热更新）
             onChanged: () => this.renderTree(),
         });

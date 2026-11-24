@@ -22,6 +22,7 @@ import {
     shiftWeekKey,
 } from '../../../core/shared/plan-data';
 import { getDayEstimate, getDayGoalEntries, getWeekNote, setDayEstimate, setDayGoalEntries, setWeekNote } from '../../../core/shared/task-sections';
+import { findRootTaskId } from '../../../core/shared/task-tree-selection';
 import { FloatingPanel, type FloatingPanelOptions } from '../../../ui/basic/floating-panel';
 
 /** 计划一周面板配置 */
@@ -218,7 +219,7 @@ export class PlanWeekPanel extends FloatingPanel {
         });
     }
 
-    /** 左侧任务列表：本周已整周排布的任务（点击选中 / 再次点击取消选中） */
+    /** 左侧任务列表：本周已整周排布的任务（按根任务分组，点击选中 / 再次点击取消选中） */
     private renderTasks(): void {
         this.renderSelectedTask();
         this.taskListEl.empty();
@@ -227,7 +228,19 @@ export class PlanWeekPanel extends FloatingPanel {
             this.taskListEl.createDiv({ cls: 'plan-week-task-empty', text: t('panel.planWeekNoPlannedTask') });
             return;
         }
+        const allTasks = this.panelOptions.getTasks();
+        let currentRootId: string | undefined;
         for (const task of tasks) {
+            // 根任务变化时插入分组小标题（任务已按任务树顺序排列，同一根任务一定相邻）
+            const rootId = findRootTaskId(allTasks, task.id) ?? task.id;
+            if (rootId !== currentRootId) {
+                currentRootId = rootId;
+                const rootTask = allTasks.find((item) => item.id === rootId);
+                this.taskListEl.createDiv({
+                    cls: 'plan-week-task-group-title',
+                    text: rootTask?.name ?? task.name,
+                });
+            }
             const row = this.taskListEl.createDiv({ cls: 'plan-week-task-row' });
             row.toggleClass('is-selected', task.id === this.selectedTaskId);
             row.title = task.name;

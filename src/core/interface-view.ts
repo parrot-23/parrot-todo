@@ -525,6 +525,7 @@ export class InterfaceView {
                 onDeleteTask: (taskId) => this.deletePrototypeTask(taskId),
                 onReorderTasks: (ordered) => this.reorderPrototypeTasks(ordered),
                 onOpenConfig: (task) => this.openTaskConfig(task),
+                getExecutions: () => this.taskExecutionRepo.records,
                 onTasksChanged: () => {
                     this.taskPanel?.setTasks(this.rootPrototypeTasks());
                     this.detailPanels.forEach((item) => item.setTasks(this.prototypeTaskRepo.tasks));

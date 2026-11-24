@@ -12781,6 +12781,14 @@ button.picker-trigger.is-open {
     color: var(--sdt-text-secondary, var(--text-muted));
 }
 
+/* 已执行时长：只读数值 */
+.kind-settings-executed-value {
+    font-size: 12px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--sdt-text-primary, var(--text-normal));
+}
+
 /* 生效星期：七等分格子，选中后实心高亮 */
 .habit-settings-days {
     flex: 1 1 auto;
@@ -13513,6 +13521,23 @@ button.picker-trigger.is-open {
     display: flex;
     flex-direction: column;
     gap: 2px;
+}
+
+/* 根任务分组小标题：分隔同一根任务下的已排布任务 */
+.plan-week-task-group-title {
+    flex: 0 0 auto;
+    padding: 6px 6px 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--sdt-text-secondary, var(--text-muted));
+    border-bottom: 1px solid var(--sdt-card-border, var(--background-modifier-border));
+}
+
+.plan-week-task-group-title:first-child {
+    padding-top: 0;
 }
 
 /* 任务行：两行显示（第一行父级路径，第二行名称 + 行末状态图标），点击选中作为右侧日目标的绑定任务 */
@@ -14327,6 +14352,44 @@ body.plan-annual-dragging {
     background: #ffffff;
     mix-blend-mode: normal;
     opacity: 1;
+}
+
+/* 计划年度：目标类型任务在截止周格子上的「目标图标 + 目标名称」 */
+.plan-annual-goal-mark {
+    position: absolute;
+    top: 50%;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    height: 14px;
+    padding: 0 2px;
+    box-sizing: border-box;
+    transform: translateY(-50%);
+    border-radius: 3px;
+    background: rgba(0, 0, 0, 0.45);
+    color: #ffffff;
+    font-size: 9px;
+    line-height: 12px;
+    overflow: hidden;
+    cursor: pointer;
+}
+
+.plan-annual-goal-mark-icon {
+    display: inline-flex;
+    flex: 0 0 auto;
+}
+
+.plan-annual-goal-mark-icon svg {
+    width: 10px;
+    height: 10px;
+}
+
+.plan-annual-goal-mark-name {
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 /* 本周描述悬浮面板 */

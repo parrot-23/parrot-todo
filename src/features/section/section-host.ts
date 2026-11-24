@@ -9,6 +9,7 @@ import { Notice, TFolder, setIcon, type App, type TFile } from 'obsidian';
 import type { ChecklistItem } from '../../core/datatypes/domain';
 import type { PrototypeTask, TaskDayGoalEntry, TaskGoalConfig, TaskHabit, TaskKind } from '../../core/datatypes/prototype-task';
 import type { SectionDisplayMode, SectionType } from '../../core/datatypes/task-section';
+import type { TaskExecutionRecord } from '../../core/datatypes/task-execution';
 import { getLang, t } from '../../core/i18n';
 import { SECTION_REGISTRY } from '../../core/shared/section-registry';
 import { getTaskKind } from '../../core/shared/task-kind';
@@ -97,6 +98,8 @@ export interface SectionHostOptions {
     types?: SectionType[];
     /** 是否在选项卡栏最左侧固定显示「任务类型」选项卡（任务详情面板使用） */
     showKindTab?: boolean;
+    /** 任务执行记录（任务类型选项卡展示累计已执行时长） */
+    getExecutions?: () => TaskExecutionRecord[];
 }
 
 /** 任务板块宿主 */
@@ -296,6 +299,25 @@ export class SectionHost {
         else if (current === 'goal') this.renderGoalKindSettings(wrap, task);
         // 任务类型：下方填写预估总时长
         else this.renderTaskKindSettings(wrap, task);
+        // 所有类型统一在底部展示当前任务累计已执行时长
+        this.renderExecutedDuration(wrap, task);
+    }
+
+    /** 任务类型选项卡底部：当前任务累计已执行时长（无记录时显示占位） */
+    private renderExecutedDuration(parentEl: HTMLElement, task: PrototypeTask): void {
+        const records = this.options.getExecutions?.() ?? [];
+        const seconds = records.reduce(
+            (sum, record) => (record.taskId === task.id ? sum + Math.max(0, record.durationSeconds) : sum),
+            0,
+        );
+        const card = parentEl.createDiv({ cls: 'kind-settings kind-settings-executed' });
+        const body = card.createDiv({ cls: 'kind-settings-body' });
+        const row = body.createDiv({ cls: 'kind-settings-row' });
+        row.createSpan({ cls: 'kind-settings-label', text: t('panel.dayExecutedLabel') });
+        row.createDiv({ cls: 'kind-settings-control' }).createSpan({
+            cls: 'kind-settings-executed-value',
+            text: seconds > 0 ? formatExecutedDuration(seconds) : '—',
+        });
     }
 
     /** 任务设置：预估总时长（分钟，留空表示不预估） */
@@ -1152,4 +1174,14 @@ function formatDateTime(ts: number): string {
     const h = String(d.getHours()).padStart(2, '0');
     const mi = String(d.getMinutes()).padStart(2, '0');
     return `${y}-${mo}-${da} ${h}:${mi}`;
+}
+
+/** 秒数 →「x分」/「x小时」/「x小时y分」 */
+function formatExecutedDuration(seconds: number): string {
+    const totalMinutes = Math.max(1, Math.round(seconds / 60));
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    if (hours === 0) return t('interface.durationMinutes', { minutes: String(minutes) });
+    if (minutes === 0) return t('interface.durationHours', { hours: String(hours) });
+    return t('interface.durationHoursMinutes', { hours: String(hours), minutes: String(minutes) });
 }
