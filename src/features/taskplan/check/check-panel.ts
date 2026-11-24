@@ -80,6 +80,9 @@ export class CheckPanel extends FloatingPanel {
     /** 具体任务分析选中的任务 id（跨选项卡 / 重开保留） */
     private analyzedTaskId: string | undefined;
 
+    /** 「时长去向」中已展开的分类（跨重渲染保持） */
+    private durationFlowExpanded = new Set<string>();
+
     constructor(private readonly panelOptions: CheckPanelOptions) {
         super({
             width: 900,
@@ -122,10 +125,90 @@ export class CheckPanel extends FloatingPanel {
         if (this.tab === 'taskAnalysis') this.renderTaskAnalysis();
     }
 
-    // ===== 时长去向：周数切换 + 一周分类执行时长横条（左分类名称、右时长） =====
+    // ===== 时长去向：周数切换 + 一周分类执行时长横条（含各事项展开） =====
     private renderDurationFlow(): void {
         this.renderWeekNav();
-        this.renderCategoryBars(this.paneEl, t('panel.checkDurationFlowTitle'), this.execMinutesByCategory());
+
+        const minutesByCatTask = this.execMinutesByTaskCategory();
+        const minutesByCat = new Map<string, number>();
+        minutesByCatTask.forEach((taskMinutes, catId) => {
+            let sum = 0;
+            taskMinutes.forEach((minutes) => { sum += minutes; });
+            minutesByCat.set(catId, sum);
+        });
+
+        const wrap = this.paneEl.createDiv({ cls: 'check-cat-bars' });
+        wrap.createDiv({ cls: 'check-cat-bars-title', text: t('panel.checkDurationFlowTitle') });
+
+        const cats = this.panelOptions.categoryData.categories;
+        const knownIds = new Set(cats.map((cat) => cat.id));
+        const extraIds = Array.from(minutesByCat.keys()).filter((id) => !knownIds.has(id));
+        const rows = [
+            ...cats.map((cat) => ({
+                id: cat.id,
+                label: cat.label,
+                color: cat.color,
+                minutes: minutesByCat.get(cat.id) ?? 0,
+            })),
+            ...extraIds.map((id) => ({
+                id,
+                label: t('inbox.noCategory'),
+                color: '#888888',
+                minutes: minutesByCat.get(id) ?? 0,
+            })),
+        ];
+        const maxMinutes = Math.max(0, ...rows.map((row) => row.minutes));
+        const widthOf = (minutes: number, max: number): string =>
+            `${max > 0 ? (minutes / max) * 100 : 0}%`;
+
+        const taskNames = new Map(this.panelOptions.getTasks().map((task) => [task.id, task.name]));
+
+        for (const row of rows) {
+            const rowEl = wrap.createDiv({ cls: 'check-cat-bars-row is-expandable' });
+            const expanded = this.durationFlowExpanded.has(row.id);
+            rowEl.toggleClass('is-expanded', expanded);
+            setIcon(rowEl.createSpan({ cls: 'check-cat-bars-chevron' }),
+                expanded ? 'chevron-down' : 'chevron-right');
+            rowEl.createSpan({ cls: 'check-cat-bars-dot' }).setCssStyles({ background: row.color ?? '#888888' });
+            rowEl.createSpan({ cls: 'check-cat-bars-label', text: row.label });
+            const track = rowEl.createDiv({ cls: 'check-cat-bars-track is-plain' });
+            track.createDiv({ cls: 'check-cat-bars-fill' }).setCssProps({
+                '--fill-color': row.color ?? '#888888',
+                '--fill-width': widthOf(row.minutes, maxMinutes),
+            });
+            rowEl.createSpan({ cls: 'check-cat-bars-value', text: formatHours(row.minutes) });
+            rowEl.addEventListener('click', () => {
+                if (this.durationFlowExpanded.has(row.id)) this.durationFlowExpanded.delete(row.id);
+                else this.durationFlowExpanded.add(row.id);
+                this.renderPane();
+            });
+
+            if (!expanded) continue;
+            // 展开：该分类下本周有时长的任务，按时长降序
+            const taskMinutes = Array.from(minutesByCatTask.get(row.id)?.entries() ?? [])
+                .filter(([, minutes]) => minutes > 0)
+                .sort((a, b) => b[1] - a[1]);
+            if (taskMinutes.length === 0) {
+                wrap.createDiv({ cls: 'check-cat-bars-sub-empty', text: t('panel.checkDurationFlowEmpty') });
+                continue;
+            }
+            const subWrap = wrap.createDiv({ cls: 'check-cat-bars-sub' });
+            const subMax = Math.max(...taskMinutes.map(([, minutes]) => minutes));
+            taskMinutes.forEach(([taskId, minutes]) => {
+                const subRow = subWrap.createDiv({ cls: 'check-cat-bars-sub-row' });
+                subRow.createSpan({
+                    cls: 'check-cat-bars-sub-label',
+                    text: taskNames.get(taskId) ?? taskId,
+                    attr: { title: taskNames.get(taskId) ?? taskId },
+                });
+                const subTrack = subRow.createDiv({ cls: 'check-cat-bars-sub-track' });
+                subTrack.createDiv({ cls: 'check-cat-bars-fill' }).setCssProps({
+                    '--fill-color': row.color ?? '#888888',
+                    '--fill-width': widthOf(minutes, subMax),
+                });
+                subRow.createSpan({ cls: 'check-cat-bars-sub-value', text: formatHours(minutes) });
+            });
+        }
     }
 
     // ===== 习惯：周数切换 + 8 列表格（习惯名称 + 周一至周日是否完成） =====
@@ -529,6 +612,26 @@ export class CheckPanel extends FloatingPanel {
             minutesByCat.set(catId, (minutesByCat.get(catId) ?? 0) + (endMs - startMs) / 60000);
         }
         return minutesByCat;
+    }
+
+    /** 执行时长按「分类 → 任务」两级汇总：当前周执行记录（跨午夜裁剪到本周） */
+    private execMinutesByTaskCategory(): Map<string, Map<string, number>> {
+        const records = this.panelOptions.taskExecutionRepo.records;
+        const result = new Map<string, Map<string, number>>();
+        const firstDayKey = makeDayKeyFromWeek(this.weekKey, 1);
+        const [fy, fm, fd] = firstDayKey.split('-').map(Number);
+        const weekStart = new Date(fy, fm - 1, fd).getTime();
+        const weekEnd = weekStart + 7 * 24 * 3600000;
+        for (const record of records) {
+            const startMs = Math.max(weekStart, record.startAt);
+            const endMs = Math.min(weekEnd, record.endAt);
+            if (endMs <= startMs) continue;
+            const catId = this.categoryIdOf(record.taskId) ?? UNCATEGORIZED_CATEGORY_ID;
+            const byTask = result.get(catId) ?? new Map<string, number>();
+            byTask.set(record.taskId, (byTask.get(record.taskId) ?? 0) + (endMs - startMs) / 60000);
+            result.set(catId, byTask);
+        }
+        return result;
     }
 
     /** 各分类时长横向柱形图：图内共用同一时长刻度；传入计划数据时每类绘制计划 / 执行两条柱 */

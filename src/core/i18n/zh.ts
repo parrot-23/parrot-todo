@@ -119,6 +119,7 @@ export const zh = {
     'panel.checkHabitDone': '完成\n情况',
     'panel.checkDurationFlow': '时长去向',
     'panel.checkDurationFlowTitle': '一周分类执行时长',
+    'panel.checkDurationFlowEmpty': '本周该分类暂无执行记录',
     'panel.weekNavCurrent': '本周',
     'panel.weekNavBefore': '{weeks} 周前',
     'panel.weekNavAfter': '{weeks} 周后',

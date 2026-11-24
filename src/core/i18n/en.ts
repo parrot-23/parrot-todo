@@ -121,6 +121,7 @@ export const en: I18nMessages = {
     'panel.checkHabitDone': 'Completion',
     'panel.checkDurationFlow': 'Duration',
     'panel.checkDurationFlowTitle': 'Weekly duration by category',
+    'panel.checkDurationFlowEmpty': 'No executions in this category this week',
     'panel.weekNavCurrent': 'This week',
     'panel.weekNavBefore': '{weeks} weeks ago',
     'panel.weekNavAfter': '{weeks} weeks later',

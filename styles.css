@@ -1599,9 +1599,77 @@ button.parrot-plan-nav-help-btn {
     background: transparent;
 }
 
-/* 执行图：每类上下两条柱（灰色计划 / 分类色执行） */
-.check-cat-bars-dual {
+/* 时长去向：分类行可展开，子行为该分类下各事项的时长 */
+.check-cat-bars-row.is-expandable {
+    cursor: pointer;
+    padding: 2px 4px;
+    margin: 0 -4px;
+    border-radius: 4px;
+}
+
+.check-cat-bars-row.is-expandable:hover {
+    background: var(--background-modifier-hover, rgba(127, 127, 127, 0.08));
+}
+
+.check-cat-bars-chevron {
+    flex: 0 0 auto;
+    display: inline-flex;
+    color: var(--sdt-text-secondary, var(--text-muted));
+}
+
+.check-cat-bars-chevron .svg-icon {
+    width: 12px;
+    height: 12px;
+}
+
+.check-cat-bars-sub {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 2px 0 4px 22px;
+}
+
+.check-cat-bars-sub-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+.check-cat-bars-sub-label {
+    flex: 0 0 84px;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: 11px;
+    color: var(--sdt-text-secondary, var(--text-muted));
+}
+
+.check-cat-bars-sub-track {
     flex: 1 1 0;
+    min-width: 0;
+    height: 6px;
+    border-radius: 999px;
+    background: transparent;
+    overflow: hidden;
+}
+
+.check-cat-bars-sub-value {
+    flex: 0 0 auto;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    color: var(--sdt-text-secondary, var(--text-muted));
+}
+
+.check-cat-bars-sub-empty {
+    padding: 2px 0 4px 22px;
+    font-size: 11px;
+    color: var(--text-faint);
+}
+
+/* 执行图：每类上下两条柱（灰色计划 / 分类色执行） */
+.check-cat-bars-dual {    flex: 1 1 0;
     min-width: 0;
     display: flex;
     flex-direction: column;
