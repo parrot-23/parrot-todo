@@ -429,7 +429,6 @@ export class InterfaceView {
                 timeBoxRepo: holder.timeBoxRepo,
                 taskExecutionRepo: this.taskExecutionRepo,
                 getTasks: () => this.prototypeTaskRepo.tasks,
-                onOpenData: () => this.openDataPanel(),
             });
         }
         return this.checkPanel;
@@ -443,6 +442,7 @@ export class InterfaceView {
                 categoryData: this.categoryData,
                 taskExecutionRepo: this.taskExecutionRepo,
                 getTasks: () => this.prototypeTaskRepo.tasks,
+                onOpenData: () => this.openDataPanel(),
             });
         }
         return this.statsPanel;

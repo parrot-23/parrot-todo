@@ -22,6 +22,8 @@ export interface StatsPanelOptions extends Omit<FloatingPanelOptions, 'title'> {
     taskExecutionRepo: TaskExecutionRepo;
     /** 原型任务数据源（用于按任务取分类颜色与名称） */
     getTasks: () => PrototypeTask[];
+    /** 点击右上角「数据」按钮的回调 */
+    onOpenData?: () => void;
 }
 
 /** 顶部选项卡 */
@@ -56,6 +58,14 @@ export class StatsPanel extends FloatingPanel {
         this.recordsTabEl = tabs.createDiv({ cls: 'plan-tab', text: t('panel.checkRecords') });
         this.statsTabEl.addEventListener('click', () => this.switchTab('stats'));
         this.recordsTabEl.addEventListener('click', () => this.switchTab('records'));
+
+        // 选项卡行最右侧的「数据」按钮：打开数据面板
+        const dataButton = tabs.createEl('button', {
+            cls: 'check-data-button',
+            text: t('panel.checkData'),
+            attr: { type: 'button' },
+        });
+        dataButton.addEventListener('click', () => this.panelOptions.onOpenData?.());
 
         this.paneEl = this.body.createDiv({ cls: 'plan-pane' });
         this.switchTab(this.tab);
@@ -103,6 +113,36 @@ export class StatsPanel extends FloatingPanel {
             this.weekKey = shiftWeekKey(this.weekKey, 1);
             this.renderPane();
         });
+
+        // 周数切换右侧：相对当前周的偏移（本周 / x 周前 / x 周后），点击回到当前周
+        const currentWeekKey = getCurrentWeekKey();
+        const offset = this.weekOffsetFrom(currentWeekKey);
+        const jump = nav.createEl('button', {
+            cls: 'plan-nav-btn check-week-jump',
+            text: offset === 0
+                ? t('panel.weekNavCurrent')
+                : offset < 0
+                    ? t('panel.weekNavBefore', { weeks: String(-offset) })
+                    : t('panel.weekNavAfter', { weeks: String(offset) }),
+            attr: { type: 'button' },
+        });
+        jump.toggleClass('is-current', offset === 0);
+        jump.disabled = offset === 0;
+        jump.addEventListener('click', () => {
+            if (this.weekKey === currentWeekKey) return;
+            this.weekKey = currentWeekKey;
+            this.renderPane();
+        });
+    }
+
+    /** 当前查看周相对指定周（默认即当前周）的周数差：负数表示更早，正数表示更晚 */
+    private weekOffsetFrom(baseWeekKey: string): number {
+        const mondayOf = (weekKey: string): number => {
+            const dayKey = makeDayKeyFromWeek(weekKey, 1);
+            const [year, month, date] = dayKey.split('-').map(Number);
+            return new Date(year, month - 1, date).getTime();
+        };
+        return Math.round((mondayOf(this.weekKey) - mondayOf(baseWeekKey)) / (7 * 24 * 3600000));
     }
 
     /** 指定星期的执行记录：按任务聚合分钟数（跨午夜按天裁剪） */

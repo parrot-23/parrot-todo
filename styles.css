@@ -11831,6 +11831,85 @@ button.task-record-dropdown-item.is-selected {
     color: var(--sdt-text-secondary, var(--text-muted));
 }
 
+/* 检查面板「习惯」：8 列表格（习惯名称 + 周一至周日完成情况） */.check-habit-table {
+    display: flex;
+    flex-direction: column;
+}
+
+.check-habit-row {
+    display: grid;
+    grid-template-columns: minmax(120px, 1.4fr) repeat(7, 1fr);
+    align-items: center;
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.check-habit-row.is-head {
+    font-weight: 600;
+    color: var(--sdt-text-secondary, var(--text-muted));
+}
+
+.check-habit-cell {
+    padding: 8px 6px;
+    font-size: 12px;
+}
+
+.check-habit-cell.is-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.check-habit-cell.is-day {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+
+.check-habit-cell.is-off {
+    color: var(--text-faint);
+}
+
+.check-habit-day-name {
+    font-size: 12px;
+}
+
+.check-habit-day-date {
+    font-size: 11px;
+    color: var(--sdt-text-secondary, var(--text-muted));
+}
+
+.check-habit-mark {
+    display: inline-flex;
+    color: var(--text-faint);
+}
+
+.check-habit-mark.is-done {
+    color: var(--color-green);
+}
+
+.check-habit-mark .svg-icon {
+    width: 16px;
+    height: 16px;
+}
+
+.check-habit-empty {
+    padding: 12px 4px;
+    font-size: 12px;
+    color: var(--sdt-text-secondary, var(--text-muted));
+}
+
+/* 检查面板周数切换右侧的「当前周」跳转按钮 */
+.plan-nav-btn.check-week-jump {
+    margin-left: 8px;
+    font-size: 11px;
+}
+
+.plan-nav-btn.check-week-jump.is-current {
+    opacity: 0.6;
+    cursor: default;
+}
+
 /* 检查面板「任务记录」：每周按天生成卡片，卡片内为执行记录列表 */
 .check-records-list {
     display: flex;
