@@ -9,7 +9,7 @@ import { t } from '../../core/i18n';
 import { FloatingPanel, type FloatingPanelOptions } from '../basic/floating-panel';
 
 /** 一级菜单标识 */
-export type FunctionGroupId = 'task' | 'section' | 'check' | 'collect';
+export type FunctionGroupId = 'task' | 'section' | 'check' | 'stats' | 'collect';
 
 /** 二级菜单（功能）标识 */
 export type FunctionItemId =
@@ -21,6 +21,7 @@ export type FunctionItemId =
     | 'planAnnual'
     | 'planWeek'
     | 'check'
+    | 'stats'
     | 'collect'
     | 'gallery';
 
@@ -52,7 +53,7 @@ export interface FunctionPanelOptions extends Omit<FloatingPanelOptions, 'title'
 }
 
 /** 默认一级菜单（「收集」已拆到独立的收集面板） */
-const DEFAULT_GROUPS: FunctionGroupId[] = ['task', 'section', 'check'];
+const DEFAULT_GROUPS: FunctionGroupId[] = ['task', 'section', 'check', 'stats'];
 
 /** 功能面板 */
 export class FunctionPanel extends FloatingPanel {
@@ -98,6 +99,12 @@ export class FunctionPanel extends FloatingPanel {
                 label: t('interface.check'),
                 items: [],
                 directItem: 'check',
+            },
+            {
+                id: 'stats',
+                label: t('panel.checkStats'),
+                items: [],
+                directItem: 'stats',
             },
             {
                 id: 'collect',

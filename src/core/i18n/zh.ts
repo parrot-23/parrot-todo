@@ -114,6 +114,7 @@ export const zh = {
     'panel.checkPanelTitle': '检查',
     'panel.checkPlanVsActual': '计划vs对比',
     'panel.checkStats': '统计',
+    'panel.checkStatsCategory': '任务分类',
     'panel.checkTaskAnalysis': '具体任务分析',
     'panel.checkRecords': '任务记录',
     'panel.checkRecordsEmpty': '本周暂无任务记录',

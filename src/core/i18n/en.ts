@@ -116,6 +116,7 @@ export const en: I18nMessages = {
     'panel.checkPanelTitle': 'Check',
     'panel.checkPlanVsActual': 'Plan vs Actual',
     'panel.checkStats': 'Statistics',
+    'panel.checkStatsCategory': 'Task categories',
     'panel.checkTaskAnalysis': 'Task analysis',
     'panel.checkRecords': 'Task records',
     'panel.checkRecordsEmpty': 'No task records this week',

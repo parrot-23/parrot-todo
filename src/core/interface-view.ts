@@ -15,6 +15,7 @@ import { CardPickerPanel } from '../ui/interface/card-picker-panel';
 import { FunctionPanel, type FunctionItemId } from '../ui/interface/function-panel';
 import type { FloatingPanel } from '../ui/basic/floating-panel';
 import { CheckPanel } from '../features/taskplan/check/check-panel';
+import { StatsPanel } from '../features/taskplan/check/stats-panel';
 import { CollectPanel } from '../features/collector/collect-panel';
 import { CollectHubPanel } from '../features/collector/collect-hub-panel';
 import { DataPanel } from '../features/taskplan/check/data-panel';
@@ -118,6 +119,8 @@ export class InterfaceView {
     private planWeekPanel: PlanWeekPanel | null = null;
     /** 检查卡片对应的面板 */
     private checkPanel: CheckPanel | null = null;
+    /** 统计面板（功能面板一级菜单「统计」） */
+    private statsPanel: StatsPanel | null = null;
     /** 收集卡片对应的面板 */
     private collectPanel: CollectPanel | null = null;
     /** 收集面板（顶部工具栏「收集」图标入口，一级菜单收集 + 二级菜单收集 / 画廊） */
@@ -430,6 +433,19 @@ export class InterfaceView {
             });
         }
         return this.checkPanel;
+    }
+
+    /** 统计面板实例（懒创建；独立的 FloatingPanel 统计视图） */
+    private ensureStatsPanel(): StatsPanel {
+        if (!this.statsPanel) {
+            this.statsPanel = new StatsPanel({
+                container: this.panelContainer,
+                categoryData: this.categoryData,
+                taskExecutionRepo: this.taskExecutionRepo,
+                getTasks: () => this.prototypeTaskRepo.tasks,
+            });
+        }
+        return this.statsPanel;
     }
 
     /** 点击收集卡片：打开收集面板（内容复用 GTD 收集视图） */
@@ -872,6 +888,8 @@ export class InterfaceView {
                 return this.ensurePlanWeekPanel();
             case 'check':
                 return this.ensureCheckPanel();
+            case 'stats':
+                return this.ensureStatsPanel();
             case 'collect':
                 return this.ensureCollectPanel();
             case 'gallery':
@@ -1103,6 +1121,8 @@ export class InterfaceView {
         this.planWeekPanel = null;
         this.checkPanel?.destroy();
         this.checkPanel = null;
+        this.statsPanel?.destroy();
+        this.statsPanel = null;
         this.collectPanel?.destroy();
         this.collectPanel = null;
         this.collectHubPanel?.destroy();
