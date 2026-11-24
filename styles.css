@@ -10591,10 +10591,16 @@ button.task-detail-todo-tool-btn:disabled {
 }
 
 /* 任务文件排序下拉：第一行行首 */
-.task-detail-files-sort {
-    height: 26px;
-    padding: 0 6px;
-    font-size: 12px;
+/* 任务文件排序：图标按钮（不带文字），样式与文件夹按钮一致 */
+.task-detail-files-sort-btn svg {
+    width: 13px;
+    height: 13px;
+}
+
+.task-detail-files-sort-letter {
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1;
 }
 
 /* 任务文件添加按钮：第一行行尾 */
@@ -10746,6 +10752,113 @@ button.task-detail-files-path-up svg {
 }
 
 .task-detail-file-row.is-selected {
+    background: var(--sdt-hover-bg, var(--background-modifier-hover));
+}
+
+/* 工具按钮激活态（关联目录） */
+.task-detail-files-btn.is-active {
+    background: var(--interactive-accent);
+    border-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+}
+
+.task-detail-files-btn.is-active .task-detail-files-btn-icon {
+    color: var(--text-on-accent);
+}
+
+/* 关联目录清单方框 */
+.task-detail-files-linked-card {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.task-detail-files-linked-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.task-detail-files-linked-count {
+    font-size: 12px;
+    color: var(--sdt-text-secondary, var(--text-muted));
+}
+
+.task-detail-files-linked-list {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    overflow-y: auto;
+}
+
+button.task-detail-files-linked-remove {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    box-shadow: none;
+    color: var(--sdt-text-secondary, var(--text-muted));
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+
+.task-detail-file-row:hover .task-detail-files-linked-remove {
+    opacity: 1;
+}
+
+button.task-detail-files-linked-remove:hover {
+    background: var(--sdt-hover-bg, var(--background-modifier-hover));
+    color: var(--text-error);
+}
+
+button.task-detail-files-linked-remove svg {
+    width: 12px;
+    height: 12px;
+}
+
+/* 关联目录选择弹窗 */
+.task-file-linked-dir-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 320px;
+}
+
+input.task-file-linked-dir-search {
+    width: 100%;
+}
+
+.task-file-linked-dir-list {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    overflow-y: auto;
+}
+
+.task-file-linked-dir-option {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 6px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.task-file-linked-dir-option:hover {
     background: var(--sdt-hover-bg, var(--background-modifier-hover));
 }
 

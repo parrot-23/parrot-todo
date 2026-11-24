@@ -131,9 +131,13 @@ function parseGoalsPayload(raw: unknown): TaskSectionPayloadMap['goals'] | null 
 function parseFilesPayload(raw: unknown): TaskSectionPayloadMap['files'] | null {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
     const r = raw as Record<string, unknown>;
+    const linkedDirs = Array.isArray(r.linkedDirs)
+        ? Array.from(new Set(r.linkedDirs.filter((dir): dir is string => typeof dir === 'string' && !!dir)))
+        : [];
     return {
         ...(typeof r.fileDir === 'string' && r.fileDir ? { fileDir: r.fileDir } : {}),
         ...(r.fileTimestamp === true ? { fileTimestamp: true } : {}),
+        ...(linkedDirs.length > 0 ? { linkedDirs } : {}),
     };
 }
 
@@ -192,7 +196,10 @@ export const SECTION_REGISTRY: Record<SectionType, SectionDefinition> = {
         labelKey: 'panel.targetFile',
         icon: 'folder',
         singleton: true,
-        isEmpty: (payload) => !payload || !(payload as TaskSectionPayloadMap['files']).fileDir,
+        isEmpty: (payload) => {
+            const files = payload as TaskSectionPayloadMap['files'] | null;
+            return !files || (!files.fileDir && !files.linkedDirs?.length);
+        },
         parsePayload: (raw) => parseFilesPayload(raw),
     },
     habit: {

@@ -4,7 +4,7 @@
 //  2. 「开启」始终显示该类型选项卡，「自动」仅在板块存在内容时显示，「关闭」始终隐藏（数据保留）；
 //  3. 没有可显示的板块时，配置页作为兜底视图；
 //  4. 内容读写统一走 shared/task-sections 访问器，首次写入内容时自动创建板块。
-import { Notice, TFolder, setIcon, type App, type TFile } from 'obsidian';
+import { Menu, Notice, TFolder, setIcon, type App, type TFile } from 'obsidian';
 
 import type { ChecklistItem } from '../../core/datatypes/domain';
 import type { PrototypeTask, TaskDayGoalEntry, TaskGoalConfig, TaskHabit, TaskKind } from '../../core/datatypes/prototype-task';
@@ -29,6 +29,7 @@ import {
     getSectionDisplay,
     getTaskFileDir,
     getTaskFileTimestamp,
+    getTaskLinkedDirs,
     getTaskGoalConfig,
     getTaskGoals,
     getTaskHabit,
@@ -37,6 +38,7 @@ import {
     setDayGoalEntries,
     setSectionDisplay,
     setTaskFileTimestamp,
+    setTaskLinkedDirs,
     setTaskGoalConfig,
     setTaskGoals,
     setTaskHabit,
@@ -61,6 +63,16 @@ const WEEKDAY_LABEL_KEYS: LabelKey[] = [
     'week.friday',
     'week.saturday',
     'week.sunday',
+];
+
+/** 任务文件排序方式：菜单项文案与图标（工具栏上字母排序显示「A」字样，菜单里用字母图标） */
+const FILE_SORT_OPTIONS: { value: TaskFileSortMode; icon?: string; letter?: string; labelKey: LabelKey }[] = [
+    { value: 'name-asc', letter: 'A', icon: 'case-sensitive', labelKey: 'panel.fileSortNameAsc' },
+    { value: 'name-desc', letter: 'A', icon: 'case-sensitive', labelKey: 'panel.fileSortNameDesc' },
+    { value: 'ctime-desc', icon: 'calendar', labelKey: 'panel.fileSortCtimeDesc' },
+    { value: 'ctime-asc', icon: 'calendar', labelKey: 'panel.fileSortCtimeAsc' },
+    { value: 'mtime-desc', icon: 'clock', labelKey: 'panel.fileSortMtimeDesc' },
+    { value: 'mtime-asc', icon: 'clock', labelKey: 'panel.fileSortMtimeAsc' },
 ];
 
 /** 任务类型三选一的选项（任务类型不显示图标） */
@@ -123,12 +135,16 @@ export class SectionHost {
     private fileCreateMode = false;
     /** 任务文件当前打开的目录（相对绑定目录的子目录；undefined 表示根目录，不显示左右分栏） */
     private fileCurrentDir: string | undefined;
+    /** 任务文件是否处于「关联目录清单」模式 */
+    private fileLinkMode = false;
     /** 任务文件排序方式（面板内保持，切换任务不重置） */
     private fileSortMode: TaskFileSortMode = 'mtime-desc';
     /** 文件编辑面板 */
     private fileEditorPanel: FileEditorPanel | null = null;
     /** 文件模板面板 */
     private fileTemplatePanel: FloatingPanel | null = null;
+    /** 关联目录选择弹窗 */
+    private linkedDirPanel: FloatingPanel | null = null;
 
     constructor(options: SectionHostOptions) {
         this.options = options;
@@ -143,7 +159,10 @@ export class SectionHost {
         this.checklistSort = 'created';
         this.selectedChecklistId = null;
         this.fileCreateMode = false;
+        this.fileLinkMode = false;
+        this.fileCurrentDir = undefined;
         this.fileTemplatePanel?.close();
+        this.linkedDirPanel?.close();
     }
 
     /** 销毁（关闭文件编辑 / 文件模板面板） */
@@ -152,6 +171,8 @@ export class SectionHost {
         this.fileEditorPanel = null;
         this.fileTemplatePanel?.destroy();
         this.fileTemplatePanel = null;
+        this.linkedDirPanel?.destroy();
+        this.linkedDirPanel = null;
     }
 
     /** 渲染宿主；传入 container 时以其为新容器，否则复用上次容器 */
@@ -945,23 +966,8 @@ export class SectionHost {
             this.fileCurrentDir = undefined;
         }
 
-        // 排序方式：字母正序/反序、创建时间、修改时间（行首）
-        const sortSelect = toolbar.createEl('select', {
-            cls: 'dropdown task-detail-files-sort',
-            attr: { 'aria-label': t('panel.fileSort') },
-        });
-        const sortOptions: { value: TaskFileSortMode; labelKey: LabelKey }[] = [
-            { value: 'name-asc', labelKey: 'panel.fileSortNameAsc' },
-            { value: 'name-desc', labelKey: 'panel.fileSortNameDesc' },
-            { value: 'ctime-desc', labelKey: 'panel.fileSortCtimeDesc' },
-            { value: 'ctime-asc', labelKey: 'panel.fileSortCtimeAsc' },
-            { value: 'mtime-desc', labelKey: 'panel.fileSortMtimeDesc' },
-            { value: 'mtime-asc', labelKey: 'panel.fileSortMtimeAsc' },
-        ];
-        for (const option of sortOptions) {
-            const optionEl = sortSelect.createEl('option', { text: t(option.labelKey), attr: { value: option.value } });
-            optionEl.selected = option.value === this.fileSortMode;
-        }
+        // 排序：图标按钮（不带文字），点击弹出「名称 / 创建时间 / 修改时间」排序菜单
+        this.renderFileSortControl(toolbar);
 
         // 文件夹：目录由任务树自动绑定，点击在 Obsidian 文件浏览器中定位
         const dirBtn = toolbar.createEl('button', { cls: 'task-detail-files-btn', attr: { type: 'button' } });
@@ -979,6 +985,19 @@ export class SectionHost {
         templateBtn.createSpan({ cls: 'task-detail-files-btn-text', text: t('panel.fileTemplate') });
         templateBtn.addEventListener('click', () => this.openFileTemplatePanel(task));
 
+        // 关联目录（模板右侧）：激活后隐藏文件清单，下方改为关联目录清单
+        const linkedBtn = toolbar.createEl('button', {
+            cls: 'task-detail-files-btn',
+            attr: { type: 'button', 'aria-label': t('panel.fileLinkedDir') },
+        });
+        setIcon(linkedBtn.createSpan({ cls: 'task-detail-files-btn-icon' }), 'link');
+        linkedBtn.createSpan({ cls: 'task-detail-files-btn-text', text: t('panel.fileLinkedDir') });
+        linkedBtn.toggleClass('is-active', this.fileLinkMode);
+        linkedBtn.addEventListener('click', () => {
+            this.fileLinkMode = !this.fileLinkMode;
+            this.render();
+        });
+
         // 新建文件（行尾）
         const addBtn = toolbar.createEl('button', {
             cls: 'task-detail-files-btn task-detail-files-btn-end',
@@ -988,12 +1007,13 @@ export class SectionHost {
         addBtn.createSpan({ cls: 'task-detail-files-btn-text', text: t('panel.fileAdd') });
         addBtn.addEventListener('click', () => void this.startCreateFile(task));
 
-        if (this.fileCreateMode) this.renderFileCreateRow(card, task);
+        if (this.fileCreateMode && !this.fileLinkMode) this.renderFileCreateRow(card, task);
 
-        sortSelect.addEventListener('change', () => {
-            this.fileSortMode = sortSelect.value as TaskFileSortMode;
-            this.render();
-        });
+        // 关联目录模式：隐藏文件清单与路径行，只显示关联目录清单方框
+        if (this.fileLinkMode) {
+            this.renderLinkedDirs(wrap, task);
+            return;
+        }
 
         // 当前相对路径：位于按钮栏下方，目录层级可点击返回
         if (dir) this.renderFilePathRow(wrap, dir);
@@ -1009,6 +1029,38 @@ export class SectionHost {
             const listCard = wrap.createDiv({ cls: 'task-detail-files-card task-detail-files-list-card' });
             this.renderFileRows(listCard, dir);
         }
+    }
+
+    /** 排序图标按钮：样式与右侧文件夹按钮一致；图标反映当前排序方式，点击弹出排序菜单 */
+    private renderFileSortControl(toolbar: HTMLElement): void {
+        const current = FILE_SORT_OPTIONS.find((option) => option.value === this.fileSortMode) ?? FILE_SORT_OPTIONS[0];
+        const label = `${t('panel.fileSort')}：${t(current.labelKey)}`;
+        const sortBtn = toolbar.createEl('button', {
+            cls: 'task-detail-files-btn task-detail-files-sort-btn',
+            attr: { type: 'button', 'aria-label': label },
+        });
+        sortBtn.title = label;
+        if (current.letter) sortBtn.createSpan({ cls: 'task-detail-files-sort-letter', text: current.letter });
+        else if (current.icon) setIcon(sortBtn, current.icon);
+        sortBtn.createSpan({ cls: 'task-detail-files-btn-text', text: t('panel.fileSortShort') });
+        sortBtn.addEventListener('click', (evt) => {
+            const menu = new Menu();
+            for (const option of FILE_SORT_OPTIONS) {
+                menu.addItem((item) => {
+                    item.setTitle(t(option.labelKey))
+                        .setChecked(option.value === this.fileSortMode)
+                        .onClick(() => {
+                            this.fileSortMode = option.value;
+                            this.render();
+                        });
+                    if (option.icon) item.setIcon(option.icon);
+                });
+            }
+            menu.showAtMouseEvent(evt);
+            // 菜单挂在 body 下，注册为忽略元素，避免点击菜单项时触发宿主面板的「点击外部关闭」
+            const menuEl = Array.from(document.body.querySelectorAll<HTMLElement>('.menu')).pop();
+            if (menuEl) this.options.registerIgnoreElement?.(menuEl);
+        });
     }
 
     /** 当前相对路径行：上一级按钮 + 面包屑（根目录 → 各级子目录） */
@@ -1087,6 +1139,104 @@ export class SectionHost {
             row.createSpan({ cls: 'task-detail-file-time', text: formatDateTime(file.stat.mtime) });
             row.addEventListener('click', () => this.openTaskFile(file));
         }
+    }
+
+    /** 关联目录清单方框：列出已关联目录，支持移除与新增 */
+    private renderLinkedDirs(wrap: HTMLElement, task: PrototypeTask): void {
+        const card = wrap.createDiv({ cls: 'task-detail-files-card task-detail-files-linked-card' });
+        const head = card.createDiv({ cls: 'task-detail-files-linked-head' });
+        const dirs = getTaskLinkedDirs(task);
+        head.createSpan({ cls: 'task-detail-files-linked-count', text: `${t('panel.fileLinkedDir')}（${dirs.length}）` });
+        const addBtn = head.createEl('button', {
+            cls: 'task-detail-files-btn',
+            attr: { type: 'button', 'aria-label': t('panel.fileLinkedDirAdd') },
+        });
+        setIcon(addBtn.createSpan({ cls: 'task-detail-files-btn-icon' }), 'folder-plus');
+        addBtn.createSpan({ cls: 'task-detail-files-btn-text', text: t('panel.fileLinkedDirAdd') });
+        addBtn.addEventListener('click', () => this.openLinkedDirPicker(task));
+
+        const list = card.createDiv({ cls: 'task-detail-files-linked-list' });
+        if (dirs.length === 0) {
+            list.createDiv({ cls: 'task-section-empty', text: t('panel.fileLinkedDirEmpty') });
+            return;
+        }
+        for (const path of dirs) {
+            const row = list.createDiv({ cls: 'task-detail-file-row is-dir' });
+            setIcon(row.createSpan({ cls: 'task-detail-file-icon' }), 'folder');
+            const nameEl = row.createSpan({ cls: 'task-detail-file-name', text: path });
+            nameEl.title = path;
+            row.addEventListener('click', () => this.revealVaultDir(path));
+            const removeBtn = row.createEl('button', {
+                cls: 'task-detail-files-linked-remove',
+                attr: { type: 'button', 'aria-label': t('panel.fileLinkedDirRemove') },
+            });
+            removeBtn.title = t('panel.fileLinkedDirRemove');
+            setIcon(removeBtn, 'x');
+            removeBtn.addEventListener('click', (evt) => {
+                evt.stopPropagation();
+                setTaskLinkedDirs(task, getTaskLinkedDirs(task).filter((item) => item !== path));
+                void this.commit(task);
+            });
+        }
+    }
+
+    /** 在 Obsidian 文件浏览器中定位某个 vault 目录 */
+    private revealVaultDir(path: string): void {
+        const folder = this.options.app.vault.getAbstractFileByPath(path);
+        if (folder instanceof TFolder) revealFolderInExplorer(this.options.app, folder);
+    }
+
+    /** 关联目录选择弹窗：可搜索的 vault 文件夹列表，点击即关联 */
+    private openLinkedDirPicker(task: PrototypeTask): void {
+        if (!this.linkedDirPanel) {
+            const panel = new FloatingPanel({
+                width: 320,
+                title: t('panel.fileLinkedDirPick'),
+                closeOnBlur: true,
+                container: this.options.container,
+            });
+            // 子面板内的点击不触发父面板的失焦关闭
+            this.options.registerIgnoreElement?.(panel.element);
+            this.linkedDirPanel = panel;
+        }
+        const panel = this.linkedDirPanel;
+        panel.setContent((body) => {
+            body.addClass('task-file-linked-dir-picker');
+            const input = body.createEl('input', {
+                cls: 'task-file-linked-dir-search',
+                attr: { type: 'text', placeholder: t('panel.fileLinkedDirSearch') },
+            });
+            const listEl = body.createDiv({ cls: 'task-file-linked-dir-list' });
+            const renderOptions = (): void => {
+                listEl.empty();
+                const keyword = input.value.trim().toLowerCase();
+                const linked = getTaskLinkedDirs(task);
+                const folders = this.options.app.vault.getAllLoadedFiles()
+                    .filter((file): file is TFolder => file instanceof TFolder && file.path !== '/')
+                    .map((folder) => folder.path)
+                    .filter((path) => !linked.includes(path))
+                    .filter((path) => !keyword || path.toLowerCase().includes(keyword))
+                    .sort((a, b) => a.localeCompare(b));
+                if (folders.length === 0) {
+                    listEl.createDiv({ cls: 'task-section-empty', text: t('panel.fileLinkedDirEmpty') });
+                    return;
+                }
+                for (const path of folders) {
+                    const row = listEl.createDiv({ cls: 'task-file-linked-dir-option' });
+                    setIcon(row.createSpan({ cls: 'task-detail-file-icon' }), 'folder');
+                    row.createSpan({ cls: 'task-detail-file-name', text: path });
+                    row.addEventListener('click', () => {
+                        setTaskLinkedDirs(task, [...getTaskLinkedDirs(task), path]);
+                        panel.close();
+                        void this.commit(task);
+                    });
+                }
+            };
+            input.addEventListener('input', renderOptions);
+            renderOptions();
+            input.focus();
+        });
+        panel.open();
     }
 
     /** 打开文件模板面板（第一行为「启用时间戳」开关） */

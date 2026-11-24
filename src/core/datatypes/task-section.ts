@@ -26,7 +26,7 @@ export interface TaskSectionPayloadMap {
         deadlineDate?: string;
     };
     /** 任务文件 */
-    files: { fileDir?: string; fileTimestamp?: boolean };
+    files: { fileDir?: string; fileTimestamp?: boolean; linkedDirs?: string[] };
     /** 习惯 */
     habit: TaskHabit;
 }

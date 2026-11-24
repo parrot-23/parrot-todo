@@ -267,14 +267,30 @@ export function setTaskFileTimestamp(task: PrototypeTask, enabled: boolean): voi
     section.updatedAt = Date.now();
 }
 
+/** 读取任务关联的其他 vault 目录 */
+export function getTaskLinkedDirs(task: PrototypeTask): string[] {
+    return [...(getSection(task, 'files')?.payload.linkedDirs ?? [])];
+}
+
+/** 写入任务关联目录列表（去重后保存，空列表时移除该字段） */
+export function setTaskLinkedDirs(task: PrototypeTask, dirs: string[]): void {
+    const section = ensureSection(task, 'files');
+    const unique = Array.from(new Set(dirs.filter((dir) => !!dir)));
+    if (unique.length > 0) section.payload.linkedDirs = unique;
+    else delete section.payload.linkedDirs;
+    section.updatedAt = Date.now();
+}
+
 /** 复制任务文件配置到另一个任务 */
 export function copyTaskFiles(task: PrototypeTask, target: PrototypeTask): void {
     const dir = getTaskFileDir(task);
     const timestamp = getTaskFileTimestamp(task);
-    if (!dir && !timestamp) return;
+    const linkedDirs = getTaskLinkedDirs(task);
+    if (!dir && !timestamp && linkedDirs.length === 0) return;
     const section = ensureSection(target, 'files');
     if (dir) section.payload.fileDir = dir;
     if (timestamp) section.payload.fileTimestamp = true;
+    if (linkedDirs.length > 0) section.payload.linkedDirs = linkedDirs;
     section.updatedAt = Date.now();
 }
 
