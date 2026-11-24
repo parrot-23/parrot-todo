@@ -20,7 +20,7 @@ import {
     parseWeekKey,
     shiftWeekKey,
 } from '../../core/shared/plan-data';
-import { buildTaskFileName, listTaskFiles, relativeToDir, type TaskFileSortMode } from '../../core/shared/task-file';
+import { buildTaskFileName, listTaskFiles, listTaskFolders, relativeToDir, type TaskFileSortMode } from '../../core/shared/task-file';
 import {
     appendChecklist,
     getChecklist,
@@ -121,6 +121,8 @@ export class SectionHost {
     private selectedChecklistId: string | null = null;
     /** 任务文件是否处于新建输入状态 */
     private fileCreateMode = false;
+    /** 任务文件当前打开的目录（相对绑定目录的子目录；undefined 表示根目录，不显示左右分栏） */
+    private fileCurrentDir: string | undefined;
     /** 任务文件排序方式（面板内保持，切换任务不重置） */
     private fileSortMode: TaskFileSortMode = 'mtime-desc';
     /** 文件编辑面板 */
@@ -938,6 +940,10 @@ export class SectionHost {
         const card = wrap.createDiv({ cls: 'task-detail-files-card' });
         const toolbar = card.createDiv({ cls: 'task-detail-files-toolbar' });
         const dir = getTaskFileDir(task);
+        // 任务切换后当前目录若不在绑定目录内，回到根目录
+        if (this.fileCurrentDir && (!dir || !this.fileCurrentDir.startsWith(`${dir}/`))) {
+            this.fileCurrentDir = undefined;
+        }
 
         // 排序方式：字母正序/反序、创建时间、修改时间（行首）
         const sortSelect = toolbar.createEl('select', {
@@ -984,26 +990,94 @@ export class SectionHost {
 
         if (this.fileCreateMode) this.renderFileCreateRow(card, task);
 
-        // 文件列表
-        const listCard = wrap.createDiv({ cls: 'task-detail-files-card task-detail-files-list-card' });
         sortSelect.addEventListener('change', () => {
             this.fileSortMode = sortSelect.value as TaskFileSortMode;
-            this.renderFileRows(listCard, dir);
+            this.render();
         });
-        this.renderFileRows(listCard, dir);
+
+        // 当前相对路径：位于按钮栏下方，目录层级可点击返回
+        if (dir) this.renderFilePathRow(wrap, dir);
+
+        // 未进入目录时为单栏文件 / 目录混排；进入目录后左右分栏（左=绑定根目录，右=当前目录）
+        if (this.fileCurrentDir) {
+            const split = wrap.createDiv({ cls: 'task-detail-files-split' });
+            const leftCard = split.createDiv({ cls: 'task-detail-files-card task-detail-files-list-card' });
+            const rightCard = split.createDiv({ cls: 'task-detail-files-card task-detail-files-list-card' });
+            this.renderFileRows(leftCard, dir, this.fileCurrentDir);
+            this.renderFileRows(rightCard, this.fileCurrentDir);
+        } else {
+            const listCard = wrap.createDiv({ cls: 'task-detail-files-card task-detail-files-list-card' });
+            this.renderFileRows(listCard, dir);
+        }
     }
 
-    /** 渲染绑定目录下的文件列表（按当前排序方式） */
-    private renderFileRows(listCard: HTMLElement, dir: string | undefined): void {
+    /** 当前相对路径行：上一级按钮 + 面包屑（根目录 → 各级子目录） */
+    private renderFilePathRow(parent: HTMLElement, rootDir: string): void {
+        const row = parent.createDiv({ cls: 'task-detail-files-path' });
+        const upBtn = row.createEl('button', {
+            cls: 'task-detail-files-path-up',
+            attr: { type: 'button', 'aria-label': t('panel.filePathUp') },
+        });
+        upBtn.title = t('panel.filePathUp');
+        setIcon(upBtn, 'arrow-up');
+        upBtn.disabled = !this.fileCurrentDir;
+        upBtn.addEventListener('click', () => this.openFileDir(this.fileParentDir(rootDir)));
+
+        row.createSpan({ cls: 'task-detail-files-path-label', text: t('panel.filePathLabel') });
+        const trail = row.createDiv({ cls: 'task-detail-files-path-trail' });
+        const crumbs: { label: string; dir?: string }[] = [{ label: t('panel.filePathRoot') }];
+        if (this.fileCurrentDir) {
+            let current = rootDir;
+            for (const part of relativeToDir(this.fileCurrentDir, rootDir).split('/').filter(Boolean)) {
+                current = `${current}/${part}`;
+                crumbs.push({ label: part, dir: current });
+            }
+        }
+        crumbs.forEach((crumb, index) => {
+            if (index > 0) trail.createSpan({ cls: 'task-detail-files-path-sep', text: '/' });
+            const crumbEl = trail.createSpan({ cls: 'task-detail-files-path-crumb', text: crumb.label });
+            crumbEl.toggleClass('is-current', index === crumbs.length - 1);
+            if (index < crumbs.length - 1) {
+                crumbEl.addClass('is-link');
+                crumbEl.addEventListener('click', () => this.openFileDir(crumb.dir));
+            }
+        });
+    }
+
+    /** 打开任务文件目录（undefined 表示回到根目录的单栏列表） */
+    private openFileDir(dir: string | undefined): void {
+        this.fileCurrentDir = dir;
+        this.render();
+    }
+
+    /** 当前目录的上一级；已在根目录时返回 undefined */
+    private fileParentDir(rootDir: string): string | undefined {
+        if (!this.fileCurrentDir) return undefined;
+        const index = this.fileCurrentDir.lastIndexOf('/');
+        const parent = index > 0 ? this.fileCurrentDir.slice(0, index) : '';
+        return parent && parent.length >= rootDir.length ? parent : undefined;
+    }
+
+    /** 渲染目录与文件混排列表（目录在前，按当前排序方式） */
+    private renderFileRows(listCard: HTMLElement, dir: string | undefined, selectedDir?: string): void {
         listCard.empty();
         if (!dir) {
             listCard.createDiv({ cls: 'task-section-empty', text: t('panel.taskLibraryRequired') });
             return;
         }
+        const folders = listTaskFolders(this.options.app, dir, this.fileSortMode);
         const files = listTaskFiles(this.options.app, dir, this.fileSortMode);
-        if (files.length === 0) {
+        if (folders.length === 0 && files.length === 0) {
             listCard.createDiv({ cls: 'task-section-empty', text: t('panel.fileEmpty') });
             return;
+        }
+        for (const folder of folders) {
+            const row = listCard.createDiv({ cls: 'task-detail-file-row is-dir' });
+            row.toggleClass('is-selected', folder.path === selectedDir);
+            setIcon(row.createSpan({ cls: 'task-detail-file-icon' }), 'folder');
+            const nameEl = row.createSpan({ cls: 'task-detail-file-name', text: folder.name });
+            nameEl.title = folder.path;
+            row.addEventListener('click', () => this.openFileDir(folder.path));
         }
         for (const file of files) {
             const row = listCard.createDiv({ cls: 'task-detail-file-row' });

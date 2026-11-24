@@ -10649,6 +10649,106 @@ button.task-detail-todo-tool-btn:disabled {
     overflow-y: auto;
 }
 
+/* 进入子目录后左右分栏：左=绑定根目录，右=当前目录 */
+.task-detail-files-split {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    gap: 10px;
+}
+
+.task-detail-files-split > .task-detail-files-list-card {
+    min-width: 0;
+}
+
+/* 当前相对路径行：上一级按钮 + 面包屑 */
+.task-detail-files-path {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 24px;
+    font-size: 12px;
+    color: var(--sdt-text-secondary, var(--text-muted));
+}
+
+button.task-detail-files-path-up {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    box-shadow: none;
+    color: var(--sdt-text-secondary, var(--text-muted));
+    cursor: pointer;
+}
+
+button.task-detail-files-path-up:hover:not(:disabled) {
+    background: var(--sdt-hover-bg, var(--background-modifier-hover));
+    color: var(--sdt-text-primary, var(--text-normal));
+}
+
+button.task-detail-files-path-up:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+button.task-detail-files-path-up svg {
+    width: 14px;
+    height: 14px;
+}
+
+.task-detail-files-path-label {
+    flex: 0 0 auto;
+}
+
+.task-detail-files-path-trail {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.task-detail-files-path-crumb {
+    flex: 0 0 auto;
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.task-detail-files-path-crumb.is-link {
+    cursor: pointer;
+    color: var(--text-accent);
+}
+
+.task-detail-files-path-crumb.is-link:hover {
+    text-decoration: underline;
+}
+
+.task-detail-files-path-crumb.is-current {
+    color: var(--sdt-text-primary, var(--text-normal));
+    font-weight: 600;
+}
+
+.task-detail-files-path-sep {
+    color: var(--text-faint);
+}
+
+/* 目录行：图标用强调色；选中目录高亮 */
+.task-detail-file-row.is-dir .task-detail-file-icon {
+    color: var(--interactive-accent);
+}
+
+.task-detail-file-row.is-selected {
+    background: var(--sdt-hover-bg, var(--background-modifier-hover));
+}
+
 .task-detail-file-row {
     display: flex;
     flex-direction: row;

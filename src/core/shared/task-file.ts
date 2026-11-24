@@ -1,5 +1,5 @@
 // 任务文件工具：绑定目录下的文件列表、文件名生成（供任务详情面板与任务板块面板共用）。
-import type { App, TFile } from 'obsidian';
+import { TFolder, type App, type TFile } from 'obsidian';
 
 /** 文件名的日期时间戳前缀（YYYY-MM-DD） */
 export function formatFileStamp(ts: number): string {
@@ -43,6 +43,20 @@ export function listTaskFiles(
         default:
             return files.sort((a, b) => b.stat.mtime - a.stat.mtime || byName(a, b));
     }
+}
+
+/** 绑定目录下的一级子目录（按名称排序，字母反序时倒序） */
+export function listTaskFolders(
+    app: App,
+    dir: string | undefined,
+    sort: TaskFileSortMode = 'name-asc',
+): TFolder[] {
+    if (!dir) return [];
+    const parent = app.vault.getAbstractFileByPath(dir);
+    if (!(parent instanceof TFolder)) return [];
+    const folders = parent.children.filter((child): child is TFolder => child instanceof TFolder);
+    const byName = (a: TFolder, b: TFolder): number => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+    return sort === 'name-desc' ? folders.sort((a, b) => byName(b, a)) : folders.sort(byName);
 }
 
 /** 文件路径相对绑定目录的展示文本（含子目录，如 子目录/文件.md）；不在该目录下时回退完整路径 */
