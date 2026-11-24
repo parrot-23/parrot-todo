@@ -11838,7 +11838,7 @@ button.task-record-dropdown-item.is-selected {
 
 .check-habit-row {
     display: grid;
-    grid-template-columns: minmax(120px, 1.4fr) repeat(7, 1fr);
+    grid-template-columns: minmax(120px, 1.4fr) repeat(7, 1fr) minmax(48px, 0.7fr);
     align-items: center;
     border-bottom: 1px solid var(--background-modifier-border);
 }
@@ -11868,6 +11868,20 @@ button.task-record-dropdown-item.is-selected {
 
 .check-habit-cell.is-off {
     color: var(--text-faint);
+}
+
+.check-habit-cell.is-total {
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    color: var(--sdt-text-secondary, var(--text-muted));
+}
+
+/* 表头第九列「完成情况」两行显示 */
+.check-habit-row.is-head .check-habit-cell.is-total {
+    white-space: pre-line;
+    line-height: 1.3;
+    padding-top: 4px;
+    padding-bottom: 4px;
 }
 
 .check-habit-day-name {

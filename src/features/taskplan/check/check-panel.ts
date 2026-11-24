@@ -45,7 +45,7 @@ export interface CheckPanelOptions extends Omit<FloatingPanelOptions, 'title'> {
 }
 
 /** 顶部选项卡 */
-type CheckTab = 'habits' | 'planVsActual' | 'taskAnalysis';
+type CheckTab = 'habits' | 'durationFlow' | 'planVsActual' | 'taskAnalysis';
 
 /** 周一至周日的文案 key（习惯表格表头） */
 const WEEKDAY_KEYS = [
@@ -68,6 +68,7 @@ interface ChartBlock {
 /** 检查面板 */
 export class CheckPanel extends FloatingPanel {
     private habitsTabEl!: HTMLElement;
+    private durationFlowTabEl!: HTMLElement;
     private planVsActualTabEl!: HTMLElement;
     private taskAnalysisTabEl!: HTMLElement;
     /** 内容区容器 */
@@ -91,10 +92,12 @@ export class CheckPanel extends FloatingPanel {
 
     private renderLayout(): void {
         const tabs = this.body.createDiv({ cls: 'plan-tabs' });
-        this.habitsTabEl = tabs.createDiv({ cls: 'plan-tab', text: t('interface.habit') });
         this.planVsActualTabEl = tabs.createDiv({ cls: 'plan-tab', text: t('panel.checkPlanVsActual') });
+        this.habitsTabEl = tabs.createDiv({ cls: 'plan-tab', text: t('interface.habit') });
+        this.durationFlowTabEl = tabs.createDiv({ cls: 'plan-tab', text: t('panel.checkDurationFlow') });
         this.taskAnalysisTabEl = tabs.createDiv({ cls: 'plan-tab', text: t('panel.checkTaskAnalysis') });
         this.habitsTabEl.addEventListener('click', () => this.switchTab('habits'));
+        this.durationFlowTabEl.addEventListener('click', () => this.switchTab('durationFlow'));
         this.planVsActualTabEl.addEventListener('click', () => this.switchTab('planVsActual'));
         this.taskAnalysisTabEl.addEventListener('click', () => this.switchTab('taskAnalysis'));
 
@@ -105,6 +108,7 @@ export class CheckPanel extends FloatingPanel {
     private switchTab(tab: CheckTab): void {
         this.tab = tab;
         this.habitsTabEl.toggleClass('is-active', tab === 'habits');
+        this.durationFlowTabEl.toggleClass('is-active', tab === 'durationFlow');
         this.planVsActualTabEl.toggleClass('is-active', tab === 'planVsActual');
         this.taskAnalysisTabEl.toggleClass('is-active', tab === 'taskAnalysis');
         this.renderPane();
@@ -113,8 +117,15 @@ export class CheckPanel extends FloatingPanel {
     private renderPane(): void {
         this.paneEl.empty();
         if (this.tab === 'habits') this.renderHabits();
+        if (this.tab === 'durationFlow') this.renderDurationFlow();
         if (this.tab === 'planVsActual') this.renderPlanVsActual();
         if (this.tab === 'taskAnalysis') this.renderTaskAnalysis();
+    }
+
+    // ===== 时长去向：周数切换 + 一周分类执行时长横条（左分类名称、右时长） =====
+    private renderDurationFlow(): void {
+        this.renderWeekNav();
+        this.renderCategoryBars(this.paneEl, t('panel.checkDurationFlowTitle'), this.execMinutesByCategory());
     }
 
     // ===== 习惯：周数切换 + 8 列表格（习惯名称 + 周一至周日是否完成） =====
@@ -142,6 +153,7 @@ export class CheckPanel extends FloatingPanel {
                 text: `${Number(dayKey.slice(5, 7))}/${Number(dayKey.slice(8, 10))}`,
             });
         }
+        head.createDiv({ cls: 'check-habit-cell is-total', text: t('panel.checkHabitDone') });
 
         if (habits.length === 0) {
             table.createDiv({ cls: 'check-habit-empty', text: t('panel.checkHabitsEmpty') });
@@ -151,6 +163,7 @@ export class CheckPanel extends FloatingPanel {
         for (const { task, habit } of habits) {
             const row = table.createDiv({ cls: 'check-habit-row' });
             row.createDiv({ cls: 'check-habit-cell is-name', text: task.name });
+            let doneCount = 0;
             for (let day = 1; day <= 7; day++) {
                 const cell = row.createDiv({ cls: 'check-habit-cell is-day' });
                 // 习惯未生效的星期：显示占位符，不参与完成状态
@@ -161,10 +174,13 @@ export class CheckPanel extends FloatingPanel {
                 }
                 const dayKey = makeDayKeyFromWeek(this.weekKey, day);
                 const done = this.panelOptions.taskExecutionRepo.isTaskCompleted(dayKey, task.id);
+                if (done) doneCount++;
                 const mark = cell.createSpan({ cls: 'check-habit-mark' });
                 mark.toggleClass('is-done', done);
                 setIcon(mark, done ? 'circle-check-big' : 'circle');
             }
+            // 第九列：本周完成天数 / 7
+            row.createDiv({ cls: 'check-habit-cell is-total', text: `${doneCount} / 7` });
         }
     }
 
