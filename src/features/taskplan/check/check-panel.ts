@@ -3,20 +3,19 @@
 // 习惯：周数切换 + 9 列表格（习惯名称 + 完成情况 + 周一至周日，标记当天是否完成）。
 // 计划vs对比：周数切换 + 计划分布（时间盒数据）/ 执行分布（任务执行记录），
 // 视觉复用二级视图（检查）的分布图样式（24 小时、2 小时一格、7 列）。
-import type { App } from 'obsidian';
 import { setIcon } from 'obsidian';
 
 import type { PrototypeTask, TaskHabit } from '../../../core/datatypes/prototype-task';
-import type { CardInstance } from '../../../core/datatypes/card';
-import type { CardTemplate } from '../../../core/datatypes/form';
-import type { ExecutionRecord, InboxItem } from '../../../core/datatypes/domain';
-import { renderCardContent } from '../../../charts/render-card';
-import { createDataProvider } from '../../../charts/engine/provider';
+import type { TaskExecutionRecord } from '../../../core/datatypes/task-execution';
+import type { BarDatum } from '../../../charts/primitives/types';
+import { renderBar } from '../../../charts/primitives/bar';
+import { renderHBars } from '../../../charts/primitives/hbar';
+import { renderTimeGrid } from '../../../charts/primitives/time-grid';
 import { t, getWeekDays } from '../../../core/i18n';
 import type { TimeBoxRepo } from '../../../core/repos/timebox-repo';
 import type { TaskExecutionRepo } from '../../../core/repos/task-execution-repo';
 import type { PlanCategoryData } from '../../../core/shared/plan-category-manager';
-import { UNCATEGORIZED_CATEGORY_ID } from '../../../core/shared/plan-category-manager';
+import { UNCATEGORIZED_CATEGORY_COLOR, UNCATEGORIZED_CATEGORY_ID } from '../../../core/shared/plan-category-manager';
 import { getTaskHabit } from '../../../core/shared/task-sections';
 import { findRootTaskId } from '../../../core/shared/task-tree-selection';
 import {
@@ -41,8 +40,6 @@ export interface CheckPanelOptions extends Omit<FloatingPanelOptions, 'title'> {
     taskExecutionRepo: TaskExecutionRepo;
     /** 原型任务数据源（用于按任务取分类颜色） */
     getTasks: () => PrototypeTask[];
-    /** Obsidian App（具体任务分析的图表渲染需要） */
-    app: App;
 }
 
 /** 顶部选项卡 */
@@ -162,59 +159,53 @@ export class CheckPanel extends FloatingPanel {
             })),
         ];
         const maxMinutes = Math.max(0, ...rows.map((row) => row.minutes));
-        const widthOf = (minutes: number, max: number): string =>
-            `${max > 0 ? (minutes / max) * 100 : 0}%`;
 
         const taskNames = new Map(this.panelOptions.getTasks().map((task) => [task.id, task.name]));
 
-        for (const row of rows) {
-            const rowEl = wrap.createDiv({ cls: 'check-cat-bars-row is-expandable' });
+        // 分类行与展开子行共用同一比例尺，保证父子横条长度可直接比较
+        const rowEls = renderHBars(
+            wrap,
+            rows.map((row) => ({ label: row.label, value: row.minutes, color: row.color })),
+            { scale: maxMinutes, formatValue: formatHours, rowInteractive: true },
+        );
+
+        rowEls.forEach((rowEl, index) => {
+            const row = rows[index];
             const expanded = this.durationFlowExpanded.has(row.id);
             rowEl.toggleClass('is-expanded', expanded);
-            setIcon(rowEl.createSpan({ cls: 'check-cat-bars-chevron' }),
-                expanded ? 'chevron-down' : 'chevron-right');
-            rowEl.createSpan({ cls: 'check-cat-bars-dot' }).setCssStyles({ background: row.color ?? '#888888' });
-            rowEl.createSpan({ cls: 'check-cat-bars-label', text: row.label });
-            const track = rowEl.createDiv({ cls: 'check-cat-bars-track is-plain' });
-            track.createDiv({ cls: 'check-cat-bars-fill' }).setCssProps({
-                '--fill-color': row.color ?? '#888888',
-                '--fill-width': widthOf(row.minutes, maxMinutes),
-            });
-            rowEl.createSpan({ cls: 'check-cat-bars-value', text: formatHours(row.minutes) });
+            // 箭头属于视图装饰：图元只负责行的视觉结构
+            const chevron = rowEl.createSpan({ cls: 'check-cat-bars-chevron' });
+            setIcon(chevron, expanded ? 'chevron-down' : 'chevron-right');
+            rowEl.prepend(chevron);
             rowEl.addEventListener('click', () => {
                 if (this.durationFlowExpanded.has(row.id)) this.durationFlowExpanded.delete(row.id);
                 else this.durationFlowExpanded.add(row.id);
                 this.renderPane();
             });
 
-            if (!expanded) continue;
+            if (!expanded) return;
             // 展开：该分类下本周有时长的根任务（子任务时长已归并到根任务），按时长降序
             const taskMinutes = Array.from(minutesByCatRoot.get(row.id)?.entries() ?? [])
                 .filter(([, minutes]) => minutes > 0)
                 .sort((a, b) => b[1] - a[1]);
             if (taskMinutes.length === 0) {
-                wrap.createDiv({ cls: 'check-cat-bars-sub-empty', text: t('panel.checkDurationFlowEmpty') });
-                continue;
+                const emptyEl = wrap.createDiv({ cls: 'check-cat-bars-sub-empty', text: t('panel.checkDurationFlowEmpty') });
+                rowEl.after(emptyEl);
+                return;
             }
             const subWrap = wrap.createDiv({ cls: 'check-cat-bars-sub' });
-            taskMinutes.forEach(([taskId, minutes]) => {
-                // 任务已删除时记录仍保留，统一归并为一条「已删除任务」
-                const name = taskNames.get(taskId) ?? t('panel.checkRecordsUnknownTask');
-                const subRow = subWrap.createDiv({ cls: 'check-cat-bars-sub-row' });
-                subRow.createSpan({
-                    cls: 'check-cat-bars-sub-label',
-                    text: name,
-                    attr: { title: name },
-                });
-                const subTrack = subRow.createDiv({ cls: 'check-cat-bars-sub-track' });
-                subTrack.createDiv({ cls: 'check-cat-bars-fill' }).setCssProps({
-                    '--fill-color': row.color ?? '#888888',
-                    // 与分类横条共用同一比例尺
-                    '--fill-width': widthOf(minutes, maxMinutes),
-                });
-                subRow.createSpan({ cls: 'check-cat-bars-sub-value', text: formatHours(minutes) });
-            });
-        }
+            renderHBars(
+                subWrap,
+                taskMinutes.map(([taskId, minutes]) => ({
+                    // 任务已删除时记录仍保留，统一归并为一条「已删除任务」
+                    label: taskNames.get(taskId) ?? t('panel.checkRecordsUnknownTask'),
+                    value: minutes,
+                    color: row.color,
+                })),
+                { scale: maxMinutes, formatValue: formatHours, variant: 'small' },
+            );
+            rowEl.after(subWrap);
+        });
     }
 
     // ===== 习惯：周数切换 + 9 列表格（习惯名称 + 完成情况 + 周一至周日是否完成） =====
@@ -337,46 +328,26 @@ export class CheckPanel extends FloatingPanel {
         };
         collect(rootId);
 
-        const provider = createDataProvider(
-            () => [],
-            () => this.analysisExecutions(ids),
-            () => this.analysisItems(),
-            () => this.panelOptions.categoryData.categories,
-        );
+        // 任务 id → 名称 / 分类颜色（一次构建，避免逐条查找）
+        const categoryColor = new Map(this.panelOptions.categoryData.categories.map((cat) => [cat.id, cat.color]));
+        const taskTitle = new Map(tasks.map((task) => [task.id, task.name]));
+        const taskColor = new Map(tasks.map((task) => [
+            task.id,
+            (task.categoryId ? categoryColor.get(task.categoryId) : undefined) ?? UNCATEGORIZED_CATEGORY_COLOR,
+        ]));
+
+        const executions = this.panelOptions.taskExecutionRepo.records
+            .filter((record) => ids.has(record.taskId));
 
         const render = (width: number): void => {
             const plotWidth = Math.max(32, width - 34 - 8);
             const windowWeeks = Math.max(1, Math.min(104, Math.floor(plotWidth / 64) + 1));
-            const template: CardTemplate = {
-                id: 'task-analysis-chart',
-                name: t('panel.checkTaskAnalysis'),
-                mode: 'chart',
-                renderer: 'stats',
-                source: {
-                    dataSource: 'executions',
-                    aggregation: 'by-week',
-                    chart: 'bar',
-                    params: {
-                        metric: 'duration',
-                        windowWeeks,
-                        shortLabel: true,
-                        showAxes: true,
-                        yUnit: 'hours',
-                        width,
-                        stackedByTask: true,
-                    },
-                },
-            };
-            const instance: CardInstance = {
-                id: `task_analysis_${rootId}`,
-                templateId: 'task-analysis-chart',
-                mode: 'chart',
-            };
-            renderCardContent(container, instance, template, {
-                app: this.panelOptions.app,
-                save: async () => { /* 只读图表，无需保存 */ },
-                refresh: () => this.renderPane(),
-                provider,
+            const { data, monthLabels } = this.weeklyDurationData(executions, windowWeeks, taskTitle, taskColor);
+            renderBar(container, data, {
+                width,
+                showAxes: true,
+                yAxisUnit: 'hours',
+                monthLabels,
             });
         };
 
@@ -387,35 +358,69 @@ export class CheckPanel extends FloatingPanel {
         }
     }
 
-    /** 执行记录 → 图表数据（限定任务子树，补齐周键与当天分钟数） */
-    private analysisExecutions(ids: Set<string>): ExecutionRecord[] {
-        return this.panelOptions.taskExecutionRepo.records
-            .filter((record) => ids.has(record.taskId))
-            .map((record) => {
-                const start = new Date(record.startAt);
-                const dayStart = new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime();
-                return {
-                    id: record.id,
-                    inboxId: record.taskId,
-                    day: 0,
-                    start: (record.startAt - dayStart) / 60000,
-                    end: (record.endAt - dayStart) / 60000,
-                    weekKey: makeWeekKey(start.getFullYear(), getISOWeek(start)),
-                };
-            });
-    }
+    /**
+     * 按周聚合执行时长：最近 N 周连续占位（无数据周为 0），每周内按任务堆叠。
+     * 同时给出月份标签数组（与数据等长，进入新月份的位置才有值）。
+     */
+    private weeklyDurationData(
+        records: TaskExecutionRecord[],
+        windowWeeks: number,
+        taskTitle: Map<string, string>,
+        taskColor: Map<string, string>,
+    ): { data: BarDatum[]; monthLabels: (string | undefined)[] } {
+        // 周键 → 总时长；周键 → (任务 id → 时长)
+        const totals = new Map<string, number>();
+        const byTask = new Map<string, Map<string, number>>();
+        for (const record of records) {
+            const start = new Date(record.startAt);
+            const weekKey = makeWeekKey(start.getFullYear(), getISOWeek(start));
+            const minutes = Math.max(0, (record.endAt - record.startAt) / 60000);
+            totals.set(weekKey, (totals.get(weekKey) ?? 0) + minutes);
+            let taskMap = byTask.get(weekKey);
+            if (!taskMap) {
+                taskMap = new Map<string, number>();
+                byTask.set(weekKey, taskMap);
+            }
+            taskMap.set(record.taskId, (taskMap.get(record.taskId) ?? 0) + minutes);
+        }
 
-    /** 原型任务 → 图表任务列表（用于柱内按任务堆叠与取分类颜色） */
-    private analysisItems(): InboxItem[] {
-        return this.panelOptions.getTasks().map((task) => ({
-            id: task.id,
-            title: task.name,
-            description: task.description ?? '',
-            categoryId: task.categoryId,
-            parentId: task.parentId,
-            createdAt: task.createdAt,
-            status: task.status,
-        }));
+        // 最近 N 周连续占位
+        const weekKeys: string[] = [];
+        let cursor = getCurrentWeekKey();
+        for (let i = 0; i < windowWeeks; i++) {
+            weekKeys.unshift(cursor);
+            cursor = shiftWeekKey(cursor, -1);
+        }
+
+        const data: BarDatum[] = weekKeys.map((weekKey) => {
+            const { week } = parseWeekKey(weekKey);
+            const taskMap = byTask.get(weekKey);
+            return {
+                label: `W${String(week).padStart(2, '0')}`,
+                value: Math.round(totals.get(weekKey) ?? 0),
+                weekKey,
+                segments: taskMap
+                    ? Array.from(taskMap.entries())
+                        .map(([taskId, minutes]) => ({
+                            label: taskTitle.get(taskId) ?? taskId,
+                            value: Math.round(minutes),
+                            color: taskColor.get(taskId),
+                        }))
+                        .sort((a, b) => b.value - a.value)
+                    : undefined,
+            };
+        });
+
+        // 月份标签：进入新月份的位置显示月份名
+        const monthLabels: (string | undefined)[] = [];
+        let prevMonth = -1;
+        for (const weekKey of weekKeys) {
+            const month = Number(makeDayKeyFromWeek(weekKey, 1).slice(5, 7));
+            monthLabels.push(month !== prevMonth ? `${month}月` : undefined);
+            prevMonth = month;
+        }
+
+        return { data, monthLabels };
     }
 
     // ===== 任务记录：已迁移到统计面板 =====
@@ -557,35 +562,26 @@ export class CheckPanel extends FloatingPanel {
         const section = body.createDiv({ cls: 'check-daily-section' });
         section.createDiv({ cls: 'check-daily-section-title', text: title });
 
-        const chart = section.createDiv({ cls: 'check-plan-chart' });
-
-        // 左侧时间刻度（每 2 小时一格，共 12 格）
-        const axis = chart.createDiv({ cls: 'check-plan-chart-axis' });
-        for (let hour = 0; hour < 24; hour += 2) {
-            axis.createDiv({ cls: 'check-plan-chart-axis-cell' })
-                .setText(`${String(hour).padStart(2, '0')}:00`);
-        }
-
-        const cols = chart.createDiv({ cls: 'check-plan-chart-cols' });
         const weekDays = getWeekDays();
+        const blocks = [];
         for (let day = 1; day <= 7; day++) {
-            const col = cols.createDiv({ cls: 'check-plan-chart-col' });
-            col.createDiv({ cls: 'check-plan-chart-col-title', text: weekDays[day - 1] });
-
-            const track = col.createDiv({ cls: 'check-plan-chart-track' });
             for (const block of blocksByDay.get(day) ?? []) {
                 const category = block.categoryId
                     ? this.panelOptions.categoryData.categories.find((item) => item.id === block.categoryId)
                     : undefined;
-                const blockEl = track.createDiv({ cls: 'check-plan-chart-block' });
-                blockEl.setCssProps({
-                    '--block-color': category?.color ?? '#888888',
-                    '--block-top': `${(block.start / 1440) * 100}%`,
-                    '--block-height': `${(Math.max(0, block.end - block.start) / 1440) * 100}%`,
+                blocks.push({
+                    column: String(day),
+                    start: block.start,
+                    end: block.end,
+                    color: category?.color ?? '#888888',
+                    title: `${category?.label ?? t('inbox.noCategory')} ${formatMinutes(block.start)}-${formatMinutes(block.end)}`,
                 });
-                blockEl.setAttribute('title', `${category?.label ?? t('inbox.noCategory')} ${formatMinutes(block.start)}-${formatMinutes(block.end)}`);
             }
         }
+        renderTimeGrid(section, {
+            columns: weekDays.map((label, index) => ({ key: String(index + 1), label })),
+            blocks,
+        });
 
         if (categorySummary) {
             this.renderCategoryBars(
@@ -682,38 +678,17 @@ export class CheckPanel extends FloatingPanel {
             })),
         ];
         const maxMinutes = Math.max(0, ...rows.map((row) => Math.max(row.actual, row.plan)));
-        const widthOf = (minutes: number): string =>
-            `${maxMinutes > 0 ? (minutes / maxMinutes) * 100 : 0}%`;
-
-        for (const row of rows) {
-            const rowEl = wrap.createDiv({ cls: 'check-cat-bars-row' });
-            rowEl.createSpan({ cls: 'check-cat-bars-dot' }).setCssStyles({ background: row.color ?? '#888888' });
-            rowEl.createSpan({ cls: 'check-cat-bars-label', text: row.label });
-            if (planMinutesByCat) {
-                // 每类两条：上方灰色为计划时长，下方分类色为执行时长
-                const bars = rowEl.createDiv({ cls: 'check-cat-bars-dual' });
-                bars.createDiv({ cls: 'check-cat-bars-dual-line is-plan' })
-                    .createDiv({ cls: 'check-cat-bars-dual-fill' })
-                    .setCssProps({ '--fill-width': widthOf(row.plan) });
-                bars.createDiv({ cls: 'check-cat-bars-dual-line' })
-                    .createDiv({ cls: 'check-cat-bars-dual-fill' })
-                    .setCssProps({
-                        '--fill-color': row.color ?? '#888888',
-                        '--fill-width': widthOf(row.actual),
-                    });
-                rowEl.createSpan({
-                    cls: 'check-cat-bars-value is-dual',
-                    text: `${formatHours(row.actual)} / ${formatHours(row.plan)}`,
-                });
-            } else {
-                const track = rowEl.createDiv({ cls: 'check-cat-bars-track is-plain' });
-                track.createDiv({ cls: 'check-cat-bars-fill' }).setCssProps({
-                    '--fill-color': row.color ?? '#888888',
-                    '--fill-width': widthOf(row.actual),
-                });
-                rowEl.createSpan({ cls: 'check-cat-bars-value', text: formatHours(row.actual) });
-            }
-        }
+        renderHBars(
+            wrap,
+            rows.map((row) => ({
+                label: row.label,
+                value: row.actual,
+                color: row.color,
+                // 有对比数据时该行渲染为「计划 / 执行」双条
+                compare: planMinutesByCat ? row.plan : undefined,
+            })),
+            { scale: maxMinutes, formatValue: formatHours },
+        );
     }
 }
 

@@ -1,7 +1,8 @@
+// @experimental 声明式卡片管线：当前无业务消费方，禁止新代码引用，后续随卡片工作台决策增删。
 // stats 模式渲染器：定义数据来源，展示统计信息（数字卡 + 可选图表）。
 import type { CardRenderer } from '../../core/datatypes/renderer';
-import { aggregate } from '../engine/aggregators';
-import { renderChart, renderHeatmap, renderRadar, renderScatter, renderFunnel, renderWordCloud } from '../drawer/chart-render-draw';
+import { aggregate } from './aggregators';
+import { renderChart, renderHeatmap, renderRadar, renderScatter, renderFunnel, renderWordCloud } from './drawers';
 
 export const statsCardRenderer: CardRenderer = {
     render(container, instance, template, ctx) {

@@ -425,7 +425,6 @@ export class InterfaceView {
             };
             this.checkPanel = new CheckPanel({
                 container: this.panelContainer,
-                app: this.app,
                 categoryData: this.categoryData,
                 timeBoxRepo: holder.timeBoxRepo,
                 taskExecutionRepo: this.taskExecutionRepo,

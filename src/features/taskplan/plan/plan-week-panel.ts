@@ -9,6 +9,7 @@ import { setIcon } from 'obsidian';
 
 import type { TaskStatus } from '../../../core/datatypes/domain';
 import type { PrototypeTask, TaskDayGoalEntry } from '../../../core/datatypes/prototype-task';
+import { renderHBars } from '../../../charts/primitives/hbar';
 import { t } from '../../../core/i18n';
 import type { PlanAssignmentRepo } from '../../../core/repos/plan-assignment-repo';
 import type { TaskExecutionRepo } from '../../../core/repos/task-execution-repo';
@@ -954,18 +955,11 @@ export class PlanWeekPanel extends FloatingPanel {
                 : []),
         ];
         const maxMinutes = Math.max(0, ...rows.map((row) => row.minutes));
-
-        for (const row of rows) {
-            const rowEl = wrap.createDiv({ cls: 'check-cat-bars-row' });
-            rowEl.createSpan({ cls: 'check-cat-bars-dot' }).setCssStyles({ background: row.color ?? '#888888' });
-            rowEl.createSpan({ cls: 'check-cat-bars-label', text: row.label });
-            const track = rowEl.createDiv({ cls: 'check-cat-bars-track is-plain' });
-            track.createDiv({ cls: 'check-cat-bars-fill' }).setCssProps({
-                '--fill-color': row.color ?? '#888888',
-                '--fill-width': `${maxMinutes > 0 ? (row.minutes / maxMinutes) * 100 : 0}%`,
-            });
-            rowEl.createSpan({ cls: 'check-cat-bars-value', text: this.formatMinutesShort(row.minutes) });
-        }
+        renderHBars(
+            wrap,
+            rows.map((row) => ({ label: row.label, value: row.minutes, color: row.color })),
+            { scale: maxMinutes, formatValue: (minutes) => this.formatMinutesShort(minutes) },
+        );
     }
 
     /** 分钟数格式化为「Xh」/「Xm」（与检查面板分类时长一致） */

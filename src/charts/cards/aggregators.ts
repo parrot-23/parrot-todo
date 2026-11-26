@@ -1,3 +1,4 @@
+// @experimental 声明式卡片管线：当前无业务消费方，禁止新代码引用，后续随卡片工作台决策增删。
 // 统计聚合：按 source.dataSource（数据源）+ source.aggregation（聚合方式）分发，
 // 从 DataProvider 读取规范数据并聚合出指标。
 // 输出两类结果：数字指标（StatItem[]）与图表序列（ChartSeries），

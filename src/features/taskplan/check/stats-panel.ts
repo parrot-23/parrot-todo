@@ -5,6 +5,7 @@
 import { setIcon } from 'obsidian';
 
 import type { PrototypeTask } from '../../../core/datatypes/prototype-task';
+import { renderPie } from '../../../charts/primitives/pie';
 import { t, getWeekDays } from '../../../core/i18n';
 import type { TaskExecutionRepo } from '../../../core/repos/task-execution-repo';
 import type { PlanCategoryData } from '../../../core/shared/plan-category-manager';
@@ -222,77 +223,32 @@ export class StatsPanel extends FloatingPanel {
 
         const content = box.createDiv({ cls: 'today-task-share-content' });
 
-        const pie = content.createDiv({ cls: 'today-task-share-pie' });
-        const svgNs = 'http://www.w3.org/2000/svg';
-        const svg = document.createElementNS(svgNs, 'svg');
-        svg.setAttribute('viewBox', '0 0 100 100');
-        svg.setAttribute('class', 'today-task-share-svg');
-        pie.appendChild(svg);
+        // 任务 id → 任务 / 分类色（一次构建，避免逐条查找）
+        const taskById = new Map(this.panelOptions.getTasks().map((task) => [task.id, task]));
+        const categoryColor = new Map(this.panelOptions.categoryData.categories.map((cat) => [cat.id, cat.color]));
+        const colorOf = (taskId: string): string => {
+            const task = taskById.get(taskId);
+            return (task?.categoryId ? categoryColor.get(task.categoryId) : undefined) ?? '#888888';
+        };
+        const nameOf = (taskId: string): string => taskById.get(taskId)?.name ?? t('inbox.noCategory');
 
-        const cx = 50;
-        const cy = 50;
-        const r = 50;
-        const dividerWidth = 2;
-        const slices: { label: string; midDeg: number; ratio: number }[] = [];
-        let acc = 0;
-        for (const [taskId, minutes] of Array.from(minutesByTask.entries())) {
-            const task = this.panelOptions.getTasks().find((item) => item.id === taskId);
-            const cat = task?.categoryId
-                ? this.panelOptions.categoryData.categories.find((item) => item.id === task.categoryId)
-                : undefined;
-            const color = cat?.color ?? '#888888';
-            const startDeg = (acc / totalMinutes) * 360;
-            acc += minutes;
-            const endDeg = (acc / totalMinutes) * 360;
+        const entries = Array.from(minutesByTask.entries());
+        renderPie(
+            content,
+            entries.map(([taskId, minutes]) => ({
+                label: nameOf(taskId),
+                value: minutes,
+                color: colorOf(taskId),
+            })),
+            { size: 160, sliceLabels: true, minLabelRatio: 0.06 },
+        );
 
-            const path = document.createElementNS(svgNs, 'path');
-            path.setAttribute('d', describePieSlice(cx, cy, r, startDeg, endDeg));
-            path.setAttribute('fill', color);
-            svg.appendChild(path);
-
-            slices.push({
-                label: task?.name ?? t('inbox.noCategory'),
-                midDeg: (startDeg + endDeg) / 2,
-                ratio: minutes / totalMinutes,
-            });
-        }
-
-        if (minutesByTask.size > 1) {
-            let boundaryDeg = 0;
-            for (const minutes of Array.from(minutesByTask.values())) {
-                const rad = ((boundaryDeg - 90) * Math.PI) / 180;
-                const line = document.createElementNS(svgNs, 'line');
-                line.setAttribute('x1', String(cx));
-                line.setAttribute('y1', String(cy));
-                line.setAttribute('x2', String(cx + r * Math.cos(rad)));
-                line.setAttribute('y2', String(cy + r * Math.sin(rad)));
-                line.setAttribute('stroke', '#ffffff');
-                line.setAttribute('stroke-width', String(dividerWidth));
-                svg.appendChild(line);
-                boundaryDeg += (minutes / totalMinutes) * 360;
-            }
-        }
-
-        for (const slice of slices) {
-            if (slice.ratio < 0.06) continue;
-            const label = pie.createDiv({ cls: 'today-task-share-slice-label', text: slice.label });
-            label.setCssProps({ '--slice-angle': `${slice.midDeg}deg` });
-        }
-
+        // 右侧列表：按时长降序
         const list = content.createDiv({ cls: 'today-task-share-list' });
-        const sortedEntries = Array.from(minutesByTask.entries()).sort((a, b) => b[1] - a[1]);
-        for (const [taskId, minutes] of sortedEntries) {
-            const task = this.panelOptions.getTasks().find((item) => item.id === taskId);
-            const cat = task?.categoryId
-                ? this.panelOptions.categoryData.categories.find((item) => item.id === task.categoryId)
-                : undefined;
-            const color = cat?.color ?? '#888888';
-            const label = task?.name ?? t('inbox.noCategory');
-
+        for (const [taskId, minutes] of entries.slice().sort((a, b) => b[1] - a[1])) {
             const row = list.createDiv({ cls: 'today-task-share-row' });
-            const dot = row.createSpan({ cls: 'today-task-share-dot' });
-            dot.setCssProps({ '--dot-color': color });
-            row.createSpan({ cls: 'today-task-share-name', text: label });
+            row.createSpan({ cls: 'today-task-share-dot' }).setCssProps({ '--dot-color': colorOf(taskId) });
+            row.createSpan({ cls: 'today-task-share-name', text: nameOf(taskId) });
             row.createSpan({ cls: 'today-task-share-value', text: formatHours(minutes) });
         }
     }
@@ -428,22 +384,6 @@ export class StatsPanel extends FloatingPanel {
             setIcon(button, 'copy');
         }, 1200);
     }
-}
-
-/** 生成 SVG 饼图扇区路径（从 12 点方向顺时针计算角度） */
-function describePieSlice(cx: number, cy: number, r: number, startDeg: number, endDeg: number): string {
-    const span = endDeg - startDeg;
-    if (span >= 359.999) {
-        return `M ${cx} ${cy - r} A ${r} ${r} 0 1 1 ${cx - 0.01} ${cy - r} Z`;
-    }
-    const toPoint = (deg: number) => {
-        const rad = ((deg - 90) * Math.PI) / 180;
-        return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
-    };
-    const p0 = toPoint(startDeg);
-    const p1 = toPoint(endDeg);
-    const largeArc = span > 180 ? 1 : 0;
-    return `M ${cx} ${cy} L ${p0.x} ${p0.y} A ${r} ${r} 0 ${largeArc} 1 ${p1.x} ${p1.y} Z`;
 }
 
 /** 分钟数 → 小时（保留一位小数，如 1.5h） */

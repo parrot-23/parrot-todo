@@ -1571,55 +1571,7 @@ button.parrot-plan-nav-help-btn {
     margin-bottom: 2px;
 }
 
-.check-cat-bars-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    min-width: 0;
-}
-
-.check-cat-bars-dot {
-    flex: 0 0 auto;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-}
-
-.check-cat-bars-label {
-    flex: 0 0 64px;
-    min-width: 0;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-    font-size: 12px;
-    color: var(--sdt-text-secondary, var(--text-muted));
-}
-
-.check-cat-bars-track {
-    flex: 1 1 0;
-    min-width: 0;
-    height: 8px;
-    border-radius: 999px;
-    background: var(--background-modifier-hover, rgba(127, 127, 127, 0.15));
-    overflow: hidden;
-}
-
-.check-cat-bars-track.is-plain {
-    background: transparent;
-}
-
 /* 时长去向：分类行可展开，子行为该分类下各事项的时长 */
-.check-cat-bars-row.is-expandable {
-    cursor: pointer;
-    padding: 2px 4px;
-    margin: 0 -4px;
-    border-radius: 4px;
-}
-
-.check-cat-bars-row.is-expandable:hover {
-    background: var(--background-modifier-hover, rgba(127, 127, 127, 0.08));
-}
-
 .check-cat-bars-chevron {
     flex: 0 0 auto;
     display: inline-flex;
@@ -1639,91 +1591,10 @@ button.parrot-plan-nav-help-btn {
     padding: 2px 0 4px 12px;
 }
 
-.check-cat-bars-sub-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    min-width: 0;
-}
-
-.check-cat-bars-sub-label {
-    flex: 0 0 84px;
-    min-width: 0;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-    font-size: 11px;
-    color: var(--sdt-text-secondary, var(--text-muted));
-}
-
-.check-cat-bars-sub-track {
-    flex: 1 1 0;
-    min-width: 0;
-    height: 6px;
-    border-radius: 999px;
-    background: transparent;
-    overflow: hidden;
-}
-
-.check-cat-bars-sub-value {
-    /* 与分类行数值列同宽，保证两侧轨道等长、同比例时长对应同长度 */
-    flex: 0 0 40px;
-    min-width: 40px;
-    text-align: right;
-    font-size: 11px;
-    font-variant-numeric: tabular-nums;
-    color: var(--sdt-text-secondary, var(--text-muted));
-}
-
 .check-cat-bars-sub-empty {
     padding: 2px 0 4px 22px;
     font-size: 11px;
     color: var(--text-faint);
-}
-
-/* 执行图：每类上下两条柱（灰色计划 / 分类色执行） */
-.check-cat-bars-dual {    flex: 1 1 0;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-}
-
-.check-cat-bars-dual-line {
-    height: 6px;
-    border-radius: 999px;
-    overflow: hidden;
-}
-
-.check-cat-bars-dual-fill {
-    height: 100%;
-    width: var(--fill-width, 0%);
-    border-radius: inherit;
-    background: var(--fill-color, #888888);
-}
-
-.check-cat-bars-dual-line.is-plan .check-cat-bars-dual-fill {
-    background: var(--background-modifier-border, rgba(127, 127, 127, 0.35));
-}
-
-.check-cat-bars-value.is-dual {
-    min-width: 72px;
-}
-
-.check-cat-bars-fill {
-    height: 100%;
-    width: var(--fill-width, 0%);
-    background: var(--fill-color, #888888);
-    border-radius: inherit;
-}
-
-.check-cat-bars-value {
-    flex: 0 0 auto;
-    min-width: 40px;
-    text-align: right;
-    font-size: 12px;
-    font-variant-numeric: tabular-nums;
-    color: var(--sdt-text-secondary, var(--text-muted));
 }
 
 .check-daily-block {
@@ -1879,87 +1750,6 @@ button.parrot-plan-nav-help-btn {
     flex-direction: row;
     gap: 16px;
     align-items: flex-start;
-}
-
-/* 详细模式：分布图（周一到周日，纵向 24 小时） */
-.check-plan-chart {
-    display: flex;
-    flex-direction: row;
-    gap: 8px;
-    height: 320px;
-    /* 固定宽度，不随父容器变化，保证大小稳定 */
-    flex: 0 0 320px;
-    width: 320px;
-    box-sizing: border-box;
-}
-
-/* 左侧时间刻度 */
-.check-plan-chart-axis {
-    flex-shrink: 0;
-    width: 44px;
-    display: flex;
-    flex-direction: column;
-    /* 与列标题高度对齐 */
-    padding-top: 22px;
-    box-sizing: border-box;
-}
-
-.check-plan-chart-axis-cell {
-    flex: 1;
-    font-size: 10px;
-    color: var(--text-faint);
-    text-align: right;
-    padding-right: 4px;
-    /* 刻度文字对齐格子顶部 */
-    transform: translateY(-50%);
-}
-
-/* 7 列容器 */
-.check-plan-chart-cols {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: row;
-    gap: 6px;
-}
-
-.check-plan-chart-col {
-    flex: 1 1 0;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-}
-
-.check-plan-chart-col-title {
-    flex-shrink: 0;
-    height: 22px;
-    line-height: 22px;
-    text-align: center;
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--sdt-text-primary, var(--text-normal));
-}
-
-/* 列主体：24 小时背景轨道 */
-.check-plan-chart-track {
-    position: relative;
-    flex: 1;
-    min-height: 0;
-    border: 1px solid var(--sdt-card-border, var(--background-modifier-border));
-    border-radius: 4px;
-    background: var(--sdt-card-bg, var(--background-secondary));
-    overflow: hidden;
-}
-
-/* 时间区块：按分类颜色填充 */
-.check-plan-chart-block {
-    position: absolute;
-    left: 0;
-    right: 0;
-    top: var(--block-top, 0);
-    height: var(--block-height, 0);
-    background-color: var(--block-color, #888888);
-    opacity: 0.85;
 }
 
 /* 详细模式：执行记录文字列表 */
@@ -3030,43 +2820,6 @@ button.parrot-plan-nav-help-btn {
     display: flex;
     align-items: center;
     gap: 16px;
-}
-
-.today-task-share-pie {
-    position: relative;
-    flex-shrink: 0;
-    width: 160px;
-    height: 160px;
-    border-radius: 50%;
-    /* 白色底：扇区之间的角度间隙露出白色，形成清晰隔离边界 */
-    background: #ffffff;
-}
-
-.today-task-share-svg {
-    display: block;
-    width: 100%;
-    height: 100%;
-}
-
-/* 扇形上的任务名标签：按扇区中心角度旋转定位到半径中部 */
-.today-task-share-slice-label {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    max-width: 64px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-size: 10px;
-    line-height: 1.2;
-    color: #ffffff;
-    text-shadow: 0 0 2px rgba(0, 0, 0, 0.6);
-    pointer-events: none;
-    transform:
-        rotate(var(--slice-angle, 0deg))
-        translateY(-58px)
-        rotate(calc(-1 * var(--slice-angle, 0deg)))
-        translateX(-50%);
 }
 
 .today-task-share-list {
@@ -6267,6 +6020,245 @@ button.swimlane-section-card-settings {
 .wb-card-history-val {
     color: var(--sdt-text-secondary, var(--text-muted));
     word-break: break-word;
+}
+
+/* ===== 图元：横向条（charts/primitives/hbar） ===== */
+.wb-hbar-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+/* 可点击行（展开 / 跳转）：仅视觉反馈，事件由调用方绑定 */
+.wb-hbar-row.is-clickable {
+    cursor: pointer;
+    padding: 2px 4px;
+    margin: 0 -4px;
+    border-radius: 4px;
+}
+
+.wb-hbar-row.is-clickable:hover {
+    background: var(--background-modifier-hover, rgba(127, 127, 127, 0.08));
+}
+
+.wb-hbar-dot {
+    flex: 0 0 auto;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.wb-hbar-label {
+    flex: 0 0 64px;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: 12px;
+    color: var(--sdt-text-secondary, var(--text-muted));
+}
+
+.wb-hbar-track {
+    flex: 1 1 0;
+    min-width: 0;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--background-modifier-hover, rgba(127, 127, 127, 0.15));
+    overflow: hidden;
+}
+
+.wb-hbar-track.is-plain {
+    background: transparent;
+}
+
+.wb-hbar-fill {
+    height: 100%;
+    width: var(--fill-width, 0%);
+    background: var(--fill-color, #888888);
+    border-radius: inherit;
+}
+
+/* 双条：上灰（对比值）/ 下分类色（主值） */
+.wb-hbar-dual {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.wb-hbar-dual-line {
+    height: 6px;
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.wb-hbar-dual-fill {
+    height: 100%;
+    width: var(--fill-width, 0%);
+    border-radius: inherit;
+    background: var(--fill-color, #888888);
+}
+
+.wb-hbar-dual-line.is-plan .wb-hbar-dual-fill {
+    background: var(--background-modifier-border, rgba(127, 127, 127, 0.35));
+}
+
+.wb-hbar-value {
+    flex: 0 0 auto;
+    min-width: 40px;
+    text-align: right;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    color: var(--sdt-text-secondary, var(--text-muted));
+}
+
+.wb-hbar-value.is-dual {
+    min-width: 72px;
+}
+
+/* 子行（展开后的任务时长）：更细的轨道与更小的字号 */
+.wb-hbar-label.is-small {
+    flex: 0 0 84px;
+    font-size: 11px;
+}
+
+.wb-hbar-track.is-small {
+    height: 6px;
+    background: transparent;
+}
+
+.wb-hbar-value.is-small {
+    flex: 0 0 40px;
+    min-width: 40px;
+    font-size: 11px;
+}
+
+.wb-hbar-empty {
+    padding: 2px 0 4px;
+    font-size: 11px;
+    color: var(--text-faint);
+}
+
+/* ===== 图元：时间轴轨道（charts/primitives/time-grid） ===== */
+.wb-timegrid {
+    display: flex;
+    flex-direction: row;
+    gap: 8px;
+    box-sizing: border-box;
+}
+
+/* 左侧时间刻度 */
+.wb-timegrid-axis {
+    flex-shrink: 0;
+    width: 44px;
+    display: flex;
+    flex-direction: column;
+    /* 与列标题高度对齐 */
+    padding-top: 22px;
+    box-sizing: border-box;
+}
+
+.wb-timegrid-axis-cell {
+    flex: 1;
+    font-size: 10px;
+    color: var(--text-faint);
+    text-align: right;
+    padding-right: 4px;
+    /* 刻度文字对齐格子顶部 */
+    transform: translateY(-50%);
+}
+
+.wb-timegrid-cols {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: row;
+    gap: 6px;
+}
+
+.wb-timegrid-col {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.wb-timegrid-col-title {
+    flex-shrink: 0;
+    height: 22px;
+    line-height: 22px;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--sdt-text-primary, var(--text-normal));
+}
+
+.wb-timegrid-track {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    border: 1px solid var(--sdt-card-border, var(--background-modifier-border));
+    border-radius: 4px;
+    background: var(--sdt-card-bg, var(--background-secondary));
+    overflow: hidden;
+}
+
+.wb-timegrid-block {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: var(--block-top, 0);
+    height: var(--block-height, 0);
+    background-color: var(--block-color, #888888);
+    opacity: 0.85;
+}
+
+/* ===== 图元：饼图 / 环形图（charts/primitives/pie） ===== */
+.wb-pie {
+    position: relative;
+    flex-shrink: 0;
+    border-radius: 50%;
+    /* 白色底：扇区之间的角度间隙露出白色，形成清晰隔离边界 */
+    background: #ffffff;
+}
+
+.wb-pie-svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+/* 扇形上的标签：按扇区中心角度旋转定位到半径中部 */
+.wb-pie-slice-label {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    max-width: 64px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 10px;
+    line-height: 1.2;
+    color: #ffffff;
+    text-shadow: 0 0 2px rgba(0, 0, 0, 0.6);
+    pointer-events: none;
+    transform:
+        rotate(var(--slice-angle, 0deg))
+        translateY(calc(-1 * var(--slice-radius, 58px)))
+        rotate(calc(-1 * var(--slice-angle, 0deg)))
+        translateX(-50%);
+}
+
+.wb-pie-divider {
+    stroke: #ffffff;
+    stroke-width: 2;
+}
+
+.wb-pie-empty {
+    font-size: 12px;
+    color: var(--sdt-text-secondary, var(--text-muted));
 }
 
 /* 统计图表 */
