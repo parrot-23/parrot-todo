@@ -10,7 +10,7 @@
 //   - 说话反馈改为立绘上跳震动（bump-0 / bump-1 交替），不再高亮 / 淡化；
 //   - 气泡抬头按角色散列配色（我=白、旁白=蓝）；
 //   - 播放节奏一律取引擎 DEFAULT_PLAYBACK_TIMING（§4.5），连续立绘合并为一组。
-import { setIcon } from 'obsidian';
+import { Notice, setIcon } from 'obsidian';
 
 import { t } from '../../core/i18n';
 import {
@@ -672,6 +672,23 @@ export class StoryPanel extends FloatingPanel {
         }
 
         const root = menu === 'official' ? this.officialDir : this.resolveLocalDirAbs();
+        // 本地页顶部工具行：标题 + 右侧「导入」按钮（配置本地目录后显示）
+        if (menu === 'local') {
+            const header = list.createDiv({ cls: 'story-panel-list-header' });
+            header.createDiv({ cls: 'story-panel-list-title', text: t('story.localListTitle') });
+            if (root) {
+                const importBtn = header.createEl('button', {
+                    cls: 'story-panel-card-btn',
+                    attr: { type: 'button' },
+                });
+                setIcon(importBtn.createSpan({ cls: 'story-panel-card-btn-icon' }), 'download');
+                importBtn.createSpan({ text: t('story.importBtn') });
+                importBtn.addEventListener('click', () => {
+                    void this.importLocalStory(root, importBtn);
+                });
+            }
+        }
+
         if (!root) {
             list.createDiv({
                 cls: 'story-panel-empty',
@@ -987,6 +1004,104 @@ export class StoryPanel extends FloatingPanel {
         if (rel === '' || rel === '.') return '';
         if (rel === '..' || rel.startsWith('../')) return null;
         return rel;
+    }
+
+    /**
+     * 导入本地剧情包：系统目录选择器选目录 → 校验根目录 story.project.json
+     * → 递归复制为「本地目录/目录名」，重名自动追加序号 → 刷新列表。
+     */
+    private async importLocalStory(root: string, btn: HTMLButtonElement): Promise<void> {
+        const source = this.pickDirectory();
+        if (!source) return;
+        const req = getNodeRequire();
+        if (!req) return;
+
+        let fs: {
+            existsSync: (p: string) => boolean;
+            statSync: (p: string) => { isFile(): boolean };
+            promises: {
+                mkdir: (p: string, options: { recursive: boolean }) => Promise<unknown>;
+                readdir: (p: string, options: { withFileTypes: true }) => Promise<
+                    { name: string; isDirectory(): boolean; isFile(): boolean }[]
+                >;
+                copyFile: (from: string, to: string) => Promise<void>;
+                rm: (p: string, options: { recursive: boolean; force: boolean }) => Promise<void>;
+            };
+        };
+        let nodePath: {
+            join: (...parts: string[]) => string;
+            basename: (p: string) => string;
+            relative: (from: string, to: string) => string;
+            isAbsolute: (p: string) => boolean;
+        };
+        try {
+            fs = req('fs') as typeof fs;
+            nodePath = req('path') as typeof nodePath;
+        } catch (err) {
+            console.error('读取本地文件系统能力失败', err);
+            return;
+        }
+
+        // 校验是否为剧情包（根目录存在 story.project.json）
+        let isProject = false;
+        try {
+            isProject = fs.statSync(nodePath.join(source, 'story.project.json')).isFile();
+        } catch {
+            isProject = false;
+        }
+        if (!isProject) {
+            new Notice(t('story.importInvalid'));
+            return;
+        }
+
+        // 禁止导入本地目录自身、其子目录或包含本地目录的上级目录
+        const inside = (child: string, parent: string): boolean => {
+            const rel = nodePath.relative(parent, child);
+            return rel === '' || (!rel.startsWith('..') && !nodePath.isAbsolute(rel));
+        };
+        if (inside(source, root) || inside(root, source)) {
+            new Notice(t('story.importSelf'));
+            return;
+        }
+
+        // 目标目录：本地目录/所选目录名，重名自动追加序号
+        const baseName = nodePath.basename(source) || 'story';
+        let destName = baseName;
+        let index = 2;
+        while (fs.existsSync(nodePath.join(root, destName))) {
+            destName = `${baseName} (${index})`;
+            index += 1;
+        }
+        const dest = nodePath.join(root, destName);
+
+        const copyDir = async (from: string, to: string): Promise<void> => {
+            await fs.promises.mkdir(to, { recursive: true });
+            const entries = await fs.promises.readdir(from, { withFileTypes: true });
+            for (const entry of entries) {
+                const srcPath = nodePath.join(from, entry.name);
+                const destPath = nodePath.join(to, entry.name);
+                if (entry.isDirectory()) await copyDir(srcPath, destPath);
+                else if (entry.isFile()) await fs.promises.copyFile(srcPath, destPath);
+            }
+        };
+
+        btn.disabled = true;
+        try {
+            await copyDir(source, dest);
+            new Notice(t('story.importSuccess', { name: destName }));
+            this.renderContent();
+        } catch (err) {
+            console.error('导入剧本失败', source, err);
+            // 复制中断时清理残留目录，避免留下半成品
+            try {
+                await fs.promises.rm(dest, { recursive: true, force: true });
+            } catch {
+                // 清理失败忽略
+            }
+            new Notice(t('story.importFailed'));
+        } finally {
+            if (btn.isConnected) btn.disabled = false;
+        }
     }
 
     /** 调用系统目录选择框，取消 / 不可用时返回 null */

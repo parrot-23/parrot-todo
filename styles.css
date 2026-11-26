@@ -16736,6 +16736,21 @@ button.interface-today-tasks-add {
     overflow-y: auto;
 }
 
+/* 本地页顶部工具行：标题 + 导入按钮 */
+.story-panel-list-header {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.story-panel-list-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--sdt-text-primary, var(--text-normal));
+}
+
 .story-panel-list-item {
     display: flex;
     align-items: center;
