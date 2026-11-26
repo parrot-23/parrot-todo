@@ -25,10 +25,10 @@ export class ParrotPlanSettingTab extends PluginSettingTab {
                 },
             },
             {
-                name: t('settings.scriptMode'),
+                name: t('settings.featureManagement'),
                 searchable: false,
                 render: (setting) => {
-                    setting.setName(t('settings.scriptMode')).setHeading();
+                    setting.setName(t('settings.featureManagement')).setHeading();
                 },
             },
             {
@@ -42,6 +42,24 @@ export class ParrotPlanSettingTab extends PluginSettingTab {
                             toggle.setValue(this.plugin.scriptModeEnabled).onChange(async (value) => {
                                 await this.plugin.saveScriptModeEnabled(value);
                             });
+                        });
+                },
+            },
+            {
+                name: t('settings.licenseKey'),
+                desc: t('settings.licenseKeyDesc'),
+                render: (setting) => {
+                    setting
+                        .setName(t('settings.licenseKey'))
+                        .setDesc(t('settings.licenseKeyDesc'))
+                        .addText((text) => {
+                            text.setPlaceholder(t('settings.licenseKeyPlaceholder'));
+                        })
+                        .addButton((btn) => {
+                            btn.setButtonText(t('settings.licenseKeySubmit'));
+                        })
+                        .addButton((btn) => {
+                            btn.setButtonText(t('settings.licenseKeyGet'));
                         });
                 },
             },

@@ -634,7 +634,12 @@ export const en: I18nMessages = {
     // Settings
     'settings.title': 'Parrot Plan Settings',
     'settings.about': 'A weekly schedule planner: time block planning, event scheduling, and execution tracking.',
-    'settings.scriptMode': 'Script mode',
+    'settings.featureManagement': 'Feature management',
+    'settings.licenseKey': 'License key',
+    'settings.licenseKeyDesc': 'Enter a license key to activate premium features',
+    'settings.licenseKeyPlaceholder': 'Enter license key',
+    'settings.licenseKeySubmit': 'Submit',
+    'settings.licenseKeyGet': 'Get license key',
     'settings.scriptModeEnabled': 'Enable script mode',
     'settings.scriptModeEnabledDesc': 'When disabled, the "Scene" and "Script management" secondary views will be hidden.',
     'settings.data': 'Data',

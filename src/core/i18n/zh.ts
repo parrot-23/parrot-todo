@@ -577,7 +577,12 @@ export const zh = {
     // 设置页
     'settings.title': 'Parrot Plan 设置',
     'settings.about': '一个周日程规划插件：时间区块规划、事件排布与执行追踪。',
-    'settings.scriptMode': '剧本模式',
+    'settings.featureManagement': '功能管理',
+    'settings.licenseKey': '授权码',
+    'settings.licenseKeyDesc': '输入授权码，激活高级功能',
+    'settings.licenseKeyPlaceholder': '请输入授权码',
+    'settings.licenseKeySubmit': '提交',
+    'settings.licenseKeyGet': '获取授权码',
     'settings.scriptModeEnabled': '启用剧本模式',
     'settings.scriptModeEnabledDesc': '关闭后，「剧本场景」与「剧本管理」两个二级视图将被隐藏。',
     'settings.data': '数据',
