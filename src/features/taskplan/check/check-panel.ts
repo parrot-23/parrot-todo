@@ -1,22 +1,17 @@
 ﻿// 检查面板：基于 FloatingPanel，用于配置检查。
-// 结构：顶部选项卡（习惯 / 计划vs对比 / 具体任务分析）；「统计」「任务记录」已拆为独立面板（stats-panel.ts）。
-// 习惯：周数切换 + 9 列表格（习惯名称 + 完成情况 + 周一至周日，标记当天是否完成）。
-// 计划vs对比：周数切换 + 计划分布（时间盒数据）/ 执行分布（任务执行记录），
-// 视觉复用二级视图（检查）的分布图样式（24 小时、2 小时一格、7 列）。
+// 结构：顶部选项卡（时长去向 / 具体任务分析）；「统计」「任务记录」「计划vs对比」「习惯」已拆为独立面板（stats-panel.ts）。
+// 时长去向：本周各分类时长（可展开到根任务），横向条共用同一比例尺。
 import { setIcon } from 'obsidian';
 
-import type { PrototypeTask, TaskHabit } from '../../../core/datatypes/prototype-task';
+import type { PrototypeTask } from '../../../core/datatypes/prototype-task';
 import type { TaskExecutionRecord } from '../../../core/datatypes/task-execution';
 import type { BarDatum } from '../../../charts/primitives/types';
 import { renderBar } from '../../../charts/primitives/bar';
 import { renderHBars } from '../../../charts/primitives/hbar';
-import { renderTimeGrid } from '../../../charts/primitives/time-grid';
-import { t, getWeekDays } from '../../../core/i18n';
-import type { TimeBoxRepo } from '../../../core/repos/timebox-repo';
+import { t } from '../../../core/i18n';
 import type { TaskExecutionRepo } from '../../../core/repos/task-execution-repo';
 import type { PlanCategoryData } from '../../../core/shared/plan-category-manager';
 import { UNCATEGORIZED_CATEGORY_COLOR, UNCATEGORIZED_CATEGORY_ID } from '../../../core/shared/plan-category-manager';
-import { getTaskHabit } from '../../../core/shared/task-sections';
 import { findRootTaskId } from '../../../core/shared/task-tree-selection';
 import {
     getCurrentWeekKey,
@@ -34,49 +29,34 @@ export interface CheckPanelOptions extends Omit<FloatingPanelOptions, 'title'> {
     title?: string;
     /** 分类数据（颜色来源，与图例一致） */
     categoryData: PlanCategoryData;
-    /** 时间盒仓库（计划分布的数据来源） */
-    timeBoxRepo: TimeBoxRepo;
-    /** 任务执行记录仓库（执行分布的数据来源） */
+    /** 任务执行记录仓库（时长去向的数据来源） */
     taskExecutionRepo: TaskExecutionRepo;
     /** 原型任务数据源（用于按任务取分类颜色） */
     getTasks: () => PrototypeTask[];
 }
 
+/** 区间视图选项卡（一日 / 一周 / 一月 / 一季）：先占位，内容待实现 */
+type CheckRangeTab = 'day' | 'week' | 'month' | 'quarter';
+
+/** 区间视图选项卡的展示顺序 */
+const RANGE_TAB_KEYS: CheckRangeTab[] = ['day', 'week', 'month', 'quarter'];
+
 /** 顶部选项卡 */
-type CheckTab = 'habits' | 'durationFlow' | 'planVsActual' | 'taskAnalysis';
-
-/** 周一至周日的文案 key（习惯表格表头） */
-const WEEKDAY_KEYS = [
-    'week.monday',
-    'week.tuesday',
-    'week.wednesday',
-    'week.thursday',
-    'week.friday',
-    'week.saturday',
-    'week.sunday',
-] as const;
-
-/** 分布图中的一个时间块（分钟） */
-interface ChartBlock {
-    start: number;
-    end: number;
-    categoryId?: string;
-}
+type CheckTab = CheckRangeTab | 'durationFlow' | 'taskAnalysis';
 
 /** 「时长去向」中已删除任务的归并键（记录保留但任务已不存在） */
 const DELETED_ROOT_TASK_ID = '__deleted_root_task__';
 
 /** 检查面板 */
 export class CheckPanel extends FloatingPanel {
-    private habitsTabEl!: HTMLElement;
+    private rangeTabEls!: Record<CheckRangeTab, HTMLElement>;
     private durationFlowTabEl!: HTMLElement;
-    private planVsActualTabEl!: HTMLElement;
     private taskAnalysisTabEl!: HTMLElement;
     /** 内容区容器 */
     private paneEl!: HTMLElement;
     /** 当前选项卡 */
-    private tab: CheckTab = 'planVsActual';
-    /** 计划vs对比当前查看的周键 */
+    private tab: CheckTab = 'durationFlow';
+    /** 时长去向当前查看的周键 */
     private weekKey: string = getCurrentWeekKey();
     /** 具体任务分析选中的任务 id（跨选项卡 / 重开保留） */
     private analyzedTaskId: string | undefined;
@@ -96,13 +76,22 @@ export class CheckPanel extends FloatingPanel {
 
     private renderLayout(): void {
         const tabs = this.body.createDiv({ cls: 'plan-tabs' });
-        this.planVsActualTabEl = tabs.createDiv({ cls: 'plan-tab', text: t('panel.checkPlanVsActual') });
-        this.habitsTabEl = tabs.createDiv({ cls: 'plan-tab', text: t('interface.habit') });
+        // 区间视图（一日 / 一周 / 一月 / 一季）：先占位，页面内容暂为空
+        const rangeTabs: { key: CheckRangeTab; label: string }[] = [
+            { key: 'day', label: t('panel.checkRangeDay') },
+            { key: 'week', label: t('panel.checkRangeWeek') },
+            { key: 'month', label: t('panel.checkRangeMonth') },
+            { key: 'quarter', label: t('panel.checkRangeQuarter') },
+        ];
+        this.rangeTabEls = {} as Record<CheckRangeTab, HTMLElement>;
+        for (const item of rangeTabs) {
+            const el = tabs.createDiv({ cls: 'plan-tab', text: item.label });
+            el.addEventListener('click', () => this.switchTab(item.key));
+            this.rangeTabEls[item.key] = el;
+        }
         this.durationFlowTabEl = tabs.createDiv({ cls: 'plan-tab', text: t('panel.checkDurationFlow') });
         this.taskAnalysisTabEl = tabs.createDiv({ cls: 'plan-tab', text: t('panel.checkTaskAnalysis') });
-        this.habitsTabEl.addEventListener('click', () => this.switchTab('habits'));
         this.durationFlowTabEl.addEventListener('click', () => this.switchTab('durationFlow'));
-        this.planVsActualTabEl.addEventListener('click', () => this.switchTab('planVsActual'));
         this.taskAnalysisTabEl.addEventListener('click', () => this.switchTab('taskAnalysis'));
 
         this.paneEl = this.body.createDiv({ cls: 'plan-pane' });
@@ -111,18 +100,18 @@ export class CheckPanel extends FloatingPanel {
 
     private switchTab(tab: CheckTab): void {
         this.tab = tab;
-        this.habitsTabEl.toggleClass('is-active', tab === 'habits');
+        for (const key of RANGE_TAB_KEYS) {
+            this.rangeTabEls[key].toggleClass('is-active', tab === key);
+        }
         this.durationFlowTabEl.toggleClass('is-active', tab === 'durationFlow');
-        this.planVsActualTabEl.toggleClass('is-active', tab === 'planVsActual');
         this.taskAnalysisTabEl.toggleClass('is-active', tab === 'taskAnalysis');
         this.renderPane();
     }
 
     private renderPane(): void {
         this.paneEl.empty();
-        if (this.tab === 'habits') this.renderHabits();
+        // 一日 / 一周 / 一月 / 一季：占位选项卡，页面内容暂为空
         if (this.tab === 'durationFlow') this.renderDurationFlow();
-        if (this.tab === 'planVsActual') this.renderPlanVsActual();
         if (this.tab === 'taskAnalysis') this.renderTaskAnalysis();
     }
 
@@ -209,62 +198,6 @@ export class CheckPanel extends FloatingPanel {
     }
 
     // ===== 习惯：周数切换 + 9 列表格（习惯名称 + 完成情况 + 周一至周日是否完成） =====
-    private renderHabits(): void {
-        this.renderWeekNav();
-
-        // 当前启用的习惯（按时间、名称排序，与习惯面板顺序一致）
-        const habits = this.panelOptions.getTasks()
-            .map((task) => ({ task, habit: getTaskHabit(task) }))
-            .filter((item): item is { task: PrototypeTask; habit: TaskHabit } => item.habit?.enabled === true)
-            .sort((a, b) => a.habit.time.localeCompare(b.habit.time)
-                || a.task.name.localeCompare(b.task.name));
-
-        const table = this.paneEl.createDiv({ cls: 'check-habit-table' });
-        // 表头：习惯名称 + 完成情况 + 周一至周日（带日期）
-        const head = table.createDiv({ cls: 'check-habit-row is-head' });
-        head.createDiv({ cls: 'check-habit-cell is-name', text: t('interface.habit') });
-        head.createDiv({ cls: 'check-habit-cell is-total', text: t('panel.checkHabitDone') });
-        const weekDays = getWeekDays();
-        for (let day = 1; day <= 7; day++) {
-            const dayKey = makeDayKeyFromWeek(this.weekKey, day);
-            const cell = head.createDiv({ cls: 'check-habit-cell is-day' });
-            cell.createSpan({ cls: 'check-habit-day-name', text: weekDays[day - 1] });
-            cell.createSpan({
-                cls: 'check-habit-day-date',
-                text: `${Number(dayKey.slice(5, 7))}/${Number(dayKey.slice(8, 10))}`,
-            });
-        }
-
-        if (habits.length === 0) {
-            table.createDiv({ cls: 'check-habit-empty', text: t('panel.checkHabitsEmpty') });
-            return;
-        }
-
-        for (const { task, habit } of habits) {
-            const row = table.createDiv({ cls: 'check-habit-row' });
-            row.createDiv({ cls: 'check-habit-cell is-name', text: task.name });
-            let doneCount = 0;
-            // 第二列：本周完成天数 / 7（先占位，遍历完七天后再填值）
-            const totalEl = row.createDiv({ cls: 'check-habit-cell is-total' });
-            for (let day = 1; day <= 7; day++) {
-                const cell = row.createDiv({ cls: 'check-habit-cell is-day' });
-                // 习惯未生效的星期：显示占位符，不参与完成状态
-                if (!habit.weekdays.includes(day)) {
-                    cell.addClass('is-off');
-                    cell.setText('—');
-                    continue;
-                }
-                const dayKey = makeDayKeyFromWeek(this.weekKey, day);
-                const done = this.panelOptions.taskExecutionRepo.isTaskCompleted(dayKey, task.id);
-                if (done) doneCount++;
-                const mark = cell.createSpan({ cls: 'check-habit-mark' });
-                mark.toggleClass('is-done', done);
-                setIcon(mark, done ? 'circle-check-big' : 'circle');
-            }
-            totalEl.setText(`${doneCount} / 7`);
-        }
-    }
-
     // ===== 具体任务分析：任务搜索 + 项目活跃度柱状图（含整棵子树） =====
     private renderTaskAnalysis(): void {
         const wrap = this.paneEl.createDiv({ cls: 'check-task-analysis' });
@@ -425,29 +358,6 @@ export class CheckPanel extends FloatingPanel {
 
     // ===== 任务记录：已迁移到统计面板 =====
 
-    // ===== 计划vs对比：周数切换 + 计划 / 执行分布 =====
-    private renderPlanVsActual(): void {
-        this.renderWeekNav();
-
-        const chartsRow = this.paneEl.createDiv({ cls: 'check-charts-row' });
-        this.renderDistributionChart(
-            chartsRow,
-            t('check.detailPlanChartTitle'),
-            this.planBlocksByDay(),
-            { title: t('check.detailPlanCategoryTitle'), minutesByCat: this.planMinutesByCategory() },
-        );
-        this.renderDistributionChart(
-            chartsRow,
-            t('check.detailExecChartTitle'),
-            this.executionBlocksByDay(),
-            {
-                title: t('check.detailExecCategoryTitle'),
-                minutesByCat: this.execMinutesByCategory(),
-                planMinutesByCat: this.planMinutesByCategory(),
-            },
-        );
-    }
-
     /** 周数切换：‹ 第 N 周 › */
     private renderWeekNav(): void {
         const { week } = parseWeekKey(this.weekKey);
@@ -495,126 +405,9 @@ export class CheckPanel extends FloatingPanel {
         return Math.round((mondayOf(this.weekKey) - mondayOf(baseWeekKey)) / (7 * 24 * 3600000));
     }
 
-    /** 计划分布：时间盒数据，相邻同分类的小时格合并为一块 */
-    private planBlocksByDay(): Map<number, ChartBlock[]> {
-        const cells = [...this.panelOptions.timeBoxRepo.weekCells(this.weekKey)]
-            .sort((a, b) => a.hour - b.hour);
-        const blocksByDay = new Map<number, ChartBlock[]>();
-        for (let day = 1; day <= 7; day++) {
-            const dayBlocks: ChartBlock[] = [];
-            for (const cell of cells.filter((item) => item.weekday === day)) {
-                const start = cell.hour * 60;
-                const end = start + 60;
-                const last = dayBlocks[dayBlocks.length - 1];
-                if (last && last.end === start && last.categoryId === cell.categoryId) {
-                    last.end = end;
-                } else {
-                    dayBlocks.push({ start, end, categoryId: cell.categoryId });
-                }
-            }
-            blocksByDay.set(day, dayBlocks);
-        }
-        return blocksByDay;
-    }
-
-    /** 执行分布：任务执行记录，跨午夜按天裁剪 */
-    private executionBlocksByDay(): Map<number, ChartBlock[]> {
-        const records = this.panelOptions.taskExecutionRepo.records;
-        const blocksByDay = new Map<number, ChartBlock[]>();
-        for (let day = 1; day <= 7; day++) {
-            const dayKey = makeDayKeyFromWeek(this.weekKey, day);
-            const [year, month, date] = dayKey.split('-').map(Number);
-            const dayStart = new Date(year, month - 1, date).getTime();
-            const dayEnd = dayStart + 24 * 3600000;
-            const dayBlocks: ChartBlock[] = [];
-            for (const record of records) {
-                const startMs = Math.max(dayStart, record.startAt);
-                const endMs = Math.min(dayEnd, record.endAt);
-                if (endMs <= startMs) continue;
-                dayBlocks.push({
-                    start: (startMs - dayStart) / 60000,
-                    end: (endMs - dayStart) / 60000,
-                    categoryId: this.categoryIdOf(record.taskId),
-                });
-            }
-            dayBlocks.sort((a, b) => a.start - b.start);
-            blocksByDay.set(day, dayBlocks);
-        }
-        return blocksByDay;
-    }
-
     /** 原型任务的分类 id */
     private categoryIdOf(taskId: string): string | undefined {
         return this.panelOptions.getTasks().find((task) => task.id === taskId)?.categoryId;
-    }
-
-    /** 渲染分布图（计划 / 执行共用，样式与二级视图（检查）一致） */
-    private renderDistributionChart(
-        body: HTMLElement,
-        title: string,
-        blocksByDay: Map<number, ChartBlock[]>,
-        categorySummary?: {
-            title: string;
-            minutesByCat: Map<string, number>;
-            planMinutesByCat?: Map<string, number>;
-        },
-    ): void {
-        const section = body.createDiv({ cls: 'check-daily-section' });
-        section.createDiv({ cls: 'check-daily-section-title', text: title });
-
-        const weekDays = getWeekDays();
-        const blocks = [];
-        for (let day = 1; day <= 7; day++) {
-            for (const block of blocksByDay.get(day) ?? []) {
-                const category = block.categoryId
-                    ? this.panelOptions.categoryData.categories.find((item) => item.id === block.categoryId)
-                    : undefined;
-                blocks.push({
-                    column: String(day),
-                    start: block.start,
-                    end: block.end,
-                    color: category?.color ?? '#888888',
-                    title: `${category?.label ?? t('inbox.noCategory')} ${formatMinutes(block.start)}-${formatMinutes(block.end)}`,
-                });
-            }
-        }
-        renderTimeGrid(section, {
-            columns: weekDays.map((label, index) => ({ key: String(index + 1), label })),
-            blocks,
-        });
-
-        if (categorySummary) {
-            this.renderCategoryBars(
-                section,
-                categorySummary.title,
-                categorySummary.minutesByCat,
-                categorySummary.planMinutesByCat,
-            );
-        }
-    }
-
-    /** 计划各分类时长：当前周时间盒格子按分类累加（每格 1 小时），未涂色计入未分类 */
-    private planMinutesByCategory(): Map<string, number> {
-        const ids = new Set(this.panelOptions.categoryData.categories.map((cat) => cat.id));
-        return this.panelOptions.timeBoxRepo.weekMinutesByCategory(this.weekKey, ids);
-    }
-
-    /** 执行各分类时长：当前周执行记录按任务分类累加（跨午夜裁剪到本周） */
-    private execMinutesByCategory(): Map<string, number> {
-        const records = this.panelOptions.taskExecutionRepo.records;
-        const minutesByCat = new Map<string, number>();
-        const firstDayKey = makeDayKeyFromWeek(this.weekKey, 1);
-        const [fy, fm, fd] = firstDayKey.split('-').map(Number);
-        const weekStart = new Date(fy, fm - 1, fd).getTime();
-        const weekEnd = weekStart + 7 * 24 * 3600000;
-        for (const record of records) {
-            const startMs = Math.max(weekStart, record.startAt);
-            const endMs = Math.min(weekEnd, record.endAt);
-            if (endMs <= startMs) continue;
-            const catId = this.categoryIdOf(record.taskId) ?? UNCATEGORIZED_CATEGORY_ID;
-            minutesByCat.set(catId, (minutesByCat.get(catId) ?? 0) + (endMs - startMs) / 60000);
-        }
-        return minutesByCat;
     }
 
     /** 执行时长按「分类 → 根任务」两级汇总：子任务时长归并到所属根任务（跨午夜裁剪到本周） */
@@ -644,59 +437,6 @@ export class CheckPanel extends FloatingPanel {
         return result;
     }
 
-    /** 各分类时长横向柱形图：图内共用同一时长刻度；传入计划数据时每类绘制计划 / 执行两条柱 */
-    private renderCategoryBars(
-        body: HTMLElement,
-        title: string,
-        minutesByCat: Map<string, number>,
-        planMinutesByCat?: Map<string, number>,
-    ): void {
-        const wrap = body.createDiv({ cls: 'check-cat-bars' });
-        wrap.createDiv({ cls: 'check-cat-bars-title', text: title });
-
-        const cats = this.panelOptions.categoryData.categories;
-        const knownIds = new Set(cats.map((cat) => cat.id));
-        // 兜底：数据里出现但分类列表中不存在的分类
-        const extraIds = Array.from(minutesByCat.keys())
-            .concat(Array.from(planMinutesByCat?.keys() ?? []))
-            .filter((id, index, list) => list.indexOf(id) === index)
-            .filter((id) => !knownIds.has(id));
-        const rows = [
-            ...cats.map((cat) => ({
-                id: cat.id,
-                label: cat.label,
-                color: cat.color,
-                actual: minutesByCat.get(cat.id) ?? 0,
-                plan: planMinutesByCat?.get(cat.id) ?? 0,
-            })),
-            ...extraIds.map((id) => ({
-                id,
-                label: t('inbox.noCategory'),
-                color: '#888888',
-                actual: minutesByCat.get(id) ?? 0,
-                plan: planMinutesByCat?.get(id) ?? 0,
-            })),
-        ];
-        const maxMinutes = Math.max(0, ...rows.map((row) => Math.max(row.actual, row.plan)));
-        renderHBars(
-            wrap,
-            rows.map((row) => ({
-                label: row.label,
-                value: row.actual,
-                color: row.color,
-                // 有对比数据时该行渲染为「计划 / 执行」双条
-                compare: planMinutesByCat ? row.plan : undefined,
-            })),
-            { scale: maxMinutes, formatValue: formatHours },
-        );
-    }
-}
-
-/** 分钟数 → HH:MM */
-function formatMinutes(minutes: number): string {
-    const hours = Math.floor(minutes / 60);
-    const rest = Math.round(minutes % 60);
-    return `${String(hours).padStart(2, '0')}:${String(rest).padStart(2, '0')}`;
 }
 
 /** 分钟数 → 小时（保留一位小数，如 1.5h） */

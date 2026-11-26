@@ -420,13 +420,9 @@ export class InterfaceView {
     /** 检查面板实例（懒创建） */
     private ensureCheckPanel(): CheckPanel {
         if (!this.checkPanel) {
-            const holder = this.plugin as Plugin & {
-                timeBoxRepo: ConstructorParameters<typeof CheckPanel>[0]['timeBoxRepo'];
-            };
             this.checkPanel = new CheckPanel({
                 container: this.panelContainer,
                 categoryData: this.categoryData,
-                timeBoxRepo: holder.timeBoxRepo,
                 taskExecutionRepo: this.taskExecutionRepo,
                 getTasks: () => this.prototypeTaskRepo.tasks,
             });
@@ -437,9 +433,13 @@ export class InterfaceView {
     /** 统计面板实例（懒创建；独立的 FloatingPanel 统计视图） */
     private ensureStatsPanel(): StatsPanel {
         if (!this.statsPanel) {
+            const holder = this.plugin as Plugin & {
+                timeBoxRepo: ConstructorParameters<typeof StatsPanel>[0]['timeBoxRepo'];
+            };
             this.statsPanel = new StatsPanel({
                 container: this.panelContainer,
                 categoryData: this.categoryData,
+                timeBoxRepo: holder.timeBoxRepo,
                 taskExecutionRepo: this.taskExecutionRepo,
                 getTasks: () => this.prototypeTaskRepo.tasks,
                 onOpenData: () => this.openDataPanel(),
