@@ -7185,7 +7185,7 @@ button.swimlane-section-card-settings {
     flex-direction: column;
     gap: 8px;
     padding-bottom: 10px;
-    border-bottom: 1px solid var(--sdt-card-border, var(--background-modifier-border));
+    /* border-bottom: 1px solid var(--sdt-card-border, var(--background-modifier-border)); */
 }
 
 /* 无二级菜单的一级组（如检查）：内容直接嵌入，去掉菜单下方的分隔线 */
@@ -15463,7 +15463,7 @@ body.plan-annual-dragging {
     flex: 1;
     min-height: 0;
     overflow: auto;
-    padding: 12px;
+    padding: 8px;
 }
 
 /* ======================== 文件编辑面板 ======================== */
