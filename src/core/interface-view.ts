@@ -549,6 +549,10 @@ export class InterfaceView {
                 onTaskReparented: (taskId) => this.syncTaskDirAfterReparent(taskId),
                 onOpenConfig: (task) => this.openTaskConfig(task),
                 getExecutions: () => this.taskExecutionRepo.records,
+                getFileSortMode: () => this.baseRepo.taskFileSortMode,
+                onFileSortModeChange: (mode) => {
+                    void this.baseRepo.saveTaskFileSortMode(mode);
+                },
                 onTasksChanged: () => {
                     this.taskPanel?.setTasks(this.rootPrototypeTasks());
                     this.detailPanels.forEach((item) => item.setTasks(this.prototypeTaskRepo.tasks));
@@ -919,6 +923,9 @@ export class InterfaceView {
             }
             case 'habit':
                 return this.ensureHabitPanel();
+            case 'checklist':
+                // 清单：内容暂未实现，占位留空
+                return null;
             case 'goalBoard':
                 return this.ensureGoalBoardPanel();
             case 'timeBox':
@@ -1186,6 +1193,10 @@ export class InterfaceView {
             getTaskLibraryRoot: () => this.baseRepo.taskLibraryRoot,
             categories: this.categoryData.categories,
             save: () => (this.plugin as Plugin & { saveAll: () => Promise<void> }).saveAll(),
+            getFileSortMode: () => this.baseRepo.taskFileSortMode,
+            onFileSortModeChange: (mode) => {
+                void this.baseRepo.saveTaskFileSortMode(mode);
+            },
             onOpenTaskDetail: (taskId) => {
                 const task = this.prototypeTaskRepo.tasks.find((item) => item.id === taskId);
                 if (!task) return;

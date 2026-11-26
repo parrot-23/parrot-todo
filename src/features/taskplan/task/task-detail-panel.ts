@@ -5,6 +5,7 @@ import { setIcon, type App } from 'obsidian';
 
 import type { PrototypeTask } from '../../../core/datatypes/prototype-task';
 import type { TaskExecutionRecord } from '../../../core/datatypes/task-execution';
+import type { TaskFileSortMode } from '../../../core/shared/task-file';
 import { t } from '../../../core/i18n';
 import type { PlanCategoryData } from '../../../core/shared/plan-category-manager';
 import { UNCATEGORIZED_CATEGORY_ID } from '../../../core/shared/plan-category-manager';
@@ -52,6 +53,10 @@ export interface TaskDetailPanelOptions extends Omit<FloatingPanelOptions, 'titl
     onOpenConfig?: (task: PrototypeTask) => void;
     /** 任务执行记录（任务类型选项卡展示累计已执行时长） */
     getExecutions?: () => TaskExecutionRecord[];
+    /** 任务文件排序方式（持久化读取） */
+    getFileSortMode?: () => TaskFileSortMode;
+    /** 任务文件排序方式变化回调（持久化） */
+    onFileSortModeChange?: (mode: TaskFileSortMode) => void;
 }
 
 /** 长按进入拖动的等待时间（毫秒） */
@@ -137,6 +142,8 @@ export class TaskDetailPanel extends FloatingPanel {
             registerIgnoreElement: (el) => this.addIgnoreElement(el),
             showKindTab: true,
             getExecutions: options.getExecutions,
+            getFileSortMode: options.getFileSortMode,
+            onFileSortModeChange: options.onFileSortModeChange,
             // 类型或习惯设置变化后立即刷新左侧任务树（行末尾类型图标热更新）
             onChanged: () => this.renderTree(),
         });

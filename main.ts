@@ -20,6 +20,7 @@ import { initLogger, log } from './src/core/shared/logger';
 // 已关闭 .db 记录库功能：保留 import 待后续启用
 // import { migrateLegacyRecordDb, getRecordStore } from './src/core/db/record-store';
 import { getPluginDir } from './src/core/shared/plugin-dir';
+import type { TaskFileSortMode } from './src/core/shared/task-file';
 import { ParrotPlanSettingTab } from './src/ui/ob/setting-tab';
 import { RunningTaskStatusBar } from './src/ui/ob/status-bar';
 
@@ -92,6 +93,11 @@ export default class ParrotPlanPlugin extends Plugin {
         return { mode: this.repo.storyLocalDirMode, path: this.repo.storyLocalDirPath };
     }
 
+    /** 任务文件排序方式（随主数据一起持久化） */
+    get taskFileSortMode(): TaskFileSortMode {
+        return this.repo.taskFileSortMode;
+    }
+
     /**
      * 唯一的数据保存出口（委托给 BaseRepo）。
      * 所有视图与设置项都通过此方法保存。
@@ -118,6 +124,11 @@ export default class ParrotPlanPlugin extends Plugin {
     /** 保存本地剧本目录配置 */
     async saveStoryLocalDir(mode: 'vault' | 'local', path: string): Promise<void> {
         await this.repo.saveStoryLocalDir(mode, path);
+    }
+
+    /** 保存任务文件排序方式 */
+    async saveTaskFileSortMode(mode: TaskFileSortMode): Promise<void> {
+        await this.repo.saveTaskFileSortMode(mode);
     }
 
     async onload() {

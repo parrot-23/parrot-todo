@@ -112,6 +112,10 @@ export interface SectionHostOptions {
     showKindTab?: boolean;
     /** 任务执行记录（任务类型选项卡展示累计已执行时长） */
     getExecutions?: () => TaskExecutionRecord[];
+    /** 任务文件排序方式（持久化读取，缺省为最近编辑时间倒序） */
+    getFileSortMode?: () => TaskFileSortMode;
+    /** 任务文件排序方式变化回调（用于持久化） */
+    onFileSortModeChange?: (mode: TaskFileSortMode) => void;
 }
 
 /** 任务板块宿主 */
@@ -137,7 +141,7 @@ export class SectionHost {
     private fileCurrentDir: string | undefined;
     /** 任务文件是否处于「关联目录清单」模式 */
     private fileLinkMode = false;
-    /** 任务文件排序方式（面板内保持，切换任务不重置） */
+    /** 任务文件排序方式（持久化于插件数据，切换任务不重置） */
     private fileSortMode: TaskFileSortMode = 'mtime-desc';
     /** 文件编辑面板 */
     private fileEditorPanel: FileEditorPanel | null = null;
@@ -148,6 +152,8 @@ export class SectionHost {
 
     constructor(options: SectionHostOptions) {
         this.options = options;
+        // 排序方式从持久化设置读取，保证重载插件后保持上次选择
+        this.fileSortMode = options.getFileSortMode?.() ?? 'mtime-desc';
     }
 
     /** 切换任务时重置临时状态（首次渲染落在第一个可见板块） */
@@ -975,28 +981,7 @@ export class SectionHost {
             this.fileCurrentDir = undefined;
         }
 
-        // 排序：图标按钮（不带文字），点击弹出「名称 / 创建时间 / 修改时间」排序菜单
-        this.renderFileSortControl(toolbar);
-
-        // 文件夹：目录由任务树自动绑定，点击在 Obsidian 文件浏览器中定位
-        const dirBtn = toolbar.createEl('button', {
-            cls: 'task-detail-files-btn',
-            attr: { type: 'button', 'aria-label': t('panel.fileFolder') },
-        });
-        setIcon(dirBtn.createSpan({ cls: 'task-detail-files-btn-icon' }), 'folder');
-        dirBtn.title = dir || t('panel.fileFolder');
-        dirBtn.addEventListener('click', () => void this.openTaskFolder(task));
-
-        // 模板（文件夹按钮右侧）：打开文件模板配置面板
-        const templateBtn = toolbar.createEl('button', {
-            cls: 'task-detail-files-btn',
-            attr: { type: 'button', 'aria-label': t('panel.fileTemplate') },
-        });
-        setIcon(templateBtn.createSpan({ cls: 'task-detail-files-btn-icon' }), 'layout-template');
-        templateBtn.title = t('panel.fileTemplate');
-        templateBtn.addEventListener('click', () => this.openFileTemplatePanel(task));
-
-        // 关联目录（模板右侧）：激活后隐藏文件清单，下方改为关联目录清单
+        // 关联目录（行首）：激活后隐藏文件清单，下方改为关联目录清单
         const linkedBtn = toolbar.createEl('button', {
             cls: 'task-detail-files-btn',
             attr: { type: 'button', 'aria-label': t('panel.fileLinkedDir') },
@@ -1009,16 +994,67 @@ export class SectionHost {
             this.render();
         });
 
+        // 关联目录名：按钮右侧以文件名（下划线）形式展示，点击定位到该目录；激活关联目录模式时隐藏
+        const linkedDirs = getTaskLinkedDirs(task);
+        if (linkedDirs.length > 0 && !this.fileLinkMode) {
+            const linkedName = toolbar.createSpan({
+                cls: 'task-detail-files-linked-name',
+                text: linkedDirs[0].split('/').filter(Boolean).pop() ?? linkedDirs[0],
+            });
+            linkedName.title = linkedDirs[0];
+            linkedName.addEventListener('click', () => this.revealVaultDir(linkedDirs[0]));
+
+            // 更多 x：关联目录总数，点击激活关联目录按钮
+            const moreEl = toolbar.createSpan({
+                cls: 'task-detail-files-linked-name',
+                text: t('panel.fileLinkedDirMore', { count: String(linkedDirs.length) }),
+            });
+            moreEl.addEventListener('click', () => {
+                this.fileLinkMode = true;
+                this.render();
+            });
+        }
+
+        // 行尾按钮组：排序 / 文件夹 / 模板 / 添加
+        const toolbarEnd = toolbar.createDiv({ cls: 'task-detail-files-toolbar-end' });
+
+        // 排序：图标按钮（不带文字），点击弹出「名称 / 创建时间 / 修改时间」排序菜单
+        this.renderFileSortControl(toolbarEnd);
+
+        // 文件夹：目录由任务树自动绑定，点击在 Obsidian 文件浏览器中定位
+        const dirBtn = toolbarEnd.createEl('button', {
+            cls: 'task-detail-files-btn',
+            attr: { type: 'button', 'aria-label': t('panel.fileFolder') },
+        });
+        setIcon(dirBtn.createSpan({ cls: 'task-detail-files-btn-icon' }), 'folder');
+        dirBtn.title = dir || t('panel.fileFolder');
+        dirBtn.addEventListener('click', () => void this.openTaskFolder(task));
+
+        // 模板（文件夹按钮右侧）：打开文件模板配置面板
+        const templateBtn = toolbarEnd.createEl('button', {
+            cls: 'task-detail-files-btn',
+            attr: { type: 'button', 'aria-label': t('panel.fileTemplate') },
+        });
+        setIcon(templateBtn.createSpan({ cls: 'task-detail-files-btn-icon' }), 'layout-template');
+        templateBtn.title = t('panel.fileTemplate');
+        templateBtn.addEventListener('click', () => this.openFileTemplatePanel(task));
+
+        // 新建文件（模板按钮右侧）：仅图标按钮
+        const addBtn = toolbarEnd.createEl('button', {
+            cls: 'task-detail-files-btn',
+            attr: { type: 'button', 'aria-label': t('panel.fileAdd') },
+        });
+        setIcon(addBtn.createSpan({ cls: 'task-detail-files-btn-icon' }), 'plus');
+        addBtn.title = t('panel.fileAdd');
+        addBtn.addEventListener('click', () => void this.startCreateFile(task));
+
         // 关联目录模式：隐藏文件清单与路径行，只显示关联目录清单方框
         if (this.fileLinkMode) {
             this.renderLinkedDirs(wrap, task);
             return;
         }
 
-        // 当前相对路径：位于按钮栏下方，目录层级可点击返回；行尾为新建文件图标按钮
-        if (dir) this.renderFilePathRow(wrap, dir, task);
-
-        // 新建文件输入行：位于当前路径行下方（关联目录模式下不显示）
+        // 新建文件输入行：位于文件列表上方（关联目录模式下不显示）
         if (this.fileCreateMode) this.renderFileCreateRow(wrap, task);
 
         // 未进入目录时为单栏文件 / 目录混排；进入目录后左右分栏（左=绑定根目录，右=当前目录）
@@ -1032,6 +1068,9 @@ export class SectionHost {
             const listCard = wrap.createDiv({ cls: 'task-detail-files-card task-detail-files-list-card' });
             this.renderFileRows(listCard, dir);
         }
+
+        // 当前相对路径：位于文件列表方框下方，目录层级可点击返回
+        if (dir) this.renderFilePathRow(wrap, dir);
     }
 
     /** 排序图标按钮：样式与右侧文件夹按钮一致；图标反映当前排序方式，点击弹出排序菜单 */
@@ -1053,6 +1092,7 @@ export class SectionHost {
                         .setChecked(option.value === this.fileSortMode)
                         .onClick(() => {
                             this.fileSortMode = option.value;
+                            this.options.onFileSortModeChange?.(option.value);
                             this.render();
                         });
                     if (option.icon) item.setIcon(option.icon);
@@ -1065,18 +1105,9 @@ export class SectionHost {
         });
     }
 
-    /** 当前相对路径行：上一级按钮 + 面包屑（根目录 → 各级子目录）+ 行尾新建文件图标按钮 */
-    private renderFilePathRow(parent: HTMLElement, rootDir: string, task: PrototypeTask): void {
+    /** 当前相对路径行：上一级按钮 + 面包屑（根目录 → 各级子目录） */
+    private renderFilePathRow(parent: HTMLElement, rootDir: string): void {
         const row = parent.createDiv({ cls: 'task-detail-files-path' });
-        const upBtn = row.createEl('button', {
-            cls: 'task-detail-files-path-up',
-            attr: { type: 'button', 'aria-label': t('panel.filePathUp') },
-        });
-        upBtn.title = t('panel.filePathUp');
-        setIcon(upBtn, 'arrow-up');
-        upBtn.disabled = !this.fileCurrentDir;
-        upBtn.addEventListener('click', () => this.openFileDir(this.fileParentDir(rootDir)));
-
         row.createSpan({ cls: 'task-detail-files-path-label', text: t('panel.filePathLabel') });
         const trail = row.createDiv({ cls: 'task-detail-files-path-trail' });
         const crumbs: { label: string; dir?: string }[] = [{ label: t('panel.filePathRoot') }];
@@ -1096,29 +1127,12 @@ export class SectionHost {
                 crumbEl.addEventListener('click', () => this.openFileDir(crumb.dir));
             }
         });
-
-        // 新建文件：仅图标按钮，位于路径行末尾
-        const addBtn = row.createEl('button', {
-            cls: 'task-detail-files-path-add',
-            attr: { type: 'button', 'aria-label': t('panel.fileAdd') },
-        });
-        addBtn.title = t('panel.fileAdd');
-        setIcon(addBtn, 'plus');
-        addBtn.addEventListener('click', () => void this.startCreateFile(task));
     }
 
     /** 打开任务文件目录（undefined 表示回到根目录的单栏列表） */
     private openFileDir(dir: string | undefined): void {
         this.fileCurrentDir = dir;
         this.render();
-    }
-
-    /** 当前目录的上一级；已在根目录时返回 undefined */
-    private fileParentDir(rootDir: string): string | undefined {
-        if (!this.fileCurrentDir) return undefined;
-        const index = this.fileCurrentDir.lastIndexOf('/');
-        const parent = index > 0 ? this.fileCurrentDir.slice(0, index) : '';
-        return parent && parent.length >= rootDir.length ? parent : undefined;
     }
 
     /** 渲染目录与文件混排列表（目录在前，按当前排序方式） */

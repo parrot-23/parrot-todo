@@ -21,6 +21,17 @@ import type { TimeBoxData } from '../datatypes/timebox-data';
 import type { ThemeData, Theme } from '../datatypes/theme';
 import { DEFAULT_THEME_ID } from '../datatypes/theme';
 import { parseSectionDisplay, parseTaskSections } from '../shared/task-sections';
+import type { TaskFileSortMode } from '../shared/task-file';
+
+/** 任务文件排序方式全集（用于校验持久化数据） */
+const TASK_FILE_SORT_MODES: TaskFileSortMode[] = [
+    'name-asc',
+    'name-desc',
+    'ctime-desc',
+    'ctime-asc',
+    'mtime-desc',
+    'mtime-asc',
+];
 import { log } from '../shared/logger';
 import { getPluginDir } from '../shared/plugin-dir';
 import { t } from '../i18n';
@@ -165,6 +176,9 @@ export class BaseRepo {
     /** 本地剧本目录路径（空表示未配置） */
     storyLocalDirPath = '';
 
+    /** 任务文件排序方式（随主数据一起持久化，默认最近编辑时间倒序） */
+    taskFileSortMode: TaskFileSortMode = 'mtime-desc';
+
     constructor(plugin: Plugin) {
         this.plugin = plugin;
     }
@@ -197,6 +211,7 @@ export class BaseRepo {
             planWeekNotesExpanded: this.planWeekNotesExpanded,
             storyLocalDirMode: this.storyLocalDirMode,
             storyLocalDirPath: this.storyLocalDirPath,
+            taskFileSortMode: this.taskFileSortMode,
         });
     }
 
@@ -228,6 +243,12 @@ export class BaseRepo {
     /** 保存计划一周面板「展开显示所有任务的本周描述」开关 */
     async savePlanWeekNotesExpanded(enabled: boolean): Promise<void> {
         this.planWeekNotesExpanded = enabled;
+        await this.saveAll();
+    }
+
+    /** 保存任务文件排序方式 */
+    async saveTaskFileSortMode(mode: TaskFileSortMode): Promise<void> {
+        this.taskFileSortMode = mode;
         await this.saveAll();
     }
 
@@ -287,6 +308,11 @@ export class BaseRepo {
         this.storyLocalDirPath = typeof savedData.storyLocalDirPath === 'string'
             ? savedData.storyLocalDirPath
             : '';
+
+        // 读取任务文件排序方式（兼容旧数据：默认最近编辑时间倒序）
+        this.taskFileSortMode = TASK_FILE_SORT_MODES.includes(savedData.taskFileSortMode as TaskFileSortMode)
+            ? savedData.taskFileSortMode as TaskFileSortMode
+            : 'mtime-desc';
     }
 
     /** 解析全局数据（年度字段先留空，由年度文件合并填充） */

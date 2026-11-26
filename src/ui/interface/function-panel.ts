@@ -16,6 +16,7 @@ export type FunctionItemId =
     | 'task'
     | 'taskDetail'
     | 'habit'
+    | 'checklist'
     | 'goalBoard'
     | 'timeBox'
     | 'planAnnual'
@@ -92,6 +93,7 @@ export class FunctionPanel extends FloatingPanel {
                 label: t('interface.functionGroupSection'),
                 items: [
                     { id: 'habit', label: t('interface.habit'), icon: 'repeat' },
+                    { id: 'checklist', label: t('panel.targetChecklist'), icon: 'list-checks' },
                     { id: 'goalBoard', label: t('panel.planAnnualGoal'), icon: 'target' },
                 ],
             },

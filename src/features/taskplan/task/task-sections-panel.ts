@@ -4,6 +4,7 @@
 import type { App } from 'obsidian';
 
 import type { PrototypeTask } from '../../../core/datatypes/prototype-task';
+import type { TaskFileSortMode } from '../../../core/shared/task-file';
 import { t } from '../../../core/i18n';
 import { SectionHost } from '../../section/section-host';
 import type { FloatingPanelOptions } from '../../../ui/basic/floating-panel';
@@ -24,6 +25,10 @@ export interface TaskSectionsPanelOptions extends Omit<FloatingPanelOptions, 'ti
     save: () => Promise<void>;
     /** 点击第一行跳转图标：在任务详情面板中打开该任务 */
     onOpenTaskDetail?: (taskId: string) => void;
+    /** 任务文件排序方式（持久化读取） */
+    getFileSortMode?: () => TaskFileSortMode;
+    /** 任务文件排序方式变化回调（持久化） */
+    onFileSortModeChange?: (mode: TaskFileSortMode) => void;
 }
 
 export class TaskSectionsPanel extends FloatingPanel {
@@ -52,6 +57,8 @@ export class TaskSectionsPanel extends FloatingPanel {
             save: options.save,
             container: options.container,
             registerIgnoreElement: (el) => this.addIgnoreElement(el),
+            getFileSortMode: options.getFileSortMode,
+            onFileSortModeChange: options.onFileSortModeChange,
         });
         // 标题栏钉住按钮左侧：跳转到任务详情面板（未提供回调时不显示）
         if (options.onOpenTaskDetail) {

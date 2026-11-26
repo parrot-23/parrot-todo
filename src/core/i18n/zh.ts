@@ -297,6 +297,7 @@ export const zh = {
     'panel.fileLinkedDirPick': '选择关联目录',
     'panel.fileLinkedDirSearch': '搜索文件夹',
     'panel.fileLinkedDirEmpty': '暂无关联目录',
+    'panel.fileLinkedDirMore': '更多 {count}',
     'panel.fileSort': '排序方式',
     'panel.fileSortShort': '排序',
     'panel.fileTemplate': '模板',

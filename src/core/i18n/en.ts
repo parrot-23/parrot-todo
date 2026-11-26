@@ -299,6 +299,7 @@ export const en: I18nMessages = {
     'panel.fileLinkedDirPick': 'Select a linked folder',
     'panel.fileLinkedDirSearch': 'Search folders',
     'panel.fileLinkedDirEmpty': 'No linked folders',
+    'panel.fileLinkedDirMore': '{count} more',
     'panel.fileSort': 'Sort by',
     'panel.fileSortShort': 'Sort',
     'panel.fileTemplate': 'Template',
