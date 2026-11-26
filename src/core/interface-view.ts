@@ -21,6 +21,7 @@ import { CollectHubPanel } from '../features/collector/collect-hub-panel';
 import { DataPanel } from '../features/taskplan/check/data-panel';
 import { GalleryPanel } from '../features/collector/gallery-panel';
 import { HabitPanel } from '../features/taskplan/section/habit-panel';
+import { ChecklistPanel } from '../features/taskplan/section/checklist-panel';
 import { PlanAnnualPanel } from '../features/taskplan/plan/plan-annual-panel';
 import { GoalBoardPanel } from '../features/taskplan/section/goal-board-panel';
 import { PlanWeekPanel } from '../features/taskplan/plan/plan-week-panel';
@@ -111,6 +112,8 @@ export class InterfaceView {
     private themeDispose: (() => void) | null = null;
     /** 习惯卡片对应的面板 */
     private habitPanel: HabitPanel | null = null;
+    /** 清单面板实例（懒创建） */
+    private checklistPanel: ChecklistPanel | null = null;
     /** 目标面板实例（懒创建） */
     private goalBoardPanel: GoalBoardPanel | null = null;
     /** 计划年度卡片对应的面板 */
@@ -315,6 +318,32 @@ export class InterfaceView {
             });
         }
         return this.habitPanel;
+    }
+
+    /** 清单面板实例（懒创建） */
+    private ensureChecklistPanel(): ChecklistPanel {
+        if (!this.checklistPanel) {
+            const holder = this.plugin as Plugin & {
+                saveAll: () => Promise<void>;
+            };
+            this.checklistPanel = new ChecklistPanel({
+                container: this.panelContainer,
+                getTasks: () => this.prototypeTaskRepo.tasks,
+                getCategories: () => this.categoryData.categories,
+                save: () => holder.saveAll(),
+                onChanged: () => {
+                    this.todayCard?.refreshTasks();
+                    this.todayTasksCard?.refresh();
+                    this.clockCard?.refresh();
+                },
+                onOpenTaskDetail: (taskId) => {
+                    const task = this.prototypeTaskRepo.tasks.find((item) => item.id === taskId);
+                    if (!task) return;
+                    this.openTaskDetail(task);
+                },
+            });
+        }
+        return this.checklistPanel;
     }
 
     /** 目标面板实例（懒创建） */
@@ -924,8 +953,7 @@ export class InterfaceView {
             case 'habit':
                 return this.ensureHabitPanel();
             case 'checklist':
-                // 清单：内容暂未实现，占位留空
-                return null;
+                return this.ensureChecklistPanel();
             case 'goalBoard':
                 return this.ensureGoalBoardPanel();
             case 'timeBox':
@@ -1161,6 +1189,8 @@ export class InterfaceView {
         this.themePanel = null;
         this.habitPanel?.destroy();
         this.habitPanel = null;
+        this.checklistPanel?.destroy();
+        this.checklistPanel = null;
         this.goalBoardPanel?.destroy();
         this.goalBoardPanel = null;
         this.planAnnualPanel?.destroy();

@@ -114,7 +114,7 @@ export class CheckPanel extends FloatingPanel {
             el.addEventListener('click', () => this.switchTab(item.key));
             this.rangeTabEls[item.key] = el;
         }
-        this.taskAnalysisTabEl = tabs.createDiv({ cls: 'plan-tab', text: t('panel.checkTaskAnalysis') });
+        this.taskAnalysisTabEl = tabs.createDiv({ cls: 'plan-tab', text: t('panel.checkTaskDetail') });
         this.taskAnalysisTabEl.addEventListener('click', () => this.switchTab('taskAnalysis'));
 
         this.paneEl = this.body.createDiv({ cls: 'plan-pane' });
@@ -135,9 +135,12 @@ export class CheckPanel extends FloatingPanel {
         this.paneEl.empty();
         // 面板元素随内容区一起销毁，重置引用
         this.checklistPopoverEl = undefined;
-        // 一月 / 一季：占位选项卡，页面内容暂为空
+        // 一月 / 一季：占位选项卡，页面内容显示「功能正在完善中」
         if (this.tab === 'day') this.renderDayView();
         if (this.tab === 'week') this.renderWeekView();
+        if (this.tab === 'month' || this.tab === 'quarter') {
+            this.paneEl.createDiv({ cls: 'interface-function-hint', text: t('panel.checkRangeWip') });
+        }
         if (this.tab === 'taskAnalysis') this.renderTaskAnalysis();
     }
 
