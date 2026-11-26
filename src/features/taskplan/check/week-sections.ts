@@ -329,7 +329,10 @@ export function renderDayRecordCard(
     const secondsByCategory = new Map<string, number>();
     for (const record of records) {
         const task = tasks.find((item) => item.id === record.taskId);
-        const time = `${formatTimestamp(record.startAt)}-${formatTimestamp(record.endAt)}`;
+        // 全天习惯不显示具体时间点，统一显示「全天」
+        const time = task && getTaskHabit(task)?.allDay === true
+            ? t('panel.habitAllDay')
+            : `${formatTimestamp(record.startAt)}-${formatTimestamp(record.endAt)}`;
         const name = task?.name ?? t('panel.checkRecordsUnknownTask');
         const duration = formatDurationSeconds(record.durationSeconds);
         const typeLabel = task

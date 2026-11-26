@@ -54,26 +54,6 @@ export interface PlanAnnualPanelOptions extends Omit<FloatingPanelOptions, 'titl
     onAddChild?: (name: string, parentId: string) => void;
 }
 
-/** 任务状态对应的图标（与习惯面板任务树保持一致） */
-const STATUS_ICONS: Record<TaskStatus, string> = {
-    notStarted: 'circle',
-    inProgress: 'play',
-    done: 'check-circle',
-    paused: 'pause',
-};
-
-/** 状态下拉列表的选项（图标 + 文案） */
-const STATUS_OPTIONS: {
-    value: TaskStatus;
-    icon: string;
-    labelKey: 'taskPlan.statusNotStarted' | 'taskPlan.statusInProgress' | 'taskPlan.statusDone' | 'taskPlan.statusPaused';
-}[] = [
-    { value: 'notStarted', icon: 'circle', labelKey: 'taskPlan.statusNotStarted' },
-    { value: 'inProgress', icon: 'play', labelKey: 'taskPlan.statusInProgress' },
-    { value: 'done', icon: 'check-circle', labelKey: 'taskPlan.statusDone' },
-    { value: 'paused', icon: 'pause', labelKey: 'taskPlan.statusPaused' },
-];
-
 /** 拖拽启动阈值（px） */
 const DRAG_THRESHOLD = 3;
 
@@ -161,8 +141,6 @@ export class PlanAnnualPanel extends FloatingPanel {
     private quarterWeeks: QuarterWeek[] = [];
     /** 当前拖拽状态 */
     private drag: DragState | null = null;
-    /** 状态下拉列表（挂在 body 上） */
-    private statusMenuEl: HTMLElement | null = null;
     /** 共享选中状态的应用中标记（避免把同步结果再写回） */
     private applyingSharedSelection = false;
     /** 取消任务树共享选中订阅 */
@@ -181,19 +159,6 @@ export class PlanAnnualPanel extends FloatingPanel {
     private weekGoalEditorEl: HTMLElement | null = null;
     private weekGoalEditorOutsideHandler: ((evt: MouseEvent) => void) | null = null;
     private weekGoalEditorKeyHandler: ((evt: KeyboardEvent) => void) | null = null;
-
-    /** 点击下拉列表外关闭 */
-    private readonly onStatusMenuOutside = (evt: MouseEvent): void => {
-        const target = evt.target;
-        if (!(target instanceof Element)) return;
-        if (this.statusMenuEl?.contains(target)) return;
-        if (target.closest('.plan-annual-status-btn')) return;
-        this.closeStatusMenu();
-    };
-
-    private readonly onStatusMenuKeyDown = (evt: KeyboardEvent): void => {
-        if (evt.key === 'Escape') this.closeStatusMenu();
-    };
 
     constructor(private readonly panelOptions: PlanAnnualPanelOptions) {
         super({
@@ -236,7 +201,7 @@ export class PlanAnnualPanel extends FloatingPanel {
     /** 关闭面板时清理拖拽残留 */
     override close(): void {
         this.cancelDrag();
-        this.closeStatusMenu();
+        this.taskTree.closeStatusMenu();
         this.closeWeekGoalTip();
         this.closeWeekGoalEditor();
         super.close();
@@ -246,7 +211,7 @@ export class PlanAnnualPanel extends FloatingPanel {
     override destroy(): void {
         this.unsubscribeTreeSelection();
         this.cancelDrag();
-        this.closeStatusMenu();
+        this.taskTree.closeStatusMenu();
         this.closeWeekGoalTip();
         this.closeWeekGoalEditor();
         super.destroy();
@@ -321,7 +286,13 @@ export class PlanAnnualPanel extends FloatingPanel {
             getRootId: () => this.rootTaskId,
             rowClass: 'plan-annual-tree-row',
             isSelected: (task) => task.id === this.selectedTaskId,
-            renderTrailing: (row, task) => this.renderTreeStatus(row, task),
+            statusControl: true,
+            onStatusChange: () => {
+                void this.panelOptions.save();
+                this.renderTree();
+                this.renderLanes();
+                this.panelOptions.onChanged?.();
+            },
             onRowClick: (task) => {
                 // 再次点击已选中的条目则取消选中
                 if (task.id === this.selectedTaskId) this.clearTaskSelection();
@@ -387,71 +358,6 @@ export class PlanAnnualPanel extends FloatingPanel {
     /** 渲染选中根任务（含根任务自身）的任务树 */
     private renderTree(): void {
         this.taskTree.render();
-    }
-
-    /** 行末尾：任务状态图标（点击弹出状态下拉列表）；目标 / 习惯类型改为常显类型图标 */
-    private renderTreeStatus(row: HTMLElement, task: PrototypeTask): void {
-        const kind = getTaskKind(task);
-        const statusEl = row.createSpan({ cls: 'plan-tree-status-icon' });
-        if (kind === 'goal' || kind === 'habit') {
-            // 类型图标仅作标识：始终可见，点击不弹出状态下拉面板
-            setIcon(statusEl, kind === 'goal' ? 'target' : 'repeat');
-            return;
-        }
-        // 所有状态（含未开始）都绘制状态图标；
-        // 未开始的图标仅在悬浮任务条目或选中任务时显示
-        statusEl.addClass('plan-annual-status-btn');
-        statusEl.toggleClass('is-not-started', (task.status ?? 'notStarted') === 'notStarted');
-        setIcon(statusEl, STATUS_ICONS[task.status ?? 'notStarted']);
-        statusEl.addEventListener('click', (evt) => {
-            evt.stopPropagation();
-            this.openStatusMenu(statusEl, task);
-        });
-    }
-
-    /** 打开状态下拉列表（挂在 body 上，贴在图标下方；选择后更新任务状态） */
-
-    /** 打开状态下拉列表（挂在 body 上，贴在图标下方；选择后更新任务状态） */
-    private openStatusMenu(anchorEl: HTMLElement, task: PrototypeTask): void {
-        this.closeStatusMenu();
-        const menu = document.body.createDiv({ cls: 'plan-annual-status-menu' });
-        applyThemeColors(menu, getCurrentThemeColors());
-        this.statusMenuEl = menu;
-        const current = task.status ?? 'notStarted';
-        for (const option of STATUS_OPTIONS) {
-            const item = menu.createDiv({ cls: 'plan-annual-status-item' });
-            item.toggleClass('is-active', option.value === current);
-            setIcon(item.createSpan({ cls: 'plan-annual-status-item-icon' }), option.icon);
-            item.createSpan({ cls: 'plan-annual-status-item-text', text: t(option.labelKey) });
-            item.addEventListener('click', (evt) => {
-                evt.stopPropagation();
-                task.status = option.value;
-                void this.panelOptions.save();
-                this.closeStatusMenu();
-                this.renderTree();
-                this.renderLanes();
-                this.panelOptions.onChanged?.();
-            });
-        }
-        // 贴在图标下方，右侧空间不足时向左收敛
-        const rect = anchorEl.getBoundingClientRect();
-        const width = menu.offsetWidth;
-        const height = menu.offsetHeight;
-        const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
-        const top = rect.bottom + height > window.innerHeight - 8
-            ? Math.max(8, rect.top - height - 4)
-            : rect.bottom + 4;
-        menu.setCssStyles({ left: `${left}px`, top: `${top}px` });
-        document.addEventListener('mousedown', this.onStatusMenuOutside, true);
-        document.addEventListener('keydown', this.onStatusMenuKeyDown);
-    }
-
-    /** 关闭状态下拉列表 */
-    private closeStatusMenu(): void {
-        document.removeEventListener('mousedown', this.onStatusMenuOutside, true);
-        document.removeEventListener('keydown', this.onStatusMenuKeyDown);
-        this.statusMenuEl?.remove();
-        this.statusMenuEl = null;
     }
 
     /** 当前根任务及其后代任务（按任务树顺序，与左侧任务树一一对应） */

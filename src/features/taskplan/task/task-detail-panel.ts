@@ -3,9 +3,8 @@
 // 右侧：任务名称 / 分类 / 描述 + 任务板块（与任务板块面板共用 SectionHost）。
 import { setIcon, type App } from 'obsidian';
 
-import type { PrototypeTask, TaskKind } from '../../../core/datatypes/prototype-task';
+import type { PrototypeTask } from '../../../core/datatypes/prototype-task';
 import type { TaskExecutionRecord } from '../../../core/datatypes/task-execution';
-import { getTaskKind } from '../../../core/shared/task-kind';
 import { t } from '../../../core/i18n';
 import type { PlanCategoryData } from '../../../core/shared/plan-category-manager';
 import { UNCATEGORIZED_CATEGORY_ID } from '../../../core/shared/plan-category-manager';
@@ -58,13 +57,6 @@ export interface TaskDetailPanelOptions extends Omit<FloatingPanelOptions, 'titl
 /** 长按进入拖动的等待时间（毫秒） */
 const TREE_LONG_PRESS_MS = 300;
 
-/** 任务类型图标与文案（任务条目末尾展示；任务类型不显示图标） */
-const TREE_KIND_META: Record<TaskKind, { icon?: string; labelKey: Parameters<typeof t>[0] }> = {
-    task: { labelKey: 'panel.taskKindTask' },
-    habit: { icon: 'repeat', labelKey: 'panel.taskKindHabit' },
-    goal: { icon: 'target', labelKey: 'panel.taskKindGoal' },
-};
-
 /** 任务详情面板 */
 export class TaskDetailPanel extends FloatingPanel {
     private panelOptions: TaskDetailPanelOptions;
@@ -105,6 +97,8 @@ export class TaskDetailPanel extends FloatingPanel {
     private activeInlineEditAbort: (() => void) | null = null;
     /** 拖动结束后抑制一次点击，避免误选中 */
     private suppressTreeClick = false;
+    /** 是否在任务树中显示已完成任务（默认隐藏，不跨面板记忆） */
+    private showCompletedTasks = false;
     /** 共享选中状态的应用中标记（避免把同步结果再写回） */
     private applyingSharedSelection = false;
     /** 取消任务树共享选中订阅 */
@@ -245,6 +239,19 @@ export class TaskDetailPanel extends FloatingPanel {
 
         // + 按钮 + 其右侧的小面板
         const addWrap = header.createDiv({ cls: 'task-detail-add-wrap' });
+        // 「显示所有任务」开关：默认隐藏已完成任务（含其子任务）
+        const showAllBtn = addWrap.createDiv({
+            cls: 'task-detail-add-btn task-detail-show-all-btn',
+            attr: { 'aria-label': t('panel.showAllTasks'), role: 'button' },
+        });
+        showAllBtn.title = t('panel.showAllTasks');
+        setIcon(showAllBtn, 'list-filter');
+        showAllBtn.toggleClass('is-active', this.showCompletedTasks);
+        showAllBtn.addEventListener('click', () => {
+            this.showCompletedTasks = !this.showCompletedTasks;
+            showAllBtn.toggleClass('is-active', this.showCompletedTasks);
+            this.renderTree();
+        });
         const addBtn = addWrap.createDiv({ cls: 'task-detail-add-btn' });
         setIcon(addBtn, 'plus');
         addBtn.setAttribute('aria-label', 'Add');
@@ -274,10 +281,14 @@ export class TaskDetailPanel extends FloatingPanel {
         // 后代任务树
         this.treeEl = left.createDiv({ cls: 'task-detail-tree' });
         this.taskTree = new TaskTree(this.treeEl, {
-            getTasks: () => this.tasks,
+            getTasks: () => this.getVisibleTasks(),
             getRootId: () => this.rootTaskId,
             isSelected: (task) => task.id === this.selectedTaskId,
-            renderTrailing: (row, task) => this.renderTreeTrailing(row, task),
+            statusControl: true,
+            onStatusChange: () => {
+                void this.panelOptions.save().then(() => this.panelOptions.onTasksChanged?.());
+                this.renderTree();
+            },
             onRowClick: (task) => {
                 // 长按拖动结束后抑制一次点击，避免把拖动误判为选中
                 if (this.suppressTreeClick) {
@@ -627,15 +638,22 @@ export class TaskDetailPanel extends FloatingPanel {
         }
     }
 
-    /** 行末尾：任务类型图标（习惯 / 目标；任务类型不显示图标） */
-    private renderTreeTrailing(row: HTMLElement, task: PrototypeTask): void {
-        const kind = getTaskKind(task);
-        const meta = TREE_KIND_META[kind];
-        if (!meta.icon) return;
-        const kindEl = row.createSpan({ cls: 'task-detail-tree-kind' });
-        kindEl.setAttr('title', t(meta.labelKey));
-        const iconEl = kindEl.createSpan({ cls: 'task-detail-tree-kind-icon' });
-        setIcon(iconEl, meta.icon);
+    /** 任务树可见任务：默认隐藏已完成任务及其全部后代，开启「显示所有任务」后返回全量 */
+    private getVisibleTasks(): PrototypeTask[] {
+        if (this.showCompletedTasks) return this.tasks;
+        const hidden = new Set<string>();
+        const walk = (parentId: string): void => {
+            for (const task of this.tasks) {
+                if (task.parentId !== parentId) continue;
+                if (task.status === 'done') hidden.add(task.id);
+                walk(task.id);
+            }
+        };
+        // 从所有根任务出发，保证任意层级的已完成任务都能被识别
+        for (const task of this.tasks) {
+            if (!task.parentId) walk(task.id);
+        }
+        return this.tasks.filter((task) => !hidden.has(task.id));
     }
 
     /** 长按任务条目后进入拖动：按落点重排顺序并调整层级（限制在当前根任务子树内） */

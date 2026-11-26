@@ -10388,6 +10388,16 @@ button.interface-function-item-tab.is-active {
     height: 16px;
 }
 
+/* 「显示所有任务」开关：激活时高亮 */
+.task-detail-show-all-btn {
+    margin-right: 2px;
+}
+
+.task-detail-show-all-btn.is-active {
+    background: var(--sdt-hover-bg, var(--background-modifier-hover));
+    color: var(--interactive-accent);
+}
+
 /* + 按钮下方弹出的小面板 */
 .task-detail-add-form {
     position: absolute;
@@ -16166,41 +16176,10 @@ button.interface-today-tasks-add {
     white-space: nowrap;
 }
 
-.task-section-kind-options {
-    display: inline-flex;
-    gap: 2px;
-    padding: 2px;
-    border: 1px solid var(--sdt-card-border, var(--background-modifier-border));
-    border-radius: 6px;
-    background: var(--sdt-card-bg, var(--background-secondary));
-}
-
-.task-section-kind-options button.task-section-kind-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 4px 10px;
-    border: none;
-    border-radius: 4px;
-    background: transparent;
-    box-shadow: none;
-    color: var(--sdt-text-secondary, var(--text-muted));
+/* 任务类型下拉（原生 dropdown 样式，与面板内其它下拉一致） */
+.task-section-kind-select {
+    min-width: 130px;
     font-size: 12px;
-    cursor: pointer;
-}
-
-.task-section-kind-options button.task-section-kind-btn:hover {
-    background: var(--sdt-hover-bg, var(--background-modifier-hover));
-}
-
-.task-section-kind-options button.task-section-kind-btn.is-active {
-    background: var(--interactive-accent);
-    color: var(--text-on-accent);
-}
-
-.task-section-kind-btn-icon svg {
-    width: 12px;
-    height: 12px;
 }
 
 /* 任务类型设置卡片：任务类型选择行下方的间距（习惯 / 目标共用） */

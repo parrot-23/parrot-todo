@@ -63,7 +63,7 @@ export class CheckPanel extends FloatingPanel {
     /** 内容区容器 */
     private paneEl!: HTMLElement;
     /** 当前选项卡 */
-    private tab: CheckTab = 'taskAnalysis';
+    private tab: CheckTab = 'day';
     /** 一周视图当前查看的周键 */
     private weekKey: string = getCurrentWeekKey();
     /** 一日视图当前查看的日期键（默认今天） */

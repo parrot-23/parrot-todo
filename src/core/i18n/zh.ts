@@ -319,6 +319,7 @@ export const zh = {
     'panel.targetFile': '任务文件',
     'panel.subTaskName': '任务名称',
     'panel.noSubTask': '暂无子任务',
+    'panel.showAllTasks': '显示所有任务',
     'panel.taskRecordTitle': '记录任务',
     'panel.recordStartTime': '开始时间',
     'panel.recordEndTime': '结束时间',
@@ -414,6 +415,7 @@ export const zh = {
     'taskPlan.statusInProgress': '进行中',
     'taskPlan.statusPaused': '暂停',
     'taskPlan.statusDone': '已完成',
+    'taskPlan.statusDoneWithUnfinishedChildren': '「{name}」还有 {count} 个未完成的子任务',
 
     // OKR 信息
     'okr.title': 'OKR 信息',

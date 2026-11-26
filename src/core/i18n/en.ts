@@ -321,6 +321,7 @@ export const en: I18nMessages = {
     'panel.targetFile': 'Task File',
     'panel.subTaskName': 'Task name',
     'panel.noSubTask': 'No sub tasks',
+    'panel.showAllTasks': 'Show all tasks',
     'panel.taskRecordTitle': 'Record task',
     'panel.recordStartTime': 'Start time',
     'panel.recordEndTime': 'End time',
@@ -416,6 +417,7 @@ export const en: I18nMessages = {
     'taskPlan.statusInProgress': 'In progress',
     'taskPlan.statusPaused': 'Paused',
     'taskPlan.statusDone': 'Done',
+    'taskPlan.statusDoneWithUnfinishedChildren': '"{name}" still has {count} unfinished subtask(s)',
 
     // OKR info
     'okr.title': 'OKR Info',

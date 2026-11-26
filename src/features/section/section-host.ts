@@ -75,11 +75,11 @@ const FILE_SORT_OPTIONS: { value: TaskFileSortMode; icon?: string; letter?: stri
     { value: 'mtime-asc', icon: 'clock', labelKey: 'panel.fileSortMtimeAsc' },
 ];
 
-/** 任务类型三选一的选项（任务类型不显示图标） */
-const KIND_OPTIONS: { value: TaskKind; icon?: string; labelKey: LabelKey }[] = [
-    { value: 'task', labelKey: 'panel.taskKindTask' },
-    { value: 'habit', icon: 'repeat', labelKey: 'panel.taskKindHabit' },
-    { value: 'goal', icon: 'target', labelKey: 'panel.taskKindGoal' },
+/** 任务类型三选一的选项（原生下拉里用字符前缀表示类型图标） */
+const KIND_OPTIONS: { value: TaskKind; symbol: string; labelKey: LabelKey }[] = [
+    { value: 'task', symbol: '▢', labelKey: 'panel.taskKindTask' },
+    { value: 'habit', symbol: '↻', labelKey: 'panel.taskKindHabit' },
+    { value: 'goal', symbol: '◎', labelKey: 'panel.taskKindGoal' },
 ];
 
 /** 板块宿主配置 */
@@ -289,33 +289,33 @@ export class SectionHost {
         this.render();
     }
 
-    /** 任务类型选项卡内容：第一行设置任务类型（任务 / 习惯 / 目标 三选一） */
+    /** 任务类型选项卡内容：第一行用下拉设置任务类型（任务 / 习惯 / 目标） */
     private renderKind(body: HTMLElement, task: PrototypeTask): void {
         const wrap = body.createDiv({ cls: 'task-section-kind' });
         const row = wrap.createDiv({ cls: 'task-section-kind-row' });
         row.createSpan({ cls: 'task-section-kind-label', text: t('panel.sectionKindLabel') });
-        const group = row.createDiv({ cls: 'task-section-kind-options' });
         const current = getTaskKind(task);
+        // 原生下拉：选项文字前用字符符号表示类型图标
+        const select = row.createEl('select', { cls: 'dropdown task-section-kind-select' });
         for (const option of KIND_OPTIONS) {
-            const btn = group.createEl('button', {
-                cls: 'task-section-kind-btn',
-                attr: { type: 'button' },
+            const optionEl = select.createEl('option', {
+                value: option.value,
+                text: `${option.symbol} ${t(option.labelKey)}`,
             });
-            btn.toggleClass('is-active', current === option.value);
-            if (option.icon) setIcon(btn.createSpan({ cls: 'task-section-kind-btn-icon' }), option.icon);
-            btn.createSpan({ cls: 'task-section-kind-btn-label', text: t(option.labelKey) });
-            btn.addEventListener('click', () => {
-                if (getTaskKind(task) === option.value) return;
-                task.kind = option.value;
-                // 首次切换为目标类型时默认不启用目标，勾选后才参与目标面板
-                if (option.value === 'goal' && !hasSection(task, 'goals')) {
-                    setTaskGoalConfig(task, { enabled: false });
-                }
-                void this.options.save();
-                this.options.onChanged?.();
-                this.render();
-            });
+            optionEl.selected = current === option.value;
         }
+        select.addEventListener('change', () => {
+            const value = select.value as TaskKind;
+            if (getTaskKind(task) === value) return;
+            task.kind = value;
+            // 首次切换为目标类型时默认不启用目标，勾选后才参与目标面板
+            if (value === 'goal' && !hasSection(task, 'goals')) {
+                setTaskGoalConfig(task, { enabled: false });
+            }
+            void this.options.save();
+            this.options.onChanged?.();
+            this.render();
+        });
         // 习惯类型：下方内嵌习惯设置（与「习惯」面板共用同一份数据）
         if (current === 'habit') this.renderHabitKindSettings(wrap, task);
         // 目标类型：下方勾选启用目标 + 截止周数 / 截止日期
