@@ -250,6 +250,7 @@ export class InterfaceView {
                 getExecutions: () => this.taskExecutionRepo.records,
                 getArchivedTasks: () => this.prototypeTaskRepo.archivedRootTasks,
                 onUnarchiveTask: (taskId) => this.unarchivePrototypeTask(taskId),
+                onReorderTasks: (ordered) => this.reorderRootPrototypeTasks(ordered),
             });
         } else {
             this.taskPanel.setTasks(this.rootPrototypeTasks());
@@ -600,6 +601,26 @@ export class InterfaceView {
         const hidden = all.filter((task) => !orderedIds.has(task.id));
         all.splice(0, all.length, ...ordered, ...hidden);
         this.detailPanels.forEach((panel) => panel.setTasks(this.prototypeTaskRepo.tasks));
+    }
+
+    /** 任务面板根任务拖拽排序：按新顺序重排各根任务及其子树，归档任务保留在末尾 */
+    private reorderRootPrototypeTasks(ordered: PrototypeTask[]): void {
+        const all = this.prototypeTaskRepo.allTasks;
+        const placed = new Set<string>();
+        const next: PrototypeTask[] = [];
+        const append = (task: PrototypeTask): void => {
+            if (placed.has(task.id)) return;
+            placed.add(task.id);
+            next.push(task);
+            for (const child of all) {
+                if (child.parentId === task.id) append(child);
+            }
+        };
+        for (const task of ordered) append(task);
+        const rest = all.filter((task) => !placed.has(task.id));
+        all.splice(0, all.length, ...next, ...rest);
+        void (this.plugin as Plugin & { saveAll: () => Promise<void> }).saveAll();
+        this.refreshTaskConsumers();
     }
 
     /** 任务集合变化后刷新所有读取任务列表的界面 */

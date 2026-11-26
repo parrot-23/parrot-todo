@@ -45,10 +45,17 @@ export interface TaskPanelOptions extends Omit<FloatingPanelOptions, 'title'> {
     getArchivedTasks?: () => PrototypeTask[];
     /** 点击「移出归档」的回调（父面板负责写仓库并持久化） */
     onUnarchiveTask?: (taskId: string) => void;
+    /** 长按左侧方块上下拖动排序后的回调（父面板按新顺序写回仓库） */
+    onReorderTasks?: (ordered: PrototypeTask[]) => void;
 }
 
 /** 胶囊行展示的板块类型：按注册表顺序展示 */
 const SECTION_TYPES = Object.keys(SECTION_REGISTRY) as SectionType[];
+
+/** 长按左侧方块进入拖动排序的等待时间（毫秒） */
+const TILE_LONG_PRESS_MS = 300;
+/** 拖动结束后抑制行点击的时间窗口（毫秒） */
+const DRAG_CLICK_GUARD_MS = 250;
 
 /** 任务面板 */
 export class TaskPanel extends FloatingPanel {
@@ -64,6 +71,8 @@ export class TaskPanel extends FloatingPanel {
     private archiveListEl!: HTMLElement;
     /** 是否处于查看归档状态 */
     private archiveViewActive = false;
+    /** 最近一次拖动排序结束时间（用于抑制拖动误触发的行点击） */
+    private lastDragEndAt = 0;
 
     constructor(options: TaskPanelOptions = {}) {
         super({
@@ -221,6 +230,7 @@ export class TaskPanel extends FloatingPanel {
 
         for (const { task, hours } of rows) {
             const el = this.existingEl.createDiv({ cls: `task-panel-existing-item is-${task.type}` });
+            el.dataset.taskId = task.id;
 
             // 左侧方块：图标 + 任务名称（任务名称提示只挂在名称方块上，避免柱体悬浮时出现）
             const tileEl = el.createDiv({ cls: 'task-panel-task-tile' });
@@ -228,6 +238,8 @@ export class TaskPanel extends FloatingPanel {
             const iconEl = tileEl.createDiv({ cls: 'task-panel-task-icon' });
             setIcon(iconEl, task.type === 'main' ? 'star' : 'git-branch');
             tileEl.createDiv({ cls: 'task-panel-task-name', text: task.name });
+            // 长按方块（图标 + 名称）后可上下拖动调整根任务顺序
+            this.attachTileDrag(el, tileEl, task);
 
             // 右侧：左半为任务描述（无描述时显示占位文案），右半为最近 8 周执行时长柱状图
             const bodyEl = el.createDiv({ cls: 'task-panel-task-body' });
@@ -242,8 +254,124 @@ export class TaskPanel extends FloatingPanel {
 
             if (this.panelOptions.onTaskClick) {
                 el.addClass('is-clickable');
-                el.addEventListener('click', () => this.panelOptions.onTaskClick?.(task));
+                el.addEventListener('click', () => {
+                    // 拖动排序结束后忽略紧随其后的点击，避免误打开任务详情
+                    if (Date.now() - this.lastDragEndAt < DRAG_CLICK_GUARD_MS) return;
+                    this.panelOptions.onTaskClick?.(task);
+                });
             }
+        }
+    }
+
+    /** 在左侧方块上长按进入上下拖动排序（仅调整根任务顺序） */
+    private attachTileDrag(row: HTMLElement, tile: HTMLElement, task: PrototypeTask): void {
+        tile.addEventListener('mousedown', (evt) => {
+            if (evt.button !== 0) return;
+            const startX = evt.clientX;
+            const startY = evt.clientY;
+            let timer: number | null = window.setTimeout(() => {
+                timer = null;
+                beginDrag();
+            }, TILE_LONG_PRESS_MS);
+
+            const cancelTimer = (): void => {
+                if (timer !== null) {
+                    window.clearTimeout(timer);
+                    timer = null;
+                }
+                document.removeEventListener('mousemove', onPreMove);
+                document.removeEventListener('mouseup', onPreUp);
+            };
+
+            // 长按期间移动超过阈值视为普通点击，取消拖动
+            const onPreMove = (moveEvt: MouseEvent): void => {
+                if (Math.abs(moveEvt.clientX - startX) > 5 || Math.abs(moveEvt.clientY - startY) > 5) {
+                    cancelTimer();
+                }
+            };
+            const onPreUp = (): void => cancelTimer();
+            document.addEventListener('mousemove', onPreMove);
+            document.addEventListener('mouseup', onPreUp);
+
+            const beginDrag = (): void => {
+                document.removeEventListener('mousemove', onPreMove);
+                document.removeEventListener('mouseup', onPreUp);
+                const rows = Array.from(this.existingEl.querySelectorAll<HTMLElement>('.task-panel-existing-item'))
+                    .filter((el) => el !== row);
+                if (rows.length === 0) return;
+
+                row.addClass('is-dragging');
+                const indicator = this.existingEl.createDiv({ cls: 'task-panel-drag-indicator' });
+
+                // 落点：以鼠标纵坐标落在目标行的上 / 下半区决定插入位置
+                const computeDrop = (clientY: number): { beforeId?: string; placeAfter: boolean } => {
+                    for (const el of rows) {
+                        const rect = el.getBoundingClientRect();
+                        if (clientY < rect.top) return { beforeId: el.dataset.taskId, placeAfter: false };
+                        if (clientY <= rect.bottom) {
+                            return {
+                                beforeId: el.dataset.taskId,
+                                placeAfter: clientY > rect.top + rect.height / 2,
+                            };
+                        }
+                    }
+                    return { beforeId: rows[rows.length - 1].dataset.taskId, placeAfter: true };
+                };
+
+                const updateIndicator = (clientY: number): void => {
+                    const drop = computeDrop(clientY);
+                    const refEl = rows.find((el) => el.dataset.taskId === drop.beforeId);
+                    if (!refEl) {
+                        indicator.removeClass('is-visible');
+                        return;
+                    }
+                    const rect = refEl.getBoundingClientRect();
+                    const listRect = this.existingEl.getBoundingClientRect();
+                    const top = (drop.placeAfter ? rect.bottom : rect.top) - listRect.top + this.existingEl.scrollTop;
+                    indicator.addClass('is-visible');
+                    indicator.setCssProps({ '--indicator-top': `${top}px` });
+                };
+
+                let hasMoved = false;
+                const onMove = (moveEvt: MouseEvent): void => {
+                    hasMoved = true;
+                    updateIndicator(moveEvt.clientY);
+                    moveEvt.preventDefault();
+                };
+                const onUp = (upEvt: MouseEvent): void => {
+                    document.removeEventListener('mousemove', onMove);
+                    document.removeEventListener('mouseup', onUp);
+                    indicator.remove();
+                    row.removeClass('is-dragging');
+                    if (!hasMoved) return;
+                    this.lastDragEndAt = Date.now();
+                    this.applyTileDrop(task, computeDrop(upEvt.clientY));
+                };
+                document.addEventListener('mousemove', onMove);
+                document.addEventListener('mouseup', onUp);
+            };
+        });
+    }
+
+    /** 应用拖动落点：重排根任务顺序并交由父面板写回仓库 */
+    private applyTileDrop(task: PrototypeTask, drop: { beforeId?: string; placeAfter: boolean }): void {
+        const ordered = (this.panelOptions.getAllTasks?.() ?? this.panelOptions.tasks ?? [])
+            .filter((item) => !item.parentId);
+        const moving = ordered.find((item) => item.id === task.id);
+        if (!moving) return;
+        const rest = ordered.filter((item) => item.id !== task.id);
+        let next: PrototypeTask[];
+        if (!drop.beforeId) {
+            next = [...rest, moving];
+        } else {
+            const refIndex = rest.findIndex((item) => item.id === drop.beforeId);
+            const insertAt = refIndex < 0 ? rest.length : (drop.placeAfter ? refIndex + 1 : refIndex);
+            next = [...rest.slice(0, insertAt), moving, ...rest.slice(insertAt)];
+        }
+        if (this.panelOptions.onReorderTasks) {
+            this.panelOptions.onReorderTasks(next);
+        } else {
+            this.setTasks(next);
         }
     }
 
@@ -341,6 +469,7 @@ export class TaskPanel extends FloatingPanel {
             name,
         });
         this.inputEl.value = '';
-        this.close();
+        // 嵌入功能面板时关闭会把内容区留空，保持面板常驻；浮层模式添加后关闭
+        if (!this.isEmbedded) this.close();
     }
 }

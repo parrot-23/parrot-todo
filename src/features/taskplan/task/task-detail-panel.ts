@@ -816,13 +816,24 @@ export class TaskDetailPanel extends FloatingPanel {
         return ids;
     }
 
-    /** 浮层打开指定任务：任务树的根切回该任务，并把它设为共享选中 */
+    /** 浮层打开指定任务：任务树的根切回该任务所属的根任务，并把它设为共享选中 */
     setRootTask(task: PrototypeTask): void {
-        if (task.id !== this.rootTaskId) {
-            this.rootTaskId = task.id;
+        // 打开的任务可能是子任务：树根应定位到它所属的根任务，再在树中选中该任务
+        const rootId = findRootTaskId(this.tasks, task.id) ?? task.id;
+        const rootChanged = rootId !== this.rootTaskId;
+        if (rootChanged) {
+            this.rootTaskId = rootId;
             this.refreshRootSelect();
-            this.renderTree();
         }
+        // 展开目标任务的祖先链，保证子任务在左侧任务树中可见
+        const seen = new Set<string>();
+        let parentId = this.tasks.find((item) => item.id === task.id)?.parentId;
+        while (parentId && !seen.has(parentId)) {
+            seen.add(parentId);
+            expandTreeTask(this.rootTaskId, parentId);
+            parentId = this.tasks.find((item) => item.id === parentId)?.parentId;
+        }
+        if (rootChanged) this.renderTree();
         this.selectTask(task.id);
     }
 

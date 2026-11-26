@@ -1,6 +1,6 @@
 ﻿// 检查面板：基于 FloatingPanel，用于配置检查。
 // 结构：顶部选项卡（习惯 / 计划vs对比 / 具体任务分析）；「统计」「任务记录」已拆为独立面板（stats-panel.ts）。
-// 习惯：周数切换 + 8 列表格（习惯名称 + 周一至周日，标记当天是否完成）。
+// 习惯：周数切换 + 9 列表格（习惯名称 + 完成情况 + 周一至周日，标记当天是否完成）。
 // 计划vs对比：周数切换 + 计划分布（时间盒数据）/ 执行分布（任务执行记录），
 // 视觉复用二级视图（检查）的分布图样式（24 小时、2 小时一格、7 列）。
 import type { App } from 'obsidian';
@@ -18,6 +18,7 @@ import type { TaskExecutionRepo } from '../../../core/repos/task-execution-repo'
 import type { PlanCategoryData } from '../../../core/shared/plan-category-manager';
 import { UNCATEGORIZED_CATEGORY_ID } from '../../../core/shared/plan-category-manager';
 import { getTaskHabit } from '../../../core/shared/task-sections';
+import { findRootTaskId } from '../../../core/shared/task-tree-selection';
 import {
     getCurrentWeekKey,
     getISOWeek,
@@ -64,6 +65,9 @@ interface ChartBlock {
     end: number;
     categoryId?: string;
 }
+
+/** 「时长去向」中已删除任务的归并键（记录保留但任务已不存在） */
+const DELETED_ROOT_TASK_ID = '__deleted_root_task__';
 
 /** 检查面板 */
 export class CheckPanel extends FloatingPanel {
@@ -129,9 +133,9 @@ export class CheckPanel extends FloatingPanel {
     private renderDurationFlow(): void {
         this.renderWeekNav();
 
-        const minutesByCatTask = this.execMinutesByTaskCategory();
+        const minutesByCatRoot = this.execMinutesByRootTaskCategory();
         const minutesByCat = new Map<string, number>();
-        minutesByCatTask.forEach((taskMinutes, catId) => {
+        minutesByCatRoot.forEach((taskMinutes, catId) => {
             let sum = 0;
             taskMinutes.forEach((minutes) => { sum += minutes; });
             minutesByCat.set(catId, sum);
@@ -184,8 +188,8 @@ export class CheckPanel extends FloatingPanel {
             });
 
             if (!expanded) continue;
-            // 展开：该分类下本周有时长的任务，按时长降序
-            const taskMinutes = Array.from(minutesByCatTask.get(row.id)?.entries() ?? [])
+            // 展开：该分类下本周有时长的根任务（子任务时长已归并到根任务），按时长降序
+            const taskMinutes = Array.from(minutesByCatRoot.get(row.id)?.entries() ?? [])
                 .filter(([, minutes]) => minutes > 0)
                 .sort((a, b) => b[1] - a[1]);
             if (taskMinutes.length === 0) {
@@ -193,25 +197,27 @@ export class CheckPanel extends FloatingPanel {
                 continue;
             }
             const subWrap = wrap.createDiv({ cls: 'check-cat-bars-sub' });
-            const subMax = Math.max(...taskMinutes.map(([, minutes]) => minutes));
             taskMinutes.forEach(([taskId, minutes]) => {
+                // 任务已删除时记录仍保留，统一归并为一条「已删除任务」
+                const name = taskNames.get(taskId) ?? t('panel.checkRecordsUnknownTask');
                 const subRow = subWrap.createDiv({ cls: 'check-cat-bars-sub-row' });
                 subRow.createSpan({
                     cls: 'check-cat-bars-sub-label',
-                    text: taskNames.get(taskId) ?? taskId,
-                    attr: { title: taskNames.get(taskId) ?? taskId },
+                    text: name,
+                    attr: { title: name },
                 });
                 const subTrack = subRow.createDiv({ cls: 'check-cat-bars-sub-track' });
                 subTrack.createDiv({ cls: 'check-cat-bars-fill' }).setCssProps({
                     '--fill-color': row.color ?? '#888888',
-                    '--fill-width': widthOf(minutes, subMax),
+                    // 与分类横条共用同一比例尺
+                    '--fill-width': widthOf(minutes, maxMinutes),
                 });
                 subRow.createSpan({ cls: 'check-cat-bars-sub-value', text: formatHours(minutes) });
             });
         }
     }
 
-    // ===== 习惯：周数切换 + 8 列表格（习惯名称 + 周一至周日是否完成） =====
+    // ===== 习惯：周数切换 + 9 列表格（习惯名称 + 完成情况 + 周一至周日是否完成） =====
     private renderHabits(): void {
         this.renderWeekNav();
 
@@ -223,9 +229,10 @@ export class CheckPanel extends FloatingPanel {
                 || a.task.name.localeCompare(b.task.name));
 
         const table = this.paneEl.createDiv({ cls: 'check-habit-table' });
-        // 表头：习惯名称 + 周一至周日（带日期）
+        // 表头：习惯名称 + 完成情况 + 周一至周日（带日期）
         const head = table.createDiv({ cls: 'check-habit-row is-head' });
         head.createDiv({ cls: 'check-habit-cell is-name', text: t('interface.habit') });
+        head.createDiv({ cls: 'check-habit-cell is-total', text: t('panel.checkHabitDone') });
         const weekDays = getWeekDays();
         for (let day = 1; day <= 7; day++) {
             const dayKey = makeDayKeyFromWeek(this.weekKey, day);
@@ -236,7 +243,6 @@ export class CheckPanel extends FloatingPanel {
                 text: `${Number(dayKey.slice(5, 7))}/${Number(dayKey.slice(8, 10))}`,
             });
         }
-        head.createDiv({ cls: 'check-habit-cell is-total', text: t('panel.checkHabitDone') });
 
         if (habits.length === 0) {
             table.createDiv({ cls: 'check-habit-empty', text: t('panel.checkHabitsEmpty') });
@@ -247,6 +253,8 @@ export class CheckPanel extends FloatingPanel {
             const row = table.createDiv({ cls: 'check-habit-row' });
             row.createDiv({ cls: 'check-habit-cell is-name', text: task.name });
             let doneCount = 0;
+            // 第二列：本周完成天数 / 7（先占位，遍历完七天后再填值）
+            const totalEl = row.createDiv({ cls: 'check-habit-cell is-total' });
             for (let day = 1; day <= 7; day++) {
                 const cell = row.createDiv({ cls: 'check-habit-cell is-day' });
                 // 习惯未生效的星期：显示占位符，不参与完成状态
@@ -262,8 +270,7 @@ export class CheckPanel extends FloatingPanel {
                 mark.toggleClass('is-done', done);
                 setIcon(mark, done ? 'circle-check-big' : 'circle');
             }
-            // 第九列：本周完成天数 / 7
-            row.createDiv({ cls: 'check-habit-cell is-total', text: `${doneCount} / 7` });
+            totalEl.setText(`${doneCount} / 7`);
         }
     }
 
@@ -614,8 +621,9 @@ export class CheckPanel extends FloatingPanel {
         return minutesByCat;
     }
 
-    /** 执行时长按「分类 → 任务」两级汇总：当前周执行记录（跨午夜裁剪到本周） */
-    private execMinutesByTaskCategory(): Map<string, Map<string, number>> {
+    /** 执行时长按「分类 → 根任务」两级汇总：子任务时长归并到所属根任务（跨午夜裁剪到本周） */
+    private execMinutesByRootTaskCategory(): Map<string, Map<string, number>> {
+        const tasks = this.panelOptions.getTasks();
         const records = this.panelOptions.taskExecutionRepo.records;
         const result = new Map<string, Map<string, number>>();
         const firstDayKey = makeDayKeyFromWeek(this.weekKey, 1);
@@ -626,9 +634,15 @@ export class CheckPanel extends FloatingPanel {
             const startMs = Math.max(weekStart, record.startAt);
             const endMs = Math.min(weekEnd, record.endAt);
             if (endMs <= startMs) continue;
-            const catId = this.categoryIdOf(record.taskId) ?? UNCATEGORIZED_CATEGORY_ID;
+            // 事项按根任务统计：子任务的执行时长归并到所属根任务
+            const rootId = findRootTaskId(tasks, record.taskId);
+            // 任务已删除：记录保留并统一归并到「已删除任务」，无分类信息
+            const key = rootId ?? DELETED_ROOT_TASK_ID;
+            const catId = rootId
+                ? (this.categoryIdOf(rootId) ?? UNCATEGORIZED_CATEGORY_ID)
+                : UNCATEGORIZED_CATEGORY_ID;
             const byTask = result.get(catId) ?? new Map<string, number>();
-            byTask.set(record.taskId, (byTask.get(record.taskId) ?? 0) + (endMs - startMs) / 60000);
+            byTask.set(key, (byTask.get(key) ?? 0) + (endMs - startMs) / 60000);
             result.set(catId, byTask);
         }
         return result;
