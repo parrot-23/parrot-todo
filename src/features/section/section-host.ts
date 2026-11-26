@@ -6,7 +6,7 @@
 //  4. 内容读写统一走 shared/task-sections 访问器，首次写入内容时自动创建板块。
 import { Menu, Notice, TFolder, setIcon, type App, type TFile } from 'obsidian';
 
-import type { ChecklistItem } from '../../core/datatypes/domain';
+import type { ChecklistCategory, ChecklistItem } from '../../core/datatypes/domain';
 import type { PrototypeTask, TaskDayGoalEntry, TaskGoalConfig, TaskHabit, TaskKind } from '../../core/datatypes/prototype-task';
 import type { SectionDisplayMode, SectionType } from '../../core/datatypes/task-section';
 import type { TaskExecutionRecord } from '../../core/datatypes/task-execution';
@@ -131,10 +131,6 @@ export class SectionHost {
     private showConfig = false;
     /** 日目标板块当前查看的周键 */
     private weekKey = getCurrentWeekKey();
-    /** 清单排序方式 */
-    private checklistSort: 'created' | 'due' = 'created';
-    /** 清单中选中的条目 id（用于设置截止时间） */
-    private selectedChecklistId: string | null = null;
     /** 任务文件是否处于新建输入状态 */
     private fileCreateMode = false;
     /** 任务文件当前打开的目录（相对绑定目录的子目录；undefined 表示根目录，不显示左右分栏） */
@@ -162,8 +158,6 @@ export class SectionHost {
         this.activeKind = false;
         this.showConfig = false;
         this.weekKey = getCurrentWeekKey();
-        this.checklistSort = 'created';
-        this.selectedChecklistId = null;
         this.fileCreateMode = false;
         this.fileLinkMode = false;
         this.fileCurrentDir = undefined;
@@ -511,89 +505,100 @@ export class SectionHost {
 
     /* ---------------- 清单 ---------------- */
 
+    /** 清单：按分类拆成「步骤」「改进」两个面板，每个面板为标题行 + 条目列表 */
     private renderChecklist(body: HTMLElement, task: PrototypeTask): void {
         const wrap = body.createDiv({ cls: 'task-section-checklist' });
-
-        // 工具行：排序方式 / 设置截止时间（需先选中条目）
-        const toolbar = wrap.createDiv({ cls: 'task-section-toolbar' });
-        const sortBtn = toolbar.createEl('button', {
-            cls: 'task-section-tool-btn',
-            text: this.checklistSort === 'due' ? t('panel.checklistSortDue') : t('panel.checklistSortCreated'),
-            attr: { type: 'button' },
-        });
-        sortBtn.addEventListener('click', () => {
-            this.checklistSort = this.checklistSort === 'due' ? 'created' : 'due';
-            this.render();
-        });
-        const dueBtn = toolbar.createEl('button', {
-            cls: 'task-section-tool-btn',
-            text: t('panel.checklistSetDue'),
-            attr: { type: 'button' },
-        });
-        dueBtn.disabled = !this.selectedChecklistId;
-        dueBtn.addEventListener('click', () => this.openDueEditor(wrap, task));
-
-        // 输入行
-        const inputRow = wrap.createDiv({ cls: 'task-section-input-row' });
-        const input = inputRow.createEl('input', {
-            cls: 'task-section-input',
-            attr: { type: 'text', placeholder: t('panel.checklistAddPlaceholder') },
-        });
-        const addBtn = inputRow.createEl('button', {
-            cls: 'task-section-add-btn',
-            text: t('common.add'),
-            attr: { type: 'button' },
-        });
-        const submit = (): void => {
-            const text = input.value.trim();
-            if (!text) return;
-            const entry: ChecklistItem = {
-                id: `checklist_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-                text,
-                createdAt: Date.now(),
-            };
-            appendChecklist(task, entry);
-            input.value = '';
-            void this.commit(task);
-        };
-        addBtn.addEventListener('click', submit);
-        input.addEventListener('keydown', (evt) => {
-            if (evt.key === 'Enter') {
-                evt.preventDefault();
-                submit();
-            }
-        });
-
         const entries = getChecklist(task);
-        if (entries.length === 0) {
-            wrap.createDiv({ cls: 'task-section-empty', text: t('panel.checklistEmpty') });
-            return;
-        }
+        // 步骤面板在前、改进面板在后；旧数据无分类时归入步骤
+        this.renderChecklistPanel(wrap, task, 'step', entries.filter((entry) => entry.category !== 'improve'));
+        this.renderChecklistPanel(wrap, task, 'improve', entries.filter((entry) => entry.category === 'improve'));
+    }
 
-        // 未完成在前、已完成沉底；未完成可按截止时间排序（无截止时间排最后）
-        const pending = entries.filter((entry) => !entry.done);
-        if (this.checklistSort === 'due') {
-            pending.sort((a, b) => {
-                const aDue = a.dueDate ? new Date(`${a.dueDate}T00:00:00`).getTime() : Number.POSITIVE_INFINITY;
-                const bDue = b.dueDate ? new Date(`${b.dueDate}T00:00:00`).getTime() : Number.POSITIVE_INFINITY;
-                if (aDue !== bDue) return aDue - bDue;
-                return a.createdAt - b.createdAt;
+    /** 单个清单面板：标题行（标题 + 周期图标 + 新增图标）+ 条目列表 */
+    private renderChecklistPanel(
+        wrap: HTMLElement,
+        task: PrototypeTask,
+        category: ChecklistCategory,
+        entries: ChecklistItem[],
+    ): void {
+        const panel = wrap.createDiv({ cls: 'task-section-checklist-panel' });
+        const head = panel.createDiv({ cls: 'task-section-checklist-head' });
+        head.createSpan({
+            cls: 'task-section-checklist-title',
+            text: t(category === 'improve' ? 'panel.checklistCategoryImprove' : 'panel.checklistCategoryStep'),
+        });
+
+        // 配置图标：占位，后续接入周期等配置
+        const configBtn = head.createEl('button', {
+            cls: 'task-section-checklist-icon-btn',
+            attr: { type: 'button', 'aria-label': t('panel.checklistConfig') },
+        });
+        configBtn.title = t('panel.checklistConfig');
+        setIcon(configBtn, 'settings');
+
+        // 新增图标：在该分类下展开输入行
+        const addBtn = head.createEl('button', {
+            cls: 'task-section-checklist-icon-btn',
+            attr: { type: 'button', 'aria-label': t('common.add') },
+        });
+        addBtn.title = t('common.add');
+        setIcon(addBtn, 'plus');
+
+        const list = panel.createDiv({ cls: 'task-section-list' });
+        // 空列表提示：展开输入行时隐藏
+        const emptyEl = entries.length === 0
+            ? list.createDiv({ cls: 'task-section-empty', text: t('panel.checklistEmpty') })
+            : null;
+        // 输入行：点击「+」后出现在列表末尾，回车提交、Esc 取消
+        const openInput = (): void => {
+            if (panel.querySelector('.task-section-checklist-input-row')) return;
+            emptyEl?.addClass('is-hidden');
+            const inputRow = panel.createDiv({ cls: 'task-section-checklist-input-row' });
+            const input = inputRow.createEl('input', {
+                cls: 'task-section-input',
+                attr: { type: 'text', placeholder: t('panel.checklistAddPlaceholder') },
             });
-        }
+            const closeInput = (): void => {
+                inputRow.remove();
+                emptyEl?.removeClass('is-hidden');
+            };
+            const submit = (): void => {
+                const text = input.value.trim();
+                if (!text) {
+                    closeInput();
+                    return;
+                }
+                appendChecklist(task, {
+                    id: `checklist_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+                    text,
+                    category,
+                    createdAt: Date.now(),
+                });
+                void this.commit(task);
+            };
+            input.addEventListener('keydown', (evt) => {
+                if (evt.key === 'Enter') {
+                    evt.preventDefault();
+                    submit();
+                }
+                if (evt.key === 'Escape') closeInput();
+            });
+            input.addEventListener('blur', () => {
+                if (!input.value.trim()) closeInput();
+            });
+            input.focus();
+        };
+        addBtn.addEventListener('click', openInput);
 
-        const list = wrap.createDiv({ cls: 'task-section-list' });
-        for (const entry of [...pending, ...entries.filter((item) => item.done)]) {
+        // 未完成在前、已完成沉底
+        const ordered = [...entries.filter((entry) => !entry.done), ...entries.filter((entry) => entry.done)];
+        if (ordered.length === 0) return;
+        for (const entry of ordered) {
             const row = list.createDiv({ cls: 'task-section-item' });
             row.toggleClass('is-done', entry.done === true);
-            row.toggleClass('is-selected', this.selectedChecklistId === entry.id);
-            row.addEventListener('click', () => {
-                this.selectedChecklistId = this.selectedChecklistId === entry.id ? null : entry.id;
-                this.render();
-            });
 
             const checkbox = row.createEl('input', { cls: 'task-section-check', attr: { type: 'checkbox' } });
             checkbox.checked = entry.done === true;
-            checkbox.addEventListener('click', (evt) => evt.stopPropagation());
             checkbox.addEventListener('change', () => {
                 entry.done = checkbox.checked;
                 if (checkbox.checked) entry.completedAt = Date.now();
@@ -601,91 +606,54 @@ export class SectionHost {
                 void this.commit(task);
             });
 
-            const main = row.createDiv({ cls: 'task-section-item-main' });
-            main.createSpan({ cls: 'task-section-item-text', text: entry.text });
-            const meta = main.createDiv({ cls: 'task-section-item-meta' });
-            // 清单分类标签（旧数据无分类时不显示）
-            if (entry.category) {
-                meta.createSpan({
-                    cls: 'task-section-item-category',
-                    text: entry.category === 'improve'
-                        ? t('panel.checklistCategoryImprove')
-                        : t('panel.checklistCategoryStep'),
+            // 条目文本：点击进入编辑，回车 / 失焦保存，Esc 取消
+            const textEl = row.createSpan({ cls: 'task-section-item-text', text: entry.text });
+            textEl.addEventListener('click', () => {
+                if (row.querySelector('input.task-section-item-edit')) return;
+                const editor = row.createEl('input', {
+                    cls: 'task-section-input task-section-item-edit',
+                    attr: { type: 'text' },
                 });
-            }
-            meta.createSpan({ text: t(entry.done ? 'panel.checklistDone' : 'panel.checklistPending') });
-            if (entry.done && entry.completedAt) {
-                meta.createSpan({ text: t('panel.checklistCompletedAt', { time: formatCompletedTime(entry.completedAt) }) });
-            }
-            if (entry.dueDate) this.appendDueTags(meta, entry.dueDate);
+                editor.value = entry.text;
+                textEl.addClass('is-hidden');
+                // 编辑时隐藏勾选框与删除图标，只保留输入框
+                row.addClass('is-editing');
+                let finished = false;
+                const finish = (save: boolean): void => {
+                    if (finished) return;
+                    finished = true;
+                    const next = editor.value.trim();
+                    editor.remove();
+                    textEl.removeClass('is-hidden');
+                    row.removeClass('is-editing');
+                    if (!save || !next || next === entry.text) return;
+                    entry.text = next;
+                    void this.commit(task);
+                };
+                editor.addEventListener('keydown', (evt) => {
+                    if (evt.key === 'Enter') {
+                        evt.preventDefault();
+                        finish(true);
+                    }
+                    if (evt.key === 'Escape') finish(false);
+                });
+                editor.addEventListener('blur', () => finish(true));
+                editor.focus();
+                editor.select();
+            });
 
+            // 删除：鼠标悬浮条目时显示
             const delBtn = row.createEl('button', {
                 cls: 'task-section-item-delete',
-                text: '×',
                 attr: { type: 'button', 'aria-label': t('common.delete') },
             });
+            setIcon(delBtn, 'x');
             delBtn.addEventListener('click', (evt) => {
                 evt.stopPropagation();
                 setChecklist(task, getChecklist(task).filter((item) => item.id !== entry.id));
-                if (this.selectedChecklistId === entry.id) this.selectedChecklistId = null;
                 void this.commit(task);
             });
         }
-    }
-
-    /** 在状态后追加截止日期 / 剩余天数 / 已过期标签 */
-    private appendDueTags(meta: HTMLElement, dueDate: string): void {
-        const due = new Date(`${dueDate}T00:00:00`);
-        if (Number.isNaN(due.getTime())) return;
-        const label = getLang() === 'zh'
-            ? `${due.getMonth() + 1}月${due.getDate()}日`
-            : `${due.getMonth() + 1}/${due.getDate()}`;
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const days = Math.round((due.getTime() - today.getTime()) / 86400000);
-        if (days < 0) {
-            meta.createSpan({ cls: 'is-overdue', text: t('panel.checklistOverdue') });
-        } else {
-            meta.createSpan({
-                text: days === 0 ? t('panel.checklistDueToday') : t('panel.checklistDueInDays', { days }),
-            });
-        }
-        meta.createSpan({ text: t('panel.checklistDueDateTag', { date: label }) });
-    }
-
-    /** 选中条目的截止日期编辑行：日期输入框 + 确定 / 清除 / 取消 */
-    private openDueEditor(wrap: HTMLElement, task: PrototypeTask): void {
-        const entry = getChecklist(task).find((item) => item.id === this.selectedChecklistId);
-        if (!entry) return;
-        wrap.querySelector('.task-section-due-row')?.remove();
-        const editor = wrap.createDiv({ cls: 'task-section-due-row' });
-        const input = editor.createEl('input', { cls: 'task-section-due-input', attr: { type: 'date' } });
-        input.value = entry.dueDate ?? '';
-        const saveEntry = (): void => {
-            if (input.value) entry.dueDate = input.value;
-            else delete entry.dueDate;
-            void this.commit(task);
-        };
-        editor.createEl('button', {
-            cls: 'task-section-tool-btn',
-            text: t('panel.checklistDueSave'),
-            attr: { type: 'button' },
-        }).addEventListener('click', saveEntry);
-        editor.createEl('button', {
-            cls: 'task-section-tool-btn',
-            text: t('panel.checklistDueClear'),
-            attr: { type: 'button' },
-        }).addEventListener('click', () => {
-            input.value = '';
-            saveEntry();
-        });
-        editor.createEl('button', {
-            cls: 'task-section-tool-btn',
-            text: t('panel.checklistDueCancel'),
-            attr: { type: 'button' },
-        }).addEventListener('click', () => editor.remove());
-        wrap.insertBefore(editor, wrap.querySelector('.task-section-input-row'));
-        input.focus();
     }
 
     /* ---------------- 描述（本周描述 + 日描述） ---------------- */
@@ -1402,16 +1370,6 @@ export class SectionHost {
             disableWhenInactive: true,
         });
     }
-}
-
-/** 完成时间格式化为 MM-DD HH:MM */
-function formatCompletedTime(ts: number): string {
-    const d = new Date(ts);
-    const mo = String(d.getMonth() + 1).padStart(2, '0');
-    const da = String(d.getDate()).padStart(2, '0');
-    const h = String(d.getHours()).padStart(2, '0');
-    const mi = String(d.getMinutes()).padStart(2, '0');
-    return `${mo}-${da} ${h}:${mi}`;
 }
 
 /** 时间戳格式化为 YYYY-MM-DD HH:MM */

@@ -137,6 +137,8 @@ export const en: I18nMessages = {
     'panel.checkChecklistContent': 'Checklist content',
     'panel.checklistCategoryImprove': 'Improve',
     'panel.checklistCategoryStep': 'Step',
+    'panel.checklistCycle': 'Cycle',
+    'panel.checklistConfig': 'Settings',
     'panel.weekDayTaskName': 'Task',
     'panel.weekDayTaskDone': 'Done',
     'panel.weekDayTaskEmpty': 'No tasks this week',
