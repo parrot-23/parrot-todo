@@ -7083,54 +7083,28 @@ button.swimlane-section-card-settings {
     border-bottom: 1px solid var(--sdt-card-border, var(--background-modifier-border));
 }
 
+/* 无二级菜单的一级组（如检查）：内容直接嵌入，去掉菜单下方的分隔线 */
+.interface-function-menu.is-direct {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+/* 一级菜单：与任务详情面板「设置任务类型」一致的分段控件样式 */
 .interface-function-group-tabs {
-    display: flex;
+    display: inline-flex;
+    width: fit-content;
     align-items: center;
-    gap: 6px;
+    gap: 2px;
+    padding: 2px;
+    border: 1px solid var(--sdt-card-border, var(--background-modifier-border));
+    border-radius: 6px;
+    background: var(--sdt-card-bg, var(--background-secondary));
 }
 
 .interface-function-group-tab {
-    padding: 4px 14px;
-    border: 1px solid transparent;
-    border-radius: 999px;
-    background: transparent;
-    box-shadow: none;
-    color: var(--sdt-text-secondary, var(--text-muted));
-    font-size: 13px;
-    cursor: pointer;
-}
-
-.interface-function-group-tab:hover {
-    background: var(--sdt-interactive-hover, var(--interactive-hover));
-    color: var(--sdt-text-primary, var(--text-normal));
-}
-
-.interface-function-group-tab.is-active {
-    border-color: var(--sdt-accent, var(--interactive-accent));
-    background: var(--sdt-interactive-bg, var(--interactive-normal));
-    color: var(--sdt-text-primary, var(--text-normal));
-    font-weight: 600;
-}
-
-.interface-function-item-tabs {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px;
-}
-
-.interface-function-item-tabs.is-hidden {
-    display: none;
-}
-
-
-.interface-function-item-tab {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 3px 10px;
-    border: 1px solid var(--sdt-card-border, var(--background-modifier-border));
-    border-radius: 6px;
+    padding: 4px 20px;
+    border: none;
+    border-radius: 4px;
     background: transparent;
     box-shadow: none;
     color: var(--sdt-text-secondary, var(--text-muted));
@@ -7138,15 +7112,69 @@ button.swimlane-section-card-settings {
     cursor: pointer;
 }
 
-.interface-function-item-tab:hover {
-    background: var(--sdt-interactive-hover, var(--interactive-hover));
+.interface-function-group-tab:hover {
+    background: var(--sdt-hover-bg, var(--background-modifier-hover));
+    color: var(--sdt-text-secondary, var(--text-muted));
+}
+
+.interface-function-group-tab.is-active {
+    border: none;
+    background: var(--interactive-accent);
+    color: var(--text-on-accent);
+}
+
+/* 二级菜单：与检查面板选项卡（plan-tabs / plan-tab）保持一致的下划线样式 */
+.interface-function-item-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    border-bottom: 1px solid var(--sdt-card-border, var(--background-modifier-border));
+}
+
+.interface-function-item-tabs.is-hidden {
+    display: none;
+}
+
+
+/* 用 button 前缀提升优先级，覆盖 Obsidian 默认 button 的背景 / 边框 / 阴影 */
+button.interface-function-item-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 14px;
+    margin-bottom: -1px;
+    border: none;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    background: none;
+    background-image: none;
+    box-shadow: none;
+    appearance: none;
+    color: var(--sdt-text-secondary, var(--text-muted));
+    font-size: 12px;
+    line-height: 1.4;
+    cursor: pointer;
+    transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+button.interface-function-item-tab:hover {
+    background: none;
+    background-image: none;
+    border-color: transparent;
+    border-bottom-color: transparent;
+    box-shadow: none;
     color: var(--sdt-text-primary, var(--text-normal));
 }
 
-.interface-function-item-tab.is-active {
-    border-color: var(--sdt-accent, var(--interactive-accent));
-    background: var(--sdt-interactive-bg, var(--interactive-normal));
-    color: var(--sdt-text-primary, var(--text-normal));
+button.interface-function-item-tab.is-active {
+    background: none;
+    background-image: none;
+    border-color: transparent;
+    border-bottom-color: var(--interactive-accent);
+    box-shadow: none;
+    color: var(--text-accent);
+    font-weight: 600;
 }
 
 .interface-function-item-tab-icon {
@@ -13327,6 +13355,19 @@ button.picker-trigger.is-open {
     flex-direction: row;
     gap: 4px;
     border-bottom: 1px solid var(--sdt-card-border, var(--background-modifier-border));
+}
+
+/* 选项卡行右侧带操作按钮（统计面板「数据」）：按钮绝对定位，避免影响行高与选项卡间距 */
+.plan-tabs.has-action {
+    position: relative;
+    padding-right: 76px;
+}
+
+.plan-tabs.has-action .check-data-button {
+    position: absolute;
+    right: 0;
+    bottom: 4px;
+    margin: 0;
 }
 
 /* 检查面板选项卡行最右侧的「数据」按钮 */

@@ -53,7 +53,8 @@ export class StatsPanel extends FloatingPanel {
 
     /** 顶部选项卡行 + 内容区（与检查面板一致的形式） */
     private renderLayout(): void {
-        const tabs = this.body.createDiv({ cls: 'plan-tabs' });
+        // 选项卡行 + 「数据」按钮；按钮绝对定位，不参与行高，保证与检查面板选项卡间距一致
+        const tabs = this.body.createDiv({ cls: 'plan-tabs has-action' });
         this.statsTabEl = tabs.createDiv({ cls: 'plan-tab', text: t('panel.checkStatsCategory') });
         this.recordsTabEl = tabs.createDiv({ cls: 'plan-tab', text: t('panel.checkRecords') });
         this.statsTabEl.addEventListener('click', () => this.switchTab('stats'));

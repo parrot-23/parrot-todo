@@ -65,6 +65,7 @@ export class FunctionPanel extends FloatingPanel {
     private readonly lastItemByGroup = new Map<FunctionGroupId, FunctionItemId>();
     private groupTabsEl!: HTMLElement;
     private itemTabsEl!: HTMLElement;
+    private menuEl!: HTMLElement;
     private contentEl!: HTMLElement;
     /** 当前嵌入的功能面板 */
     private embeddedPanel: FloatingPanel | null = null;
@@ -144,6 +145,7 @@ export class FunctionPanel extends FloatingPanel {
     private renderBody(body: HTMLElement): void {
         body.addClass('interface-function-panel');
         const menu = body.createDiv({ cls: 'interface-function-menu' });
+        this.menuEl = menu;
         this.groupTabsEl = menu.createDiv({ cls: 'interface-function-group-tabs' });
         this.itemTabsEl = menu.createDiv({ cls: 'interface-function-item-tabs' });
         this.contentEl = body.createDiv({ cls: 'interface-function-content' });
@@ -191,8 +193,9 @@ export class FunctionPanel extends FloatingPanel {
         }
 
         const items = this.activeGroup().items;
-        // 无二级菜单的一级组：整行隐藏，内容区直接嵌入面板
+        // 无二级菜单的一级组：整行隐藏，内容区直接嵌入面板；此时菜单底部不再画分隔线
         this.itemTabsEl.toggleClass('is-hidden', items.length === 0);
+        this.menuEl.toggleClass('is-direct', items.length === 0);
         this.itemTabsEl.empty();
         for (const item of items) {
             const btn = this.itemTabsEl.createEl('button', {
