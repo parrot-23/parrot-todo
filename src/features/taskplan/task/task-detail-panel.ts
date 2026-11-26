@@ -358,7 +358,10 @@ export class TaskDetailPanel extends FloatingPanel {
         });
 
         const headActions = headBlock.createDiv({ cls: 'task-detail-head-actions' });
-        this.createHeadAction(headActions, 'archive', t('common.archive'), false, () => this.archiveTask());
+        // 归档仅对根任务开放（子任务随根任务一起归档，不单独归档）
+        if (!this.task.parentId) {
+            this.createHeadAction(headActions, 'archive', t('common.archive'), false, () => this.archiveTask());
+        }
         const deleteBtn = this.createHeadAction(headActions, 'trash-2', t('common.delete'), true, () =>
             this.openDeleteConfirm(deleteBtn),
         );
@@ -409,8 +412,9 @@ export class TaskDetailPanel extends FloatingPanel {
         return button;
     }
 
-    /** 归档当前任务：写完仓库后关闭面板 */
+    /** 归档当前任务（仅根任务）：写完仓库后关闭面板 */
     private archiveTask(): void {
+        if (this.task.parentId) return;
         this.panelOptions.onArchiveTask?.(this.task.id);
         this.close();
     }

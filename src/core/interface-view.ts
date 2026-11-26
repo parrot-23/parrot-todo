@@ -571,8 +571,10 @@ export class InterfaceView {
         return this.prototypeTaskRepo.tasks.filter((task) => !task.parentId);
     }
 
-    /** 归档任务：隐藏但保留数据，销毁对应详情面板并刷新列表 */
+    /** 归档任务（仅根任务）：隐藏但保留数据，销毁对应详情面板并刷新列表 */
     private archivePrototypeTask(taskId: string): void {
+        const task = this.prototypeTaskRepo.allTasks.find((item) => item.id === taskId);
+        if (!task || task.parentId) return;
         this.prototypeTaskRepo.archive(taskId);
         this.destroyTaskDetail(taskId);
         void (this.plugin as Plugin & { saveAll: () => Promise<void> }).saveAll();

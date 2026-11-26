@@ -186,10 +186,10 @@ export class TaskTree {
             item.createSpan({ cls: 'plan-annual-status-item-text', text: t(option.labelKey) });
             item.addEventListener('click', (evt) => {
                 evt.stopPropagation();
+                // 标记为已完成时，若仍有未完成的子任务（习惯 / 目标除外）则不允许切换
+                if (option.value === 'done' && !this.canMarkDone(task)) return;
                 task.status = option.value;
                 this.closeStatusMenu();
-                // 标记为已完成时，若仍有未完成的子任务则提示（不阻止操作）
-                if (option.value === 'done') this.notifyUnfinishedChildren(task);
                 this.options.onStatusChange?.(task);
             });
         }
@@ -206,23 +206,26 @@ export class TaskTree {
         document.addEventListener('keydown', this.onStatusMenuKeyDown);
     }
 
-    /** 标记为已完成时，统计未完成的子任务（含所有后代）并提示 */
-    private notifyUnfinishedChildren(task: PrototypeTask): void {
+    /** 是否允许标记为已完成：所有后代子任务（习惯 / 目标除外）必须全部已完成，否则提示并阻止 */
+    private canMarkDone(task: PrototypeTask): boolean {
         const tasks = this.options.getTasks();
         let count = 0;
         const walk = (parentId: string): void => {
             for (const child of tasks) {
                 if (child.parentId !== parentId) continue;
-                if ((child.status ?? 'notStarted') !== 'done') count += 1;
+                const kind = getTaskKind(child);
+                if (kind !== 'habit' && kind !== 'goal' && (child.status ?? 'notStarted') !== 'done') count += 1;
                 walk(child.id);
             }
         };
         walk(task.id);
-        if (count === 0) return;
+        if (count === 0) return true;
         new Notice(t('taskPlan.statusDoneWithUnfinishedChildren', { name: task.name, count }));
+        return false;
     }
 
-    /** 关闭状态下拉列表（宿主面板关闭时需调用） */    closeStatusMenu(): void {
+    /** 关闭状态下拉列表（宿主面板关闭时需调用） */
+    closeStatusMenu(): void {
         document.removeEventListener('mousedown', this.onStatusMenuOutside, true);
         document.removeEventListener('keydown', this.onStatusMenuKeyDown);
         this.statusMenuEl?.remove();
