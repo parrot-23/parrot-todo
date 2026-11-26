@@ -296,10 +296,12 @@ export class TodayTasksCard {
                         text: formatDurationSeconds(stat.seconds),
                     });
                 }
-                // 习惯任务：习惯时间点（HH:mm）放在条目末尾
-                const habitTime = key === 'habit' ? getTaskHabit(task)?.time : undefined;
-                if (habitTime) {
-                    row.createSpan({ cls: 'interface-today-tasks-item-time', text: habitTime });
+                // 习惯任务：习惯时间点（HH:mm）放在条目末尾；全天习惯显示「全天」
+                const habit = key === 'habit' ? getTaskHabit(task) : undefined;
+                if (habit?.allDay === true) {
+                    row.createSpan({ cls: 'interface-today-tasks-item-time', text: t('panel.habitAllDay') });
+                } else if (habit?.time) {
+                    row.createSpan({ cls: 'interface-today-tasks-item-time', text: habit.time });
                 }
                 // 当天已完成：条目末尾常显「圆圈 + 打勾」图标
                 if (completed) {
@@ -511,7 +513,7 @@ export class TodayTasksCard {
         this.recordPanel.open();
     }
 
-    /** 习惯列表：启用习惯且所选星期生效的任务（按习惯时间排序） */
+    /** 习惯列表：启用习惯且所选星期生效的任务（全天习惯置顶，其余按习惯时间排序） */
     private habitTasks(): PrototypeTask[] {
         const weekday = this.weekday();
         return this.prototypeTaskRepo.tasks
@@ -519,7 +521,15 @@ export class TodayTasksCard {
                 const habit = getTaskHabit(task);
                 return getTaskKind(task) === 'habit' && habit?.enabled === true && habit.weekdays.includes(weekday);
             })
-            .sort((a, b) => (getTaskHabit(a)?.time ?? '').localeCompare(getTaskHabit(b)?.time ?? ''));
+            .sort((a, b) => {
+                const habitA = getTaskHabit(a);
+                const habitB = getTaskHabit(b);
+                // 全天习惯置顶
+                const allDayA = habitA?.allDay === true ? 0 : 1;
+                const allDayB = habitB?.allDay === true ? 0 : 1;
+                if (allDayA !== allDayB) return allDayA - allDayB;
+                return (habitA?.time ?? '').localeCompare(habitB?.time ?? '');
+            });
     }
 
     /** 当天任务：计划排布到所选日期的任务 */
