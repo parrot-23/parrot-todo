@@ -52,10 +52,13 @@ export function revealFolderInExplorer(app: App, folder: TFolder): void {
     window.setTimeout(() => reveal(), 100);
 }
 
-/** 确保目录存在（逐级创建，已存在时忽略） */
+/** 确保目录存在（逐级递归创建，已存在时忽略） */
 async function ensureFolder(app: App, path: string): Promise<void> {
     if (!path) return;
     if (app.vault.getAbstractFileByPath(path) instanceof TFolder) return;
+    // 先确保父目录存在，避免 createFolder 因父级缺失失败
+    const parent = dirname(path);
+    if (parent) await ensureFolder(app, parent);
     try {
         await app.vault.createFolder(path);
     } catch {
@@ -138,26 +141,25 @@ export async function ensureTaskFileDir(
 }
 
 /**
- * 任务改名后同步重命名其目录（子任务目录随父目录一起移动），并更新相关任务的任务文件板块。
- * 仅处理位于项目库内的目录；返回是否有改动（调用方据此持久化）。
+ * 把任务目录移动到指定父目录（同级改名与跨层级移动共用）：
+ * 目标重名时自动追加序号，旧目录下的子任务目录随之移动并改写记录。
  */
-export async function renameTaskDir(
+async function moveTaskDir(
     app: App,
     root: string,
     tasks: PrototypeTask[],
     task: PrototypeTask,
+    parentDir: string,
 ): Promise<boolean> {
     const taskFileDir = getTaskFileDir(task);
     if (!root || !taskFileDir || !isUnderRoot(taskFileDir, root)) return false;
     const oldDir = dirname(taskFileDir);
-    const parentDir = dirname(oldDir);
-    if (!oldDir || !parentDir || !isUnderRoot(oldDir, root)) return false;
+    if (!oldDir || !isUnderRoot(oldDir, root)) return false;
+    if (parentDir !== root && !isUnderRoot(parentDir, root)) return false;
 
-    const newDir = uniqueTaskDir(parentDir, task, root, tasks);
-    if (newDir === oldDir) return false;
-
+    let targetDir = uniqueTaskDir(parentDir, task, root, tasks);
+    if (targetDir === oldDir) return false;
     // 目标目录已被占用（历史遗留目录）时追加序号，避免重命名失败
-    let targetDir = newDir;
     if (app.vault.getAbstractFileByPath(targetDir)) {
         const baseName = sanitizeFolderName(task.name);
         let index = 2;
@@ -167,6 +169,8 @@ export async function renameTaskDir(
         }
     }
 
+    // 目标父目录可能尚未创建（拖拽到新层级时），先逐级确保存在
+    await ensureFolder(app, parentDir);
     const folder = app.vault.getAbstractFileByPath(oldDir);
     if (folder instanceof TFolder) {
         try {
@@ -184,4 +188,57 @@ export async function renameTaskDir(
         }
     }
     return true;
+}
+
+/**
+ * 任务改名后同步重命名其目录（子任务目录随父目录一起移动），并更新相关任务的任务文件板块。
+ * 仅处理位于项目库内的目录；返回是否有改动（调用方据此持久化）。
+ */
+export async function renameTaskDir(
+    app: App,
+    root: string,
+    tasks: PrototypeTask[],
+    task: PrototypeTask,
+): Promise<boolean> {
+    const taskFileDir = getTaskFileDir(task);
+    if (!root || !taskFileDir || !isUnderRoot(taskFileDir, root)) return false;
+    const oldDir = dirname(taskFileDir);
+    const parentDir = dirname(oldDir);
+    if (!oldDir || !parentDir || !isUnderRoot(oldDir, root)) return false;
+    return moveTaskDir(app, root, tasks, task, parentDir);
+}
+
+/**
+ * 拖拽调整任务层级后，按新任务树把任务目录移动到目标父任务目录下。
+ * 只处理已经生成过任务文件目录的任务；目标父级目录不存在时按任务树自动创建。
+ */
+export async function reparentTaskDir(
+    app: App,
+    root: string,
+    tasks: PrototypeTask[],
+    task: PrototypeTask,
+): Promise<boolean> {
+    const taskFileDir = getTaskFileDir(task);
+    if (!root || !taskFileDir || !isUnderRoot(taskFileDir, root)) return false;
+    const oldDir = dirname(taskFileDir);
+    if (!oldDir || !isUnderRoot(oldDir, root)) return false;
+
+    // 新父级目录：沿任务树自根推导，已有记录时用记录路径，否则按名称生成不冲突的目录
+    const byId = new Map(tasks.map((item) => [item.id, item]));
+    const chain: PrototypeTask[] = [];
+    const visited = new Set<string>();
+    let current: PrototypeTask | undefined = task.parentId ? byId.get(task.parentId) : undefined;
+    while (current && !visited.has(current.id)) {
+        visited.add(current.id);
+        chain.unshift(current);
+        current = current.parentId ? byId.get(current.parentId) : undefined;
+    }
+    let parentDir = root;
+    for (const node of chain) {
+        const recorded = getTaskFileDir(node);
+        parentDir = recorded && isUnderRoot(recorded, root)
+            ? dirname(recorded)
+            : uniqueTaskDir(parentDir, node, root, tasks);
+    }
+    return moveTaskDir(app, root, tasks, task, parentDir);
 }

@@ -1022,6 +1022,15 @@ button.parrot-plan-topbar-calendar-btn {
     height: 16px;
 }
 
+/* 顶部工具栏：剧本与周历按钮之间的垂直分隔线 */
+.parrot-plan-topbar-divider {
+    flex: 0 0 auto;
+    width: 1px;
+    height: 16px;
+    margin-right: 4px;
+    background: var(--sdt-card-border, var(--background-modifier-border));
+}
+
 /* 设置按钮：位于「今天」胶囊右侧 */
 button.parrot-plan-topbar-settings-btn {
     flex-shrink: 0;

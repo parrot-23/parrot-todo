@@ -91,6 +91,9 @@ export class TopBar {
         setIcon(storyBtn, 'book-open');
         storyBtn.onclick = () => this.options.onOpenStory?.();
 
+        // 剧本与周历按钮之间的垂直分隔线
+        dateBar.createDiv({ cls: 'parrot-plan-topbar-divider' });
+
         // 周历按钮：位于日期切换左侧
         const calendarBtn = dateBar.createEl('button', {
             cls: 'parrot-plan-topbar-calendar-btn',

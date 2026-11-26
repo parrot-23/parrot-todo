@@ -47,6 +47,8 @@ export interface TaskDetailPanelOptions extends Omit<FloatingPanelOptions, 'titl
     onDeleteTask?: (taskId: string) => void;
     /** 任务树拖拽排序回调（父面板按新顺序写回仓库） */
     onReorderTasks?: (ordered: PrototypeTask[]) => void;
+    /** 拖拽改变任务层级回调（父面板按新任务树同步移动任务目录） */
+    onTaskReparented?: (taskId: string) => void;
     /** 打开任务配置面板回调（左侧顶部下拉右侧的配置按钮，作用于任务树根任务） */
     onOpenConfig?: (task: PrototypeTask) => void;
     /** 任务执行记录（任务类型选项卡展示累计已执行时长） */
@@ -777,6 +779,8 @@ export class TaskDetailPanel extends FloatingPanel {
     ): void {
         const target = this.tasks.find((task) => task.id === item.id);
         if (!target) return;
+        // 记录拖动前的父级，供父面板在层级变化后同步任务目录
+        const previousParentId = target.parentId;
         target.parentId = drop.parentId;
 
         const movingIds = this.collectSubtreeIds(item.id);
@@ -795,6 +799,10 @@ export class TaskDetailPanel extends FloatingPanel {
             this.panelOptions.onReorderTasks(next);
         } else {
             this.tasks.splice(0, this.tasks.length, ...next);
+        }
+        // 层级发生变化时通知父面板按新任务树移动任务目录
+        if ((previousParentId ?? undefined) !== (drop.parentId ?? undefined)) {
+            this.panelOptions.onTaskReparented?.(item.id);
         }
 
         this.renderTree();

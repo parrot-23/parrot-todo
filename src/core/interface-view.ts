@@ -41,7 +41,7 @@ import { THEME_DEFINITIONS, getThemeDefinition } from '../theme/registry';
 import { applyThemeColors, setCurrentThemeColors } from '../theme/theme-colors';
 import type { PlanCategoryData } from './shared/plan-category-manager';
 import { getCurrentWeekKey, getISOWeek, makeDayKey, makeWeekKey } from './shared/plan-data';
-import { renameTaskDir, sanitizeFolderName } from './shared/task-library';
+import { renameTaskDir, reparentTaskDir, sanitizeFolderName } from './shared/task-library';
 import { getTaskFileDir, getTaskGoalConfig } from './shared/task-sections';
 import { filterTasksByKind, getTaskKind } from './shared/task-kind';
 import { findRootTaskId, getTreeSelectedTaskId, setTreeSelectedTaskId } from './shared/task-tree-selection';
@@ -541,6 +541,7 @@ export class InterfaceView {
                 onArchiveTask: (taskId) => this.archivePrototypeTask(taskId),
                 onDeleteTask: (taskId) => this.deletePrototypeTask(taskId),
                 onReorderTasks: (ordered) => this.reorderPrototypeTasks(ordered),
+                onTaskReparented: (taskId) => this.syncTaskDirAfterReparent(taskId),
                 onOpenConfig: (task) => this.openTaskConfig(task),
                 getExecutions: () => this.taskExecutionRepo.records,
                 onTasksChanged: () => {
@@ -601,6 +602,18 @@ export class InterfaceView {
         const hidden = all.filter((task) => !orderedIds.has(task.id));
         all.splice(0, all.length, ...ordered, ...hidden);
         this.detailPanels.forEach((panel) => panel.setTasks(this.prototypeTaskRepo.tasks));
+    }
+
+    /** 拖拽改变任务层级后：按新任务树移动该任务的任务文件目录并持久化 */
+    private syncTaskDirAfterReparent(taskId: string): void {
+        const root = this.baseRepo.taskLibraryRoot;
+        const task = this.prototypeTaskRepo.allTasks.find((item) => item.id === taskId);
+        if (!root || !task) return;
+        void reparentTaskDir(this.app, root, this.prototypeTaskRepo.allTasks, task).then((moved) => {
+            if (!moved) return;
+            void (this.plugin as Plugin & { saveAll: () => Promise<void> }).saveAll();
+            this.refreshTaskConsumers();
+        });
     }
 
     /** 任务面板根任务拖拽排序：按新顺序重排各根任务及其子树，归档任务保留在末尾 */
