@@ -279,3 +279,173 @@ function categoryIdOf(ctx: WeekSectionContext, taskId: string): string | undefin
 function formatHours(minutes: number): string {
     return `${(minutes / 60).toFixed(1)}h`;
 }
+
+/** 一天的任务记录卡片（与统计面板「任务记录」完全一致），返回当天是否有记录 */
+export function renderDayRecordCard(
+    container: HTMLElement,
+    ctx: WeekSectionContext,
+    dayKey: string,
+    options: {
+        showEmptyCard?: boolean;
+        /** 点击删除按钮：由调用方弹出确认浮层，anchor 为按钮元素 */
+        onDeleteRecord?: (recordId: string, anchor: HTMLElement) => void;
+    } = {},
+): boolean {
+    const [year, month, date] = dayKey.split('-').map(Number);
+    const dayStart = new Date(year, month - 1, date).getTime();
+    const dayEnd = dayStart + 24 * 3600000;
+    // 按开始时间归入当天，跨天记录只在起始日出现一次
+    const records = ctx.taskExecutionRepo.records
+        .filter((record) => record.startAt >= dayStart && record.startAt < dayEnd)
+        .sort((a, b) => a.startAt - b.startAt);
+
+    const weekDayIndex = (new Date(year, month - 1, date).getDay() + 6) % 7;
+    const title = `${getWeekDays()[weekDayIndex]} ${month}/${date}`;
+
+    // 当天没有记录：统计面板跳过该天；一日视图传 showEmptyCard 时仍显示空卡片
+    if (records.length === 0) {
+        if (!options.showEmptyCard) return false;
+        const emptyCard = container.createDiv({ cls: 'check-records-card' });
+        const emptyHead = emptyCard.createDiv({ cls: 'check-records-card-head' });
+        emptyHead.createDiv({ cls: 'check-records-card-title', text: title });
+        emptyCard.createDiv({ cls: 'check-records-empty', text: t('panel.checkRecordsEmpty') });
+        return true;
+    }
+
+    const card = container.createDiv({ cls: 'check-records-card' });
+    const head = card.createDiv({ cls: 'check-records-card-head' });
+    head.createDiv({ cls: 'check-records-card-title', text: title });
+    const copyBtn = head.createEl('button', {
+        cls: 'check-records-card-copy',
+        attr: { type: 'button', 'aria-label': t('panel.checkRecordsCopy') },
+    });
+    setIcon(copyBtn, 'copy');
+
+    const tasks = ctx.getTasks();
+    const items = card.createDiv({ cls: 'check-records-items' });
+    // 复制到剪贴板的文本：卡片标题 + 每条记录 + 分类汇总
+    const lines: string[] = [title];
+    // 当天各分类累计时长（秒），用于卡片底部的分类汇总行
+    const secondsByCategory = new Map<string, number>();
+    for (const record of records) {
+        const task = tasks.find((item) => item.id === record.taskId);
+        const time = `${formatTimestamp(record.startAt)}-${formatTimestamp(record.endAt)}`;
+        const name = task?.name ?? t('panel.checkRecordsUnknownTask');
+        const duration = formatDurationSeconds(record.durationSeconds);
+        const typeLabel = task
+            ? (task.type === 'main' ? t('panel.mainTaskBadge') : t('panel.sideTaskBadge'))
+            : '';
+        const row = items.createDiv({ cls: 'check-records-item' });
+        row.createSpan({ cls: 'check-records-item-time', text: time });
+        // 任务名称前的分类色点（与卡片底部汇总行的色点一致）
+        const category = ctx.categories.find((item) => item.id === task?.categoryId);
+        row.createSpan({ cls: 'check-records-item-dot' }).setCssStyles({ background: category?.color ?? '#888888' });
+        row.createSpan({ cls: 'check-records-item-name', text: name });
+        row.createSpan({ cls: 'check-records-item-duration', text: duration });
+        if (task) {
+            row.createSpan({
+                cls: `check-records-item-badge ${task.type === 'main' ? 'is-main' : 'is-side'}`,
+                text: typeLabel,
+            });
+        }
+        // 可删除模式：行尾删除按钮（悬浮时显示）
+        if (options.onDeleteRecord) {
+            const deleteBtn = row.createEl('button', {
+                cls: 'check-records-item-delete',
+                attr: { type: 'button', 'aria-label': t('panel.checkRecordsDelete') },
+            });
+            setIcon(deleteBtn, 'trash-2');
+            deleteBtn.addEventListener('click', (evt) => {
+                evt.stopPropagation();
+                options.onDeleteRecord?.(record.id, deleteBtn);
+            });
+        }
+        lines.push([time, name, duration, typeLabel].filter(Boolean).join(' '));
+        const categoryId = task?.categoryId ?? UNCATEGORIZED_CATEGORY_ID;
+        secondsByCategory.set(categoryId, (secondsByCategory.get(categoryId) ?? 0) + record.durationSeconds);
+    }
+    renderRecordCategorySummary(card, ctx, secondsByCategory, lines);
+    copyBtn.addEventListener('click', () => void copyRecordCardText(copyBtn, lines));
+    return true;
+}
+
+/** 卡片底部分类汇总行：分类标题 + 每个分类当天的累计时长（只列出有记录的分类） */
+function renderRecordCategorySummary(
+    card: HTMLElement,
+    ctx: WeekSectionContext,
+    secondsByCategory: Map<string, number>,
+    lines: string[],
+): void {
+    const categories = ctx.categories;
+    const knownIds = new Set(categories.map((category) => category.id));
+    // 分类已删除 / 未设置分类的记录统一归入「未分类」
+    const totals = new Map<string, number>();
+    for (const [categoryId, seconds] of Array.from(secondsByCategory.entries())) {
+        const targetId = knownIds.has(categoryId) ? categoryId : UNCATEGORIZED_CATEGORY_ID;
+        totals.set(targetId, (totals.get(targetId) ?? 0) + seconds);
+    }
+
+    const summary = card.createDiv({ cls: 'check-records-summary' });
+    summary.createSpan({ cls: 'check-records-summary-title', text: t('panel.checkRecordsCategory') });
+    const itemsEl = summary.createDiv({ cls: 'check-records-summary-items' });
+    // 与界面展示一致的文字，供右上角复制按钮使用
+    const parts: string[] = [];
+
+    // 按分类列表顺序输出，「未分类」排在最后
+    for (const category of categories) {
+        const seconds = totals.get(category.id) ?? 0;
+        totals.delete(category.id);
+        if (seconds > 0) {
+            renderRecordCategoryItem(itemsEl, category.label, category.color ?? '#888888', seconds);
+            parts.push(`${category.label} ${formatDurationSeconds(seconds)}`);
+        }
+    }
+    const restSeconds = Array.from(totals.values()).reduce((sum, value) => sum + value, 0);
+    if (restSeconds > 0) {
+        renderRecordCategoryItem(itemsEl, t('inbox.noCategory'), '#888888', restSeconds);
+        parts.push(`${t('inbox.noCategory')} ${formatDurationSeconds(restSeconds)}`);
+    }
+    if (parts.length > 0) {
+        lines.push(`${t('panel.checkRecordsCategory')}: ${parts.join('  ')}`);
+    }
+}
+
+/** 分类汇总中的单项：色点 + 分类名 + 累计时长 */
+function renderRecordCategoryItem(parentEl: HTMLElement, label: string, color: string, seconds: number): void {
+    const item = parentEl.createDiv({ cls: 'check-records-summary-item' });
+    item.createSpan({ cls: 'check-records-summary-dot' }).setCssStyles({ background: color });
+    item.createSpan({ cls: 'check-records-summary-label', text: label });
+    item.createSpan({ cls: 'check-records-summary-duration', text: formatDurationSeconds(seconds) });
+}
+
+/** 复制卡片内容到剪贴板（图标短暂切换为对勾作为反馈） */
+async function copyRecordCardText(button: HTMLElement, lines: string[]): Promise<void> {
+    try {
+        await navigator.clipboard.writeText(lines.join('\n'));
+    } catch {
+        return;
+    }
+    button.empty();
+    setIcon(button, 'check');
+    window.setTimeout(() => {
+        if (!button.isConnected) return;
+        button.empty();
+        setIcon(button, 'copy');
+    }, 1200);
+}
+
+/** 时间戳 → HH:MM */
+function formatTimestamp(timestamp: number): string {
+    const date = new Date(timestamp);
+    return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+}
+
+/** 记录时长（秒）→「x分」/「x小时」/「x小时y分」 */
+function formatDurationSeconds(seconds: number): string {
+    const totalMinutes = Math.max(1, Math.round(seconds / 60));
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    if (hours === 0) return t('interface.durationMinutes', { minutes: String(minutes) });
+    if (minutes === 0) return t('interface.durationHours', { hours: String(hours) });
+    return t('interface.durationHoursMinutes', { hours: String(hours), minutes: String(minutes) });
+}

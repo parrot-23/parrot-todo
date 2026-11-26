@@ -4,7 +4,7 @@ import type { PrototypeTask } from '../../../core/datatypes/prototype-task';
 import type { TaskExecutionRecord } from '../../../core/datatypes/task-execution';
 import type { BarDatum } from '../../../charts/primitives/types';
 import { renderBar } from '../../../charts/primitives/bar';
-import { t } from '../../../core/i18n';
+import { t, getWeekDays } from '../../../core/i18n';
 import type { TaskExecutionRepo } from '../../../core/repos/task-execution-repo';
 import type { PlanAssignmentRepo } from '../../../core/repos/plan-assignment-repo';
 import type { ChecklistCategory } from '../../../core/datatypes/domain';
@@ -15,13 +15,16 @@ import { UNCATEGORIZED_CATEGORY_COLOR } from '../../../core/shared/plan-category
 import {
     getCurrentWeekKey,
     getISOWeek,
+    makeDayKey,
     makeDayKeyFromWeek,
     makeWeekKey,
     parseWeekKey,
     shiftWeekKey,
 } from '../../../core/shared/plan-data';
 import { FloatingPanel, type FloatingPanelOptions } from '../../../ui/basic/floating-panel';
+import { applyThemeColors, getCurrentThemeColors } from '../../../theme/theme-colors';
 import {
+    renderDayRecordCard,
     renderDayTasksTable,
     renderHabitsTable,
     type DayTasksContext,
@@ -63,6 +66,14 @@ export class CheckPanel extends FloatingPanel {
     private tab: CheckTab = 'taskAnalysis';
     /** 一周视图当前查看的周键 */
     private weekKey: string = getCurrentWeekKey();
+    /** 一日视图当前查看的日期键（默认今天） */
+    private dayKey: string = makeDayKey(new Date());
+    /** 记录删除确认浮层（挂在 body 上） */
+    private deleteConfirmEl: HTMLElement | null = null;
+    private deleteConfirmOutsideHandler?: (evt: MouseEvent) => void;
+    private deleteConfirmEscapeHandler?: (evt: KeyboardEvent) => void;
+    /** 待确认删除的记录 id */
+    private pendingDeleteRecordId?: string;
     /** 「清单」悬浮面板（存在即打开） */
     private checklistPopoverEl: HTMLElement | undefined;
     /** 周导航末尾的「清单」按钮 */
@@ -80,6 +91,12 @@ export class CheckPanel extends FloatingPanel {
         });
         this.body.addClass('check-panel');
         this.renderLayout();
+    }
+
+    /** 关闭面板时一并清理确认浮层 */
+    override close(): void {
+        this.closeDeleteRecordConfirm();
+        super.close();
     }
 
     private renderLayout(): void {
@@ -114,12 +131,131 @@ export class CheckPanel extends FloatingPanel {
     }
 
     private renderPane(): void {
+        this.closeDeleteRecordConfirm();
         this.paneEl.empty();
         // 面板元素随内容区一起销毁，重置引用
         this.checklistPopoverEl = undefined;
-        // 一日 / 一月 / 一季：占位选项卡，页面内容暂为空
+        // 一月 / 一季：占位选项卡，页面内容暂为空
+        if (this.tab === 'day') this.renderDayView();
         if (this.tab === 'week') this.renderWeekView();
         if (this.tab === 'taskAnalysis') this.renderTaskAnalysis();
+    }
+
+    // ===== 一日：日期切换 + 当天任务记录卡片 =====
+    private renderDayView(): void {
+        const nav = this.paneEl.createDiv({ cls: 'plan-nav-row' });
+        const prev = nav.createEl('button', { cls: 'plan-nav-btn', text: '←' });
+        prev.setAttribute('aria-label', t('panel.checkDayPrev'));
+        prev.addEventListener('click', () => {
+            this.dayKey = this.shiftDayKey(-1);
+            this.renderPane();
+        });
+        nav.createSpan({ cls: 'plan-nav-label', text: this.dayLabel() });
+        const next = nav.createEl('button', { cls: 'plan-nav-btn', text: '→' });
+        next.setAttribute('aria-label', t('panel.checkDayNext'));
+        next.addEventListener('click', () => {
+            this.dayKey = this.shiftDayKey(1);
+            this.renderPane();
+        });
+
+        const list = this.paneEl.createDiv({ cls: 'check-records-list' });
+        // 始终显示方框：当天没有记录时卡片内显示空提示
+        renderDayRecordCard(list, this.weekSectionContext(), this.dayKey, {
+            showEmptyCard: true,
+            onDeleteRecord: (recordId, anchor) => this.openDeleteRecordConfirm(anchor, recordId),
+        });
+    }
+
+    /** 删除一条任务记录并保存 */
+    private deleteRecord(recordId: string): void {
+        this.panelOptions.taskExecutionRepo.remove(recordId);
+        this.panelOptions.saveTasks();
+        this.renderPane();
+    }
+
+    /** 在删除按钮上方打开删除确认浮层（与任务详情面板的删除确认一致） */
+    private openDeleteRecordConfirm(anchor: HTMLElement, recordId: string): void {
+        this.closeDeleteRecordConfirm();
+        this.pendingDeleteRecordId = recordId;
+        const tip = document.body.createDiv({ cls: 'task-detail-delete-confirm' });
+        // 浮层挂在 body 上，需手动应用当前主题变量，否则会回退成默认配色
+        applyThemeColors(tip, getCurrentThemeColors());
+        this.deleteConfirmEl = tip;
+        tip.createDiv({ cls: 'task-detail-delete-confirm-text', text: t('panel.checkRecordsDeleteConfirm') });
+        const actions = tip.createDiv({ cls: 'task-detail-delete-confirm-actions' });
+        const cancelBtn = actions.createEl('button', {
+            text: t('settings.cancel'),
+            attr: { type: 'button' },
+        });
+        cancelBtn.addEventListener('click', () => this.closeDeleteRecordConfirm());
+        const confirmBtn = actions.createEl('button', {
+            cls: 'mod-warning',
+            text: t('settings.confirm'),
+            attr: { type: 'button' },
+        });
+        confirmBtn.addEventListener('click', () => {
+            const id = this.pendingDeleteRecordId;
+            this.closeDeleteRecordConfirm();
+            if (id) this.deleteRecord(id);
+        });
+
+        // 先渲染出浮层再测量尺寸，保证首次定位正确
+        this.positionDeleteConfirm(anchor);
+        this.deleteConfirmOutsideHandler = (evt: MouseEvent) => {
+            const target = evt.target as Node | null;
+            if (target && (tip.contains(target) || anchor.contains(target))) return;
+            this.closeDeleteRecordConfirm();
+        };
+        this.deleteConfirmEscapeHandler = (evt: KeyboardEvent) => {
+            if (evt.key !== 'Escape') return;
+            // 先关闭浮层，避免同时关闭整个面板
+            evt.preventDefault();
+            evt.stopPropagation();
+            this.closeDeleteRecordConfirm();
+        };
+        document.addEventListener('mousedown', this.deleteConfirmOutsideHandler, true);
+        document.addEventListener('keydown', this.deleteConfirmEscapeHandler, true);
+    }
+
+    /** 定位删除确认浮层：优先显示在按钮上方，空间不足时翻到下方 */
+    private positionDeleteConfirm(anchor: HTMLElement): void {
+        const tip = this.deleteConfirmEl;
+        if (!tip) return;
+        const rect = anchor.getBoundingClientRect();
+        const width = tip.offsetWidth;
+        const height = tip.offsetHeight;
+        const left = Math.min(Math.max(8, rect.right - width), window.innerWidth - width - 8);
+        let top = rect.top - height - 6;
+        if (top < 8) top = rect.bottom + 6;
+        tip.setCssStyles({ left: `${left}px`, top: `${top}px` });
+    }
+
+    /** 关闭删除确认浮层（移除元素与 document 监听） */
+    private closeDeleteRecordConfirm(): void {
+        if (this.deleteConfirmOutsideHandler) {
+            document.removeEventListener('mousedown', this.deleteConfirmOutsideHandler, true);
+            this.deleteConfirmOutsideHandler = undefined;
+        }
+        if (this.deleteConfirmEscapeHandler) {
+            document.removeEventListener('keydown', this.deleteConfirmEscapeHandler, true);
+            this.deleteConfirmEscapeHandler = undefined;
+        }
+        this.deleteConfirmEl?.remove();
+        this.deleteConfirmEl = null;
+        this.pendingDeleteRecordId = undefined;
+    }
+
+    /** 日期键偏移若干天 */
+    private shiftDayKey(offset: number): string {
+        const [year, month, date] = this.dayKey.split('-').map(Number);
+        return makeDayKey(new Date(year, month - 1, date + offset));
+    }
+
+    /** 一日导航中的日期文案（如 11月26日 周三） */
+    private dayLabel(): string {
+        const [year, month, date] = this.dayKey.split('-').map(Number);
+        const weekDayIndex = (new Date(year, month - 1, date).getDay() + 6) % 7;
+        return `${t('panel.weekRangeDay', { month: String(month), date: String(date) })} ${getWeekDays()[weekDayIndex]}`;
     }
 
     // ===== 一周：周导航 + 习惯表格 + 时长去向 =====

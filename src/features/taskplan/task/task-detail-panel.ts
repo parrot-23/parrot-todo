@@ -408,6 +408,8 @@ export class TaskDetailPanel extends FloatingPanel {
     private openDeleteConfirm(anchor: HTMLElement): void {
         this.closeDeleteConfirm();
         const tip = document.body.createDiv({ cls: 'task-detail-delete-confirm' });
+        // 浮层挂在 body 上，需手动应用当前主题变量，否则会回退成默认配色
+        applyThemeColors(tip, getCurrentThemeColors());
         this.deleteConfirmEl = tip;
         tip.createDiv({
             cls: 'task-detail-delete-confirm-text',
