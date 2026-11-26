@@ -598,6 +598,15 @@ export class SectionHost {
             const main = row.createDiv({ cls: 'task-section-item-main' });
             main.createSpan({ cls: 'task-section-item-text', text: entry.text });
             const meta = main.createDiv({ cls: 'task-section-item-meta' });
+            // 清单分类标签（旧数据无分类时不显示）
+            if (entry.category) {
+                meta.createSpan({
+                    cls: 'task-section-item-category',
+                    text: entry.category === 'improve'
+                        ? t('panel.checklistCategoryImprove')
+                        : t('panel.checklistCategoryStep'),
+                });
+            }
             meta.createSpan({ text: t(entry.done ? 'panel.checklistDone' : 'panel.checklistPending') });
             if (entry.done && entry.completedAt) {
                 meta.createSpan({ text: t('panel.checklistCompletedAt', { time: formatCompletedTime(entry.completedAt) }) });

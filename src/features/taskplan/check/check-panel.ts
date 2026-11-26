@@ -1,18 +1,17 @@
 ﻿// 检查面板：基于 FloatingPanel，用于配置检查。
-// 结构：顶部选项卡（时长去向 / 具体任务分析）；「统计」「任务记录」「计划vs对比」「习惯」已拆为独立面板（stats-panel.ts）。
-// 时长去向：本周各分类时长（可展开到根任务），横向条共用同一比例尺。
-import { setIcon } from 'obsidian';
-
+// 结构：顶部选项卡（一日 / 一周 / 一月 / 一季占位 + 具体任务分析）；其余视图已拆为独立面板（stats-panel.ts）。
 import type { PrototypeTask } from '../../../core/datatypes/prototype-task';
 import type { TaskExecutionRecord } from '../../../core/datatypes/task-execution';
 import type { BarDatum } from '../../../charts/primitives/types';
 import { renderBar } from '../../../charts/primitives/bar';
-import { renderHBars } from '../../../charts/primitives/hbar';
 import { t } from '../../../core/i18n';
 import type { TaskExecutionRepo } from '../../../core/repos/task-execution-repo';
+import type { PlanAssignmentRepo } from '../../../core/repos/plan-assignment-repo';
+import type { ChecklistCategory } from '../../../core/datatypes/domain';
+import { appendChecklist } from '../../../core/shared/task-sections';
+import { TaskPickerPanel } from '../task/task-picker-panel';
 import type { PlanCategoryData } from '../../../core/shared/plan-category-manager';
-import { UNCATEGORIZED_CATEGORY_COLOR, UNCATEGORIZED_CATEGORY_ID } from '../../../core/shared/plan-category-manager';
-import { findRootTaskId } from '../../../core/shared/task-tree-selection';
+import { UNCATEGORIZED_CATEGORY_COLOR } from '../../../core/shared/plan-category-manager';
 import {
     getCurrentWeekKey,
     getISOWeek,
@@ -22,6 +21,12 @@ import {
     shiftWeekKey,
 } from '../../../core/shared/plan-data';
 import { FloatingPanel, type FloatingPanelOptions } from '../../../ui/basic/floating-panel';
+import {
+    renderDayTasksTable,
+    renderHabitsTable,
+    type DayTasksContext,
+    type WeekSectionContext,
+} from './week-sections';
 
 /** 检查面板配置 */
 export interface CheckPanelOptions extends Omit<FloatingPanelOptions, 'title'> {
@@ -29,8 +34,12 @@ export interface CheckPanelOptions extends Omit<FloatingPanelOptions, 'title'> {
     title?: string;
     /** 分类数据（颜色来源，与图例一致） */
     categoryData: PlanCategoryData;
-    /** 任务执行记录仓库（时长去向的数据来源） */
+    /** 任务执行记录仓库（具体任务分析的执行记录来源） */
     taskExecutionRepo: TaskExecutionRepo;
+    /** 计划排布仓库（当天任务的排布来源） */
+    planAssignmentRepo: PlanAssignmentRepo;
+    /** 任务数据保存（清单写入后调用） */
+    saveTasks: () => void;
     /** 原型任务数据源（用于按任务取分类颜色） */
     getTasks: () => PrototypeTask[];
 }
@@ -42,27 +51,26 @@ type CheckRangeTab = 'day' | 'week' | 'month' | 'quarter';
 const RANGE_TAB_KEYS: CheckRangeTab[] = ['day', 'week', 'month', 'quarter'];
 
 /** 顶部选项卡 */
-type CheckTab = CheckRangeTab | 'durationFlow' | 'taskAnalysis';
-
-/** 「时长去向」中已删除任务的归并键（记录保留但任务已不存在） */
-const DELETED_ROOT_TASK_ID = '__deleted_root_task__';
+type CheckTab = CheckRangeTab | 'taskAnalysis';
 
 /** 检查面板 */
 export class CheckPanel extends FloatingPanel {
     private rangeTabEls!: Record<CheckRangeTab, HTMLElement>;
-    private durationFlowTabEl!: HTMLElement;
     private taskAnalysisTabEl!: HTMLElement;
     /** 内容区容器 */
     private paneEl!: HTMLElement;
     /** 当前选项卡 */
-    private tab: CheckTab = 'durationFlow';
-    /** 时长去向当前查看的周键 */
+    private tab: CheckTab = 'taskAnalysis';
+    /** 一周视图当前查看的周键 */
     private weekKey: string = getCurrentWeekKey();
+    /** 「清单」悬浮面板（存在即打开） */
+    private checklistPopoverEl: HTMLElement | undefined;
+    /** 周导航末尾的「清单」按钮 */
+    private checklistBtnEl!: HTMLElement;
+    /** 「清单」面板中选中的任务 id */
+    private checklistTaskId: string | undefined;
     /** 具体任务分析选中的任务 id（跨选项卡 / 重开保留） */
     private analyzedTaskId: string | undefined;
-
-    /** 「时长去向」中已展开的分类（跨重渲染保持） */
-    private durationFlowExpanded = new Set<string>();
 
     constructor(private readonly panelOptions: CheckPanelOptions) {
         super({
@@ -89,9 +97,7 @@ export class CheckPanel extends FloatingPanel {
             el.addEventListener('click', () => this.switchTab(item.key));
             this.rangeTabEls[item.key] = el;
         }
-        this.durationFlowTabEl = tabs.createDiv({ cls: 'plan-tab', text: t('panel.checkDurationFlow') });
         this.taskAnalysisTabEl = tabs.createDiv({ cls: 'plan-tab', text: t('panel.checkTaskAnalysis') });
-        this.durationFlowTabEl.addEventListener('click', () => this.switchTab('durationFlow'));
         this.taskAnalysisTabEl.addEventListener('click', () => this.switchTab('taskAnalysis'));
 
         this.paneEl = this.body.createDiv({ cls: 'plan-pane' });
@@ -103,101 +109,206 @@ export class CheckPanel extends FloatingPanel {
         for (const key of RANGE_TAB_KEYS) {
             this.rangeTabEls[key].toggleClass('is-active', tab === key);
         }
-        this.durationFlowTabEl.toggleClass('is-active', tab === 'durationFlow');
         this.taskAnalysisTabEl.toggleClass('is-active', tab === 'taskAnalysis');
         this.renderPane();
     }
 
     private renderPane(): void {
         this.paneEl.empty();
-        // 一日 / 一周 / 一月 / 一季：占位选项卡，页面内容暂为空
-        if (this.tab === 'durationFlow') this.renderDurationFlow();
+        // 面板元素随内容区一起销毁，重置引用
+        this.checklistPopoverEl = undefined;
+        // 一日 / 一月 / 一季：占位选项卡，页面内容暂为空
+        if (this.tab === 'week') this.renderWeekView();
         if (this.tab === 'taskAnalysis') this.renderTaskAnalysis();
     }
 
-    // ===== 时长去向：周数切换 + 一周分类执行时长横条（含各事项展开） =====
-    private renderDurationFlow(): void {
+    // ===== 一周：周导航 + 习惯表格 + 时长去向 =====
+    private renderWeekView(): void {
         this.renderWeekNav();
+        const ctx = this.weekSectionContext();
+        renderHabitsTable(this.paneEl, ctx);
+        renderDayTasksTable(this.paneEl, this.dayTasksContext());
+    }
 
-        const minutesByCatRoot = this.execMinutesByRootTaskCategory();
-        const minutesByCat = new Map<string, number>();
-        minutesByCatRoot.forEach((taskMinutes, catId) => {
-            let sum = 0;
-            taskMinutes.forEach((minutes) => { sum += minutes; });
-            minutesByCat.set(catId, sum);
+    /** 周数切换：← 第 N 周 → + 本周（相对偏移）按钮 */
+    private renderWeekNav(): void {
+        const { week } = parseWeekKey(this.weekKey);
+        const nav = this.paneEl.createDiv({ cls: 'plan-nav-row' });
+        const prev = nav.createEl('button', { cls: 'plan-nav-btn', text: '←' });
+        prev.addEventListener('click', () => {
+            this.weekKey = shiftWeekKey(this.weekKey, -1);
+            this.renderPane();
+        });
+        nav.createSpan({ cls: 'plan-nav-label', text: t('panel.planWeekLabel', { week: String(week) }) });
+        const next = nav.createEl('button', { cls: 'plan-nav-btn', text: '→' });
+        next.addEventListener('click', () => {
+            this.weekKey = shiftWeekKey(this.weekKey, 1);
+            this.renderPane();
         });
 
-        const wrap = this.paneEl.createDiv({ cls: 'check-cat-bars' });
-        wrap.createDiv({ cls: 'check-cat-bars-title', text: t('panel.checkDurationFlowTitle') });
+        // 右侧：相对当前周的偏移（本周 / x 周前 / x 周后），点击回到当前周
+        const currentWeekKey = getCurrentWeekKey();
+        const offset = this.weekOffsetFrom(currentWeekKey);
+        const jump = nav.createEl('button', {
+            cls: 'plan-nav-btn check-week-jump',
+            text: offset === 0
+                ? t('panel.weekNavCurrent')
+                : offset < 0
+                    ? t('panel.weekNavBefore', { weeks: String(-offset) })
+                    : t('panel.weekNavAfter', { weeks: String(offset) }),
+            attr: { type: 'button' },
+        });
+        jump.toggleClass('is-current', offset === 0);
+        jump.disabled = offset === 0;
+        jump.addEventListener('click', () => {
+            if (this.weekKey === currentWeekKey) return;
+            this.weekKey = currentWeekKey;
+            this.renderPane();
+        });
 
-        const cats = this.panelOptions.categoryData.categories;
-        const knownIds = new Set(cats.map((cat) => cat.id));
-        const extraIds = Array.from(minutesByCat.keys()).filter((id) => !knownIds.has(id));
-        const rows = [
-            ...cats.map((cat) => ({
-                id: cat.id,
-                label: cat.label,
-                color: cat.color,
-                minutes: minutesByCat.get(cat.id) ?? 0,
-            })),
-            ...extraIds.map((id) => ({
-                id,
-                label: t('inbox.noCategory'),
-                color: '#888888',
-                minutes: minutesByCat.get(id) ?? 0,
-            })),
-        ];
-        const maxMinutes = Math.max(0, ...rows.map((row) => row.minutes));
+        // 本周按钮后显示该周的起止日期
+        nav.createSpan({ cls: 'plan-nav-range', text: this.weekRangeLabel() });
 
-        const taskNames = new Map(this.panelOptions.getTasks().map((task) => [task.id, task.name]));
-
-        // 分类行与展开子行共用同一比例尺，保证父子横条长度可直接比较
-        const rowEls = renderHBars(
-            wrap,
-            rows.map((row) => ({ label: row.label, value: row.minutes, color: row.color })),
-            { scale: maxMinutes, formatValue: formatHours, rowInteractive: true },
-        );
-
-        rowEls.forEach((rowEl, index) => {
-            const row = rows[index];
-            const expanded = this.durationFlowExpanded.has(row.id);
-            rowEl.toggleClass('is-expanded', expanded);
-            // 箭头属于视图装饰：图元只负责行的视觉结构
-            const chevron = rowEl.createSpan({ cls: 'check-cat-bars-chevron' });
-            setIcon(chevron, expanded ? 'chevron-down' : 'chevron-right');
-            rowEl.prepend(chevron);
-            rowEl.addEventListener('click', () => {
-                if (this.durationFlowExpanded.has(row.id)) this.durationFlowExpanded.delete(row.id);
-                else this.durationFlowExpanded.add(row.id);
-                this.renderPane();
-            });
-
-            if (!expanded) return;
-            // 展开：该分类下本周有时长的根任务（子任务时长已归并到根任务），按时长降序
-            const taskMinutes = Array.from(minutesByCatRoot.get(row.id)?.entries() ?? [])
-                .filter(([, minutes]) => minutes > 0)
-                .sort((a, b) => b[1] - a[1]);
-            if (taskMinutes.length === 0) {
-                const emptyEl = wrap.createDiv({ cls: 'check-cat-bars-sub-empty', text: t('panel.checkDurationFlowEmpty') });
-                rowEl.after(emptyEl);
-                return;
-            }
-            const subWrap = wrap.createDiv({ cls: 'check-cat-bars-sub' });
-            renderHBars(
-                subWrap,
-                taskMinutes.map(([taskId, minutes]) => ({
-                    // 任务已删除时记录仍保留，统一归并为一条「已删除任务」
-                    label: taskNames.get(taskId) ?? t('panel.checkRecordsUnknownTask'),
-                    value: minutes,
-                    color: row.color,
-                })),
-                { scale: maxMinutes, formatValue: formatHours, variant: 'small' },
-            );
-            rowEl.after(subWrap);
+        // 行末尾：「清单」按钮，点击在按钮下方展开 / 收起悬浮面板
+        nav.addClass('is-relative');
+        this.checklistBtnEl = nav.createEl('button', {
+            cls: 'plan-nav-btn check-checklist-btn',
+            text: t('panel.checkChecklist'),
+            attr: { type: 'button', 'aria-expanded': 'false' },
+        });
+        this.checklistBtnEl.addEventListener('click', (evt) => {
+            evt.stopPropagation();
+            this.toggleChecklistPopover(nav);
         });
     }
 
-    // ===== 习惯：周数切换 + 9 列表格（习惯名称 + 完成情况 + 周一至周日是否完成） =====
+    /** 打开 / 关闭「清单」悬浮面板（仅通过清单按钮关闭） */
+    private toggleChecklistPopover(nav: HTMLElement): void {
+        if (this.checklistPopoverEl) {
+            this.closeChecklistPopover();
+            return;
+        }
+
+        const pop = nav.createDiv({ cls: 'check-checklist-popover' });
+        this.checklistPopoverEl = pop;
+        this.checklistBtnEl.addClass('is-active');
+        this.checklistBtnEl.setAttribute('aria-expanded', 'true');
+
+        // 第一行：已选任务（只读，点击打开任务选择面板）
+        const taskInput = pop.createEl('input', {
+            cls: 'check-checklist-input',
+            attr: { type: 'text', readonly: 'true', placeholder: t('panel.checkChecklistTask') },
+        });
+        taskInput.value = this.taskNameOf(this.checklistTaskId);
+        taskInput.addEventListener('click', () => {
+            new TaskPickerPanel({
+                getTasks: () => this.panelOptions.getTasks(),
+                initialSelectedIds: this.checklistTaskId ? [this.checklistTaskId] : [],
+                onSelect: (taskIds) => {
+                    if (!taskIds[0]) return;
+                    this.checklistTaskId = taskIds[0];
+                    taskInput.value = this.taskNameOf(taskIds[0]);
+                },
+            }).open();
+        });
+
+        // 第二行：清单分类
+        const categorySelect = pop.createEl('select', { cls: 'check-checklist-select' });
+        categorySelect.createEl('option', { value: 'improve', text: t('panel.checklistCategoryImprove') });
+        categorySelect.createEl('option', { value: 'step', text: t('panel.checklistCategoryStep') });
+
+        // 第三行：清单内容 + 添加
+        const contentRow = pop.createDiv({ cls: 'check-checklist-content-row' });
+        const contentInput = contentRow.createEl('input', {
+            cls: 'check-checklist-input',
+            attr: { type: 'text', placeholder: t('panel.checkChecklistContent') },
+        });
+        const submit = (): void => {
+            const text = contentInput.value.trim();
+            const task = this.panelOptions.getTasks().find((item) => item.id === this.checklistTaskId);
+            if (!text || !task) return;
+            appendChecklist(task, {
+                id: `checklist_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+                text,
+                createdAt: Date.now(),
+                category: categorySelect.value as ChecklistCategory,
+            });
+            this.panelOptions.saveTasks();
+            this.closeChecklistPopover();
+        };
+        const addBtn = contentRow.createEl('button', {
+            cls: 'check-checklist-add',
+            text: t('common.add'),
+            attr: { type: 'button' },
+        });
+        addBtn.addEventListener('click', submit);
+        contentInput.addEventListener('keydown', (evt) => {
+            if (evt.key === 'Enter') submit();
+        });
+        contentInput.focus();
+    }
+
+    /** 关闭「清单」悬浮面板 */
+    private closeChecklistPopover(): void {
+        this.checklistPopoverEl?.remove();
+        this.checklistPopoverEl = undefined;
+        this.checklistBtnEl.removeClass('is-active');
+        this.checklistBtnEl.setAttribute('aria-expanded', 'false');
+    }
+
+    /** 点击习惯 / 当天任务表格中的行：填入清单面板并自动打开 */
+    private selectChecklistTask(taskId: string): void {
+        this.checklistTaskId = taskId;
+        if (!this.checklistPopoverEl) {
+            this.toggleChecklistPopover(this.checklistBtnEl?.parentElement ?? this.paneEl);
+        }
+        const input = this.checklistPopoverEl?.querySelector<HTMLInputElement>('.check-checklist-input');
+        if (input) input.value = this.taskNameOf(taskId);
+    }
+
+    /** 任务 id 对应的任务名（找不到时为空） */
+    private taskNameOf(taskId: string | undefined): string {
+        return this.panelOptions.getTasks().find((task) => task.id === taskId)?.name ?? '';
+    }
+
+    /** 当前查看周相对指定周的周数差：负数表示更早，正数表示更晚 */
+    private weekOffsetFrom(baseWeekKey: string): number {
+        const mondayOf = (weekKey: string): number => {
+            const dayKey = makeDayKeyFromWeek(weekKey, 1);
+            const [year, month, date] = dayKey.split('-').map(Number);
+            return new Date(year, month - 1, date).getTime();
+        };
+        return Math.round((mondayOf(this.weekKey) - mondayOf(baseWeekKey)) / (7 * 24 * 3600000));
+    }
+
+    /** 当前周的起止日期（如 9月1日 - 9月7日） */
+    private weekRangeLabel(): string {
+        const format = (dayKey: string): string => {
+            const [, month, date] = dayKey.split('-').map(Number);
+            return t('panel.weekRangeDay', { month: String(month), date: String(date) });
+        };
+        return t('panel.weekRange', {
+            start: format(makeDayKeyFromWeek(this.weekKey, 1)),
+            end: format(makeDayKeyFromWeek(this.weekKey, 7)),
+        });
+    }
+
+    /** 「一周」视图区块的数据上下文 */
+    private weekSectionContext(): WeekSectionContext {
+        return {
+            weekKey: this.weekKey,
+            categories: this.panelOptions.categoryData.categories,
+            getTasks: () => this.panelOptions.getTasks(),
+            taskExecutionRepo: this.panelOptions.taskExecutionRepo,
+            onTaskClick: (taskId) => this.selectChecklistTask(taskId),
+        };
+    }
+
+    /** 当天任务表格的数据上下文 */
+    private dayTasksContext(): DayTasksContext {
+        return { ...this.weekSectionContext(), planAssignmentRepo: this.panelOptions.planAssignmentRepo };
+    }
+
     // ===== 具体任务分析：任务搜索 + 项目活跃度柱状图（含整棵子树） =====
     private renderTaskAnalysis(): void {
         const wrap = this.paneEl.createDiv({ cls: 'check-task-analysis' });
@@ -356,91 +467,5 @@ export class CheckPanel extends FloatingPanel {
         return { data, monthLabels };
     }
 
-    // ===== 任务记录：已迁移到统计面板 =====
-
-    /** 周数切换：‹ 第 N 周 › */
-    private renderWeekNav(): void {
-        const { week } = parseWeekKey(this.weekKey);
-        const nav = this.paneEl.createDiv({ cls: 'plan-nav-row' });
-        const prev = nav.createEl('button', { cls: 'plan-nav-btn', text: '←' });
-        prev.addEventListener('click', () => {
-            this.weekKey = shiftWeekKey(this.weekKey, -1);
-            this.renderPane();
-        });
-        nav.createSpan({ cls: 'plan-nav-label', text: t('panel.planWeekLabel', { week: String(week) }) });
-        const next = nav.createEl('button', { cls: 'plan-nav-btn', text: '→' });
-        next.addEventListener('click', () => {
-            this.weekKey = shiftWeekKey(this.weekKey, 1);
-            this.renderPane();
-        });
-
-        // 周数切换右侧：相对当前周的偏移（本周 / x 周前 / x 周后），点击回到当前周
-        const currentWeekKey = getCurrentWeekKey();
-        const offset = this.weekOffsetFrom(currentWeekKey);
-        const jump = nav.createEl('button', {
-            cls: 'plan-nav-btn check-week-jump',
-            text: offset === 0
-                ? t('panel.weekNavCurrent')
-                : offset < 0
-                    ? t('panel.weekNavBefore', { weeks: String(-offset) })
-                    : t('panel.weekNavAfter', { weeks: String(offset) }),
-            attr: { type: 'button' },
-        });
-        jump.toggleClass('is-current', offset === 0);
-        jump.disabled = offset === 0;
-        jump.addEventListener('click', () => {
-            if (this.weekKey === currentWeekKey) return;
-            this.weekKey = currentWeekKey;
-            this.renderPane();
-        });
-    }
-
-    /** 当前查看周相对指定周（默认即当前周）的周数差：负数表示更早，正数表示更晚 */
-    private weekOffsetFrom(baseWeekKey: string): number {
-        const mondayOf = (weekKey: string): number => {
-            const dayKey = makeDayKeyFromWeek(weekKey, 1);
-            const [year, month, date] = dayKey.split('-').map(Number);
-            return new Date(year, month - 1, date).getTime();
-        };
-        return Math.round((mondayOf(this.weekKey) - mondayOf(baseWeekKey)) / (7 * 24 * 3600000));
-    }
-
-    /** 原型任务的分类 id */
-    private categoryIdOf(taskId: string): string | undefined {
-        return this.panelOptions.getTasks().find((task) => task.id === taskId)?.categoryId;
-    }
-
-    /** 执行时长按「分类 → 根任务」两级汇总：子任务时长归并到所属根任务（跨午夜裁剪到本周） */
-    private execMinutesByRootTaskCategory(): Map<string, Map<string, number>> {
-        const tasks = this.panelOptions.getTasks();
-        const records = this.panelOptions.taskExecutionRepo.records;
-        const result = new Map<string, Map<string, number>>();
-        const firstDayKey = makeDayKeyFromWeek(this.weekKey, 1);
-        const [fy, fm, fd] = firstDayKey.split('-').map(Number);
-        const weekStart = new Date(fy, fm - 1, fd).getTime();
-        const weekEnd = weekStart + 7 * 24 * 3600000;
-        for (const record of records) {
-            const startMs = Math.max(weekStart, record.startAt);
-            const endMs = Math.min(weekEnd, record.endAt);
-            if (endMs <= startMs) continue;
-            // 事项按根任务统计：子任务的执行时长归并到所属根任务
-            const rootId = findRootTaskId(tasks, record.taskId);
-            // 任务已删除：记录保留并统一归并到「已删除任务」，无分类信息
-            const key = rootId ?? DELETED_ROOT_TASK_ID;
-            const catId = rootId
-                ? (this.categoryIdOf(rootId) ?? UNCATEGORIZED_CATEGORY_ID)
-                : UNCATEGORIZED_CATEGORY_ID;
-            const byTask = result.get(catId) ?? new Map<string, number>();
-            byTask.set(key, (byTask.get(key) ?? 0) + (endMs - startMs) / 60000);
-            result.set(catId, byTask);
-        }
-        return result;
-    }
-
-}
-
-/** 分钟数 → 小时（保留一位小数，如 1.5h） */
-function formatHours(minutes: number): string {
-    return `${Number((minutes / 60).toFixed(1))}h`;
 }
 

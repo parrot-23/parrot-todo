@@ -1,10 +1,10 @@
-// 统计面板：基于 FloatingPanel，独立的「统计」视图（功能面板一级菜单「统计」）。
+﻿// 统计面板：基于 FloatingPanel，独立的「统计」视图（功能面板一级菜单「统计」）。
 // 结构：顶部选项卡（统计 / 任务记录）+ 周数切换。
 // 统计：本周七天，每天两个方框（分类已执行时长 / 任务占比）；
 // 任务记录：每天一张卡片（只显示有记录的日期），视觉复用检查面板的记录卡片样式。
 import { setIcon } from 'obsidian';
 
-import type { PrototypeTask, TaskHabit } from '../../../core/datatypes/prototype-task';
+import type { PrototypeTask } from '../../../core/datatypes/prototype-task';
 import { renderHBars } from '../../../charts/primitives/hbar';
 import { renderPie } from '../../../charts/primitives/pie';
 import { renderTimeGrid } from '../../../charts/primitives/time-grid';
@@ -14,8 +14,12 @@ import type { TimeBoxRepo } from '../../../core/repos/timebox-repo';
 import type { PlanCategoryData } from '../../../core/shared/plan-category-manager';
 import { UNCATEGORIZED_CATEGORY_ID } from '../../../core/shared/plan-category-manager';
 import { getCurrentWeekKey, makeDayKeyFromWeek, parseWeekKey, shiftWeekKey } from '../../../core/shared/plan-data';
-import { getTaskHabit } from '../../../core/shared/task-sections';
 import { FloatingPanel, type FloatingPanelOptions } from '../../../ui/basic/floating-panel';
+import {
+    renderDurationFlow as renderDurationFlowSection,
+    renderHabitsTable,
+    type WeekSectionContext,
+} from './week-sections';
 
 /** 统计面板配置 */
 export interface StatsPanelOptions extends Omit<FloatingPanelOptions, 'title'> {
@@ -41,7 +45,7 @@ interface ChartBlock {
 }
 
 /** 顶部选项卡 */
-type StatsTab = 'stats' | 'records' | 'planVsActual' | 'habits';
+type StatsTab = 'stats' | 'records' | 'planVsActual' | 'habits' | 'durationFlow';
 
 /** 统计面板 */
 export class StatsPanel extends FloatingPanel {
@@ -49,6 +53,9 @@ export class StatsPanel extends FloatingPanel {
     private recordsTabEl!: HTMLElement;
     private planVsActualTabEl!: HTMLElement;
     private habitsTabEl!: HTMLElement;
+    private durationFlowTabEl!: HTMLElement;
+    /** 「时长去向」中已展开的分类（跨重渲染保持） */
+    private durationFlowExpanded = new Set<string>();
     /** 内容区容器 */
     private paneEl!: HTMLElement;
     /** 当前选项卡 */
@@ -75,10 +82,12 @@ export class StatsPanel extends FloatingPanel {
         this.recordsTabEl = tabs.createDiv({ cls: 'plan-tab', text: t('panel.checkRecords') });
         this.planVsActualTabEl = tabs.createDiv({ cls: 'plan-tab', text: t('panel.checkPlanVsActual') });
         this.habitsTabEl = tabs.createDiv({ cls: 'plan-tab', text: t('interface.habit') });
+        this.durationFlowTabEl = tabs.createDiv({ cls: 'plan-tab', text: t('panel.checkDurationFlow') });
         this.statsTabEl.addEventListener('click', () => this.switchTab('stats'));
         this.recordsTabEl.addEventListener('click', () => this.switchTab('records'));
         this.planVsActualTabEl.addEventListener('click', () => this.switchTab('planVsActual'));
         this.habitsTabEl.addEventListener('click', () => this.switchTab('habits'));
+        this.durationFlowTabEl.addEventListener('click', () => this.switchTab('durationFlow'));
 
         // 选项卡行最右侧的「数据」按钮：打开数据面板
         const dataButton = tabs.createEl('button', {
@@ -98,6 +107,7 @@ export class StatsPanel extends FloatingPanel {
         this.recordsTabEl.toggleClass('is-active', tab === 'records');
         this.planVsActualTabEl.toggleClass('is-active', tab === 'planVsActual');
         this.habitsTabEl.toggleClass('is-active', tab === 'habits');
+        this.durationFlowTabEl.toggleClass('is-active', tab === 'durationFlow');
         this.renderPane();
     }
 
@@ -109,6 +119,7 @@ export class StatsPanel extends FloatingPanel {
         if (this.tab === 'records') this.renderRecords();
         if (this.tab === 'planVsActual') this.renderPlanVsActual();
         if (this.tab === 'habits') this.renderHabits();
+        if (this.tab === 'durationFlow') this.renderDurationFlow();
     }
 
     /** 统计：本周七天，每天两个方框（分类已执行时长 / 任务占比） */
@@ -296,59 +307,9 @@ export class StatsPanel extends FloatingPanel {
         );
     }
 
-    /** 习惯：9 列表格（习惯名称 + 完成情况 + 周一至周日是否完成） */
+    /** 习惯：复用「一周」视图的习惯表格 */
     private renderHabits(): void {
-        // 当前启用的习惯（按时间、名称排序，与习惯面板顺序一致）
-        const habits = this.panelOptions.getTasks()
-            .map((task) => ({ task, habit: getTaskHabit(task) }))
-            .filter((item): item is { task: PrototypeTask; habit: TaskHabit } => item.habit?.enabled === true)
-            .sort((a, b) => a.habit.time.localeCompare(b.habit.time)
-                || a.task.name.localeCompare(b.task.name));
-
-        const table = this.paneEl.createDiv({ cls: 'check-habit-table' });
-        // 表头：习惯名称 + 完成情况 + 周一至周日（带日期）
-        const head = table.createDiv({ cls: 'check-habit-row is-head' });
-        head.createDiv({ cls: 'check-habit-cell is-name', text: t('interface.habit') });
-        head.createDiv({ cls: 'check-habit-cell is-total', text: t('panel.checkHabitDone') });
-        const weekDays = getWeekDays();
-        for (let day = 1; day <= 7; day++) {
-            const dayKey = makeDayKeyFromWeek(this.weekKey, day);
-            const cell = head.createDiv({ cls: 'check-habit-cell is-day' });
-            cell.createSpan({ cls: 'check-habit-day-name', text: weekDays[day - 1] });
-            cell.createSpan({
-                cls: 'check-habit-day-date',
-                text: `${Number(dayKey.slice(5, 7))}/${Number(dayKey.slice(8, 10))}`,
-            });
-        }
-
-        if (habits.length === 0) {
-            table.createDiv({ cls: 'check-habit-empty', text: t('panel.checkHabitsEmpty') });
-            return;
-        }
-
-        for (const { task, habit } of habits) {
-            const row = table.createDiv({ cls: 'check-habit-row' });
-            row.createDiv({ cls: 'check-habit-cell is-name', text: task.name });
-            let doneCount = 0;
-            // 第二列：本周完成天数 / 7（先占位，遍历完七天后再填值）
-            const totalEl = row.createDiv({ cls: 'check-habit-cell is-total' });
-            for (let day = 1; day <= 7; day++) {
-                const cell = row.createDiv({ cls: 'check-habit-cell is-day' });
-                // 习惯未生效的星期：显示占位符，不参与完成状态
-                if (!habit.weekdays.includes(day)) {
-                    cell.addClass('is-off');
-                    cell.setText('—');
-                    continue;
-                }
-                const dayKey = makeDayKeyFromWeek(this.weekKey, day);
-                const done = this.panelOptions.taskExecutionRepo.isTaskCompleted(dayKey, task.id);
-                if (done) doneCount++;
-                const mark = cell.createSpan({ cls: 'check-habit-mark' });
-                mark.toggleClass('is-done', done);
-                setIcon(mark, done ? 'circle-check-big' : 'circle');
-            }
-            totalEl.setText(`${doneCount} / 7`);
-        }
+        renderHabitsTable(this.paneEl, this.weekSectionContext());
     }
 
     /** 计划分布：时间盒数据，相邻同分类的小时格合并为一块 */
@@ -518,6 +479,21 @@ export class StatsPanel extends FloatingPanel {
             })),
             { scale: maxMinutes, formatValue: formatHours },
         );
+    }
+
+    /** 时长去向：复用「一周」视图的时长去向区块 */
+    private renderDurationFlow(): void {
+        renderDurationFlowSection(this.paneEl, this.weekSectionContext(), this.durationFlowExpanded, () => this.renderPane());
+    }
+
+    /** 「一周」视图区块的数据上下文 */
+    private weekSectionContext(): WeekSectionContext {
+        return {
+            weekKey: this.weekKey,
+            categories: this.panelOptions.categoryData.categories,
+            getTasks: () => this.panelOptions.getTasks(),
+            taskExecutionRepo: this.panelOptions.taskExecutionRepo,
+        };
     }
 
     // ===== 任务记录：每天一张卡片（只显示有记录的日期） =====

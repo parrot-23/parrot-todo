@@ -420,10 +420,16 @@ export class InterfaceView {
     /** 检查面板实例（懒创建） */
     private ensureCheckPanel(): CheckPanel {
         if (!this.checkPanel) {
+            const holder = this.plugin as Plugin & {
+                planAssignmentRepo: ConstructorParameters<typeof CheckPanel>[0]['planAssignmentRepo'];
+                saveAll: () => Promise<void>;
+            };
             this.checkPanel = new CheckPanel({
                 container: this.panelContainer,
                 categoryData: this.categoryData,
                 taskExecutionRepo: this.taskExecutionRepo,
+                planAssignmentRepo: holder.planAssignmentRepo,
+                saveTasks: () => holder.saveAll(),
                 getTasks: () => this.prototypeTaskRepo.tasks,
             });
         }

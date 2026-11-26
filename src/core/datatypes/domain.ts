@@ -124,10 +124,15 @@ export interface InboxItem {
 }
 
 /** 清单条目（任务清单中可勾选的条目） */
+/** 清单分类：改进 / 步骤 */
+export type ChecklistCategory = 'improve' | 'step';
+
 export interface ChecklistItem {
     id: string;
     /** 条目内容文本 */
     text: string;
+    /** 清单分类（旧数据无此字段） */
+    category?: ChecklistCategory;
     /** 是否已完成（可选，旧数据无此字段默认未完成） */
     done?: boolean;
     /** 完成时间（时间戳，可选；取消完成时清除） */
