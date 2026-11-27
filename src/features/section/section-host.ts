@@ -1025,20 +1025,20 @@ export class SectionHost {
         // 新建文件输入行：位于文件列表上方（关联目录模式下不显示）
         if (this.fileCreateMode) this.renderFileCreateRow(wrap, task);
 
-        // 未进入目录时为单栏文件 / 目录混排；进入目录后左右分栏（左=绑定根目录，右=当前目录）
+        // 文件列表方框：路径行固定在方框顶部，下方为可滚动的文件列表
+        // 未进入目录时为单栏文件 / 目录混排；进入目录后同一方框内左右分栏（左=绑定根目录，右=当前目录）
+        const listCard = wrap.createDiv({ cls: 'task-detail-files-card task-detail-files-list-card' });
+        if (dir) this.renderFilePathRow(listCard, dir);
         if (this.fileCurrentDir) {
-            const split = wrap.createDiv({ cls: 'task-detail-files-split' });
-            const leftCard = split.createDiv({ cls: 'task-detail-files-card task-detail-files-list-card' });
-            const rightCard = split.createDiv({ cls: 'task-detail-files-card task-detail-files-list-card' });
-            this.renderFileRows(leftCard, dir, this.fileCurrentDir);
-            this.renderFileRows(rightCard, this.fileCurrentDir);
+            const split = listCard.createDiv({ cls: 'task-detail-files-split' });
+            const leftPane = split.createDiv({ cls: 'task-detail-files-pane' });
+            const rightPane = split.createDiv({ cls: 'task-detail-files-pane' });
+            this.renderFileRows(leftPane, dir, this.fileCurrentDir);
+            this.renderFileRows(rightPane, this.fileCurrentDir);
         } else {
-            const listCard = wrap.createDiv({ cls: 'task-detail-files-card task-detail-files-list-card' });
-            this.renderFileRows(listCard, dir);
+            const pane = listCard.createDiv({ cls: 'task-detail-files-pane' });
+            this.renderFileRows(pane, dir);
         }
-
-        // 当前相对路径：位于文件列表方框下方，目录层级可点击返回
-        if (dir) this.renderFilePathRow(wrap, dir);
     }
 
     /** 排序图标按钮：样式与右侧文件夹按钮一致；图标反映当前排序方式，点击弹出排序菜单 */

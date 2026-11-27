@@ -384,7 +384,7 @@ export const zh = {
     'data.tableContent': '内容',
     'data.executionNoData': '暂无执行记录',
     'nav.runningLabel': '进行中',
-    'nav.runningElapsed': '已用 {minutes} 分钟',
+    'nav.runningElapsed': '{minutes} 分钟',
     'nav.runningStatusBar': '{name}：{duration}',
     'nav.statusBarIdle': '日程',
     'nav.statusBarDurationHm': '{hours}小时{minutes}分钟',

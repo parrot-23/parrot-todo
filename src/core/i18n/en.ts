@@ -386,7 +386,7 @@ export const en: I18nMessages = {
     'data.tableContent': 'Content',
     'data.executionNoData': 'No execution records yet',
     'nav.runningLabel': 'Running',
-    'nav.runningElapsed': '{minutes} min elapsed',
+    'nav.runningElapsed': '{minutes} min',
     'nav.runningStatusBar': '{name}: {duration}',
     'nav.statusBarIdle': 'Schedule',
     'nav.statusBarDurationHm': '{hours} h {minutes} min',

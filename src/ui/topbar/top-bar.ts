@@ -41,6 +41,8 @@ export interface TopBarRenderResult {
     left: HTMLElement;
     /** 右侧操作区容器 */
     actions: HTMLElement;
+    /** 周历按钮右侧的插槽（供调用方放置进行中任务卡片） */
+    afterCalendar: HTMLElement;
 }
 
 /** 顶部工具栏 */
@@ -102,6 +104,9 @@ export class TopBar {
         setIcon(calendarBtn, 'calendar');
         calendarBtn.onclick = () => this.options.onOpenCalendar?.(this.getSelectedDate());
 
+        // 周历按钮右侧插槽：进行中任务卡片
+        const afterCalendar = dateBar.createDiv({ cls: 'parrot-plan-topbar-after-calendar' });
+
         const prevBtn = dateBar.createEl('button', {
             text: '<',
             cls: 'parrot-plan-topbar-date-btn',
@@ -146,7 +151,7 @@ export class TopBar {
 
         const actions = bar.createDiv({ cls: 'parrot-plan-topbar-actions' });
         this.update();
-        return { left, actions };
+        return { left, actions, afterCalendar };
     }
 
     /** 当前选中日期（外部读取用） */

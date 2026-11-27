@@ -269,17 +269,17 @@ export default class ParrotPlanPlugin extends Plugin {
         this.statusBar.init();
     }
 
-    /** 刷新状态栏中的「进行中任务」显示（进行中任务变化时由主视图调用） */
-    renderStatusBarRunningTask(): void {
-        this.statusBar?.render();
-    }
-
     /** 刷新进行中任务的全局显示（状态栏 + 主视图顶部卡片），任意视图开始/结束计时后调用 */
     refreshRunningTaskCard(): void {
         this.statusBar?.render();
         for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_MAIN)) {
             if (leaf.view instanceof MainView) leaf.view.renderRunningTaskCard();
         }
+    }
+
+    /** 刷新状态栏中的「进行中任务」显示（进行中任务变化时由主视图调用） */
+    renderStatusBarRunningTask(): void {
+        this.statusBar?.render();
     }
 
     /**

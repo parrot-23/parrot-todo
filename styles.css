@@ -1081,7 +1081,14 @@ button.parrot-plan-nav-help-btn {
     background: var(--sdt-interactive-hover, var(--interactive-hover));
 }
 
-/* 进行中任务卡片容器：位于顶部工具栏右侧操作区（帮助按钮左侧） */
+/* 周历按钮右侧插槽：进行中任务卡片 */
+.parrot-plan-topbar-after-calendar {
+    display: flex;
+    align-items: center;
+    margin-left: 6px;
+}
+
+/* 进行中任务卡片容器：位于周历按钮右侧 */
 .parrot-plan-running-card-wrap {
     min-width: 0;
     overflow: hidden;
@@ -1094,21 +1101,21 @@ button.parrot-plan-nav-help-btn {
     display: none;
 }
 
-/* 进行中任务卡片：高度与一级标签卡一致 */
+/* 进行中任务卡片：仅显示「进行中 xx 分钟」 */
 .parrot-plan-running-card {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 5px 12px;
-    border-radius: 6px;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 999px;
     border: 1px solid var(--interactive-accent);
     background: var(--sdt-card-bg, var(--background-secondary));
     color: var(--sdt-text-primary, var(--text-normal));
-    font-size: 14px;
+    font-size: 12px;
     font-weight: 600;
-    line-height: 1;
+    line-height: 1.4;
+    white-space: nowrap;
     cursor: pointer;
-    max-width: min(320px, 100%);
 }
 
 .parrot-plan-running-card:hover {
@@ -1119,16 +1126,7 @@ button.parrot-plan-nav-help-btn {
     flex-shrink: 0;
     font-size: 12px;
     font-weight: 700;
-    color: var(--text-on-accent);
-    background: var(--interactive-accent);
-    border-radius: 4px;
-    padding: 2px 6px;
-}
-
-.parrot-plan-running-card-name {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    color: var(--interactive-accent);
 }
 
 .parrot-plan-running-card-time {
@@ -10929,10 +10927,20 @@ button.task-detail-todo-tool-btn:disabled {
     display: flex;
     flex-direction: column;
     gap: 2px;
+    overflow: hidden;
+}
+
+/* 文件列表滚动区：路径行固定在方框顶部，仅列表区域滚动 */
+.task-detail-files-pane {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
     overflow-y: auto;
 }
 
-/* 进入子目录后左右分栏：左=绑定根目录，右=当前目录 */
+/* 进入子目录后同一方框内左右分栏：左=绑定根目录，右=当前目录，中间垂直分隔线 */
 .task-detail-files-split {
     display: flex;
     flex: 1;
@@ -10940,19 +10948,25 @@ button.task-detail-todo-tool-btn:disabled {
     gap: 10px;
 }
 
-.task-detail-files-split > .task-detail-files-list-card {
+.task-detail-files-split > .task-detail-files-pane {
     min-width: 0;
 }
 
-/* 当前相对路径行：上一级按钮 + 面包屑（位于文件列表方框下方） */
+.task-detail-files-split > .task-detail-files-pane + .task-detail-files-pane {
+    padding-left: 10px;
+    border-left: 1px dashed var(--sdt-card-border, var(--background-modifier-border));
+}
+
+/* 当前相对路径行：位于文件列表方框内部左上角，下方为浅色虚线分隔线 */
 .task-detail-files-path {
-    position: absolute;
-    bottom: 0;
+    flex: 0 0 auto;
     display: flex;
     align-items: center;
     gap: 6px;
     min-height: 24px;
-    margin-top: 6px;
+    margin-bottom: 6px;
+    padding-bottom: 6px;
+    border-bottom: 1px dashed var(--sdt-card-border, var(--background-modifier-border));
     font-size: 12px;
     color: var(--sdt-text-secondary, var(--text-muted));
 }

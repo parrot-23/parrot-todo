@@ -293,13 +293,13 @@ export class MainView extends ItemView implements ThemeColorsConsumer {
 
         // 顶部工具栏：独占一行，左侧为界面功能按钮组，日期与周历居中，进行中任务靠右
         const nav = root.createDiv({ cls: 'parrot-plan-nav' });
-        const { left, actions } = this.topBar.render(nav);
+        const { left, afterCalendar } = this.topBar.render(nav);
 
         // 左侧：布局按钮；扩展工具栏（添加 / 主题 / 退出）浮在工具栏下方居中
         this.renderInterfaceTools(left, nav);
 
-        // 进行中任务卡片（右侧操作区，无进行中任务时隐藏）
-        this.runningCardEl = actions.createDiv({ cls: 'parrot-plan-running-card-wrap' });
+        // 进行中任务卡片（周历按钮右侧，无进行中任务时隐藏）
+        this.runningCardEl = afterCalendar.createDiv({ cls: 'parrot-plan-running-card-wrap' });
         this.renderRunningTaskCard();
 
         // 内容区
@@ -345,10 +345,10 @@ export class MainView extends ItemView implements ThemeColorsConsumer {
             return;
         }
         // 界面视图写入的是原型任务，日执行视图写入的是收集盒任务
-        const name = running.source === 'prototype'
-            ? this.prototypeTaskRepo().tasks.find(task => task.id === running.inboxId)?.name
-            : this.inboxData.items.find(i => i.id === running.inboxId && !i.removed)?.title;
-        if (!name) {
+        const exists = running.source === 'prototype'
+            ? this.prototypeTaskRepo().tasks.some(task => task.id === running.inboxId)
+            : this.inboxData.items.some(i => i.id === running.inboxId && !i.removed);
+        if (!exists) {
             wrap.addClass('is-hidden');
             this.renderStatusBarRunningTask();
             return;
@@ -357,7 +357,6 @@ export class MainView extends ItemView implements ThemeColorsConsumer {
 
         const card = wrap.createDiv({ cls: 'parrot-plan-running-card' });
         card.createSpan({ cls: 'parrot-plan-running-card-label', text: t('nav.runningLabel') });
-        card.createSpan({ cls: 'parrot-plan-running-card-name', text: name });
         const timeEl = card.createSpan({ cls: 'parrot-plan-running-card-time' });
 
         const updateTime = () => {
