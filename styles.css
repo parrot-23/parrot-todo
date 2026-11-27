@@ -10855,9 +10855,16 @@ button.task-detail-todo-tool-btn:disabled {
 .task-detail-files-sort-btn svg {
     width: 13px;
     height: 13px;
+    display: block;
 }
 
+/* 排序字母（A / 时钟等）：与图标同尺寸居中显示 */
 .task-detail-files-sort-letter {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 13px;
+    height: 13px;
     font-size: 13px;
     font-weight: 700;
     line-height: 1;
@@ -10885,16 +10892,29 @@ button.task-detail-todo-tool-btn:disabled {
     height: 24px;
     padding: 0;
     font-size: 12px;
+    line-height: 1;
+}
+
+/* 图标容器：统一为正方形并居中，避免不同图标（svg / 字母）基线差异导致视觉偏移 */
+.task-detail-files-btn-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 13px;
+    height: 13px;
+    line-height: 1;
 }
 
 .task-detail-files-btn-icon svg {
     width: 13px;
     height: 13px;
+    display: block;
 }
 
 /* 带文字的工具栏按钮（如「添加关联目录」）：宽度自适应，无背景与阴影 */
 .task-detail-files-btn:has(.task-detail-files-btn-text) {
     width: auto;
+    height: auto;
     padding: 2px 8px;
     margin-right: -6px;
     white-space: nowrap;
