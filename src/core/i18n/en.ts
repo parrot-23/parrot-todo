@@ -674,7 +674,7 @@ export const en: I18nMessages = {
     'settings.licenseKeyGet': 'Get license key',
     'settings.authCodeUnavailable': 'Temporarily unavailable',
     'settings.licenseActivated': 'Activated',
-    'settings.licenseActivatedDesc': 'License key {key} is activated, valid until {date}',
+    'settings.licenseActivatedDesc': 'Authorized',
     'settings.licenseActivating': 'Activating…',
     'settings.licenseActivateSuccess': 'Activated successfully',
     'settings.licenseActivateFailed': 'Activation failed: {msg}',

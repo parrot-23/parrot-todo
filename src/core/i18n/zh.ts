@@ -611,7 +611,7 @@ export const zh = {
     'settings.licenseKeyGet': '获取授权码',
     'settings.authCodeUnavailable': '暂时不可获取',
     'settings.licenseActivated': '已激活',
-    'settings.licenseActivatedDesc': '授权码 {key} 已激活，有效期至 {date}',
+    'settings.licenseActivatedDesc': '已授权',
     'settings.licenseActivating': '正在激活…',
     'settings.licenseActivateSuccess': '激活成功',
     'settings.licenseActivateFailed': '激活失败：{msg}',

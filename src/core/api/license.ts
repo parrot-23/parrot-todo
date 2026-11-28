@@ -155,6 +155,10 @@ export interface ActivateResult {
     success: boolean;
     /** 失败原因（成功时为空字符串） */
     errMsg: string;
+    /** 会话令牌（tk_ 前缀，失败时为空字符串） */
+    token: string;
+    /** token 过期时间戳（毫秒，失败时为 0） */
+    expireTime: number;
 }
 
 /**
@@ -175,18 +179,20 @@ export async function activateLicense(app: App, plugin: Plugin, licenseKey: stri
         res = await post<ObAuthResponse>('', body, AUTH_API_BASE_URL);
     } catch (err) {
         log('激活请求失败', err);
-        return { success: false, errMsg: err instanceof Error ? err.message : String(err) };
+        return { success: false, errMsg: err instanceof Error ? err.message : String(err), token: '', expireTime: 0 };
     }
 
     if (!res || res.success !== true) {
         const errMsg = res?.errMsg || '激活失败';
         log('激活失败', errMsg);
-        return { success: false, errMsg };
+        return { success: false, errMsg, token: '', expireTime: 0 };
     }
 
+    const token = res.token ?? '';
+    const expireTime = res.expireTime ?? 0;
     file.licenseKey = licenseKey;
     await saveLicenseFile(app, plugin);
-    writeTokenStorage(res.token ?? '', res.expireTime ?? 0);
-    log('激活成功', { licenseKey, expireTime: res.expireTime });
-    return { success: true, errMsg: '' };
+    writeTokenStorage(token, expireTime);
+    log('激活成功', { licenseKey, token, expireTime });
+    return { success: true, errMsg: '', token, expireTime };
 }

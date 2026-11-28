@@ -1,5 +1,5 @@
 // 插件设置页
-import { Notice, PluginSettingTab, type App, type ButtonComponent, type SettingDefinitionItem, type TextComponent } from 'obsidian';
+import { Notice, PluginSettingTab, type App, type ButtonComponent, type Setting, type SettingDefinitionItem, type TextComponent } from 'obsidian';
 
 import { t } from '../../core/i18n';
 import type ParrotPlanPlugin from '../../../main';
@@ -15,6 +15,9 @@ const UUID_PATTERN = /^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a
 export class ParrotPlanSettingTab extends PluginSettingTab {
     private plugin: ParrotPlanPlugin;
 
+    /** 授权码设置项（用于激活后更新描述） */
+    private licenseSetting?: Setting;
+
     /** 授权码输入框（用于激活后回填与禁用） */
     private licenseInput?: TextComponent;
 
@@ -26,13 +29,15 @@ export class ParrotPlanSettingTab extends PluginSettingTab {
         this.plugin = plugin;
     }
 
-    /** 已激活时回填授权码并禁用输入框与提交按钮 */
+    /** 已激活时回填授权码、显示已授权并禁用输入与提交 */
     private async applyActivatedState(): Promise<void> {
         const state = await getLicenseState(this.app, this.plugin);
         if (!state.licenseKey) return;
         this.licenseInput?.setValue(state.licenseKey);
         this.licenseInput?.setDisabled(true);
         this.licenseSubmitButton?.setDisabled(true);
+        this.licenseSubmitButton?.setButtonText(t('settings.licenseActivated'));
+        this.licenseSetting?.setDesc(t('settings.licenseActivatedDesc'));
     }
 
     /** 提交授权码：校验格式后调用 activate 接口激活 */
@@ -57,10 +62,10 @@ export class ParrotPlanSettingTab extends PluginSettingTab {
             return;
         }
         new Notice(t('settings.licenseActivateSuccess'));
-        const state = await getLicenseState(this.app, this.plugin);
-        this.licenseInput?.setValue(state.licenseKey);
+        this.licenseInput?.setValue(licenseKey);
         this.licenseInput?.setDisabled(true);
         btn.setButtonText(t('settings.licenseActivated'));
+        this.licenseSetting?.setDesc(t('settings.licenseActivatedDesc'));
     }
 
     getSettingDefinitions(): SettingDefinitionItem[] {
@@ -98,6 +103,7 @@ export class ParrotPlanSettingTab extends PluginSettingTab {
                 name: t('settings.licenseKey'),
                 desc: t('settings.licenseKeyDesc'),
                 render: (setting) => {
+                    this.licenseSetting = setting;
                     setting
                         .setName(t('settings.licenseKey'))
                         .setDesc(t('settings.licenseKeyDesc'))
