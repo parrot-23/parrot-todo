@@ -5004,6 +5004,40 @@ button.swimlane-section-card-settings {
     color: var(--text-faint);
 }
 
+/* ===== 设置页：按开关隐藏设置项 ===== */
+.setting-item.is-hidden {
+    display: none;
+}
+
+/* ===== 设置页：授权码已绑定设备列表 ===== */
+.parrot-license-device-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+}
+
+.parrot-license-device-remove {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    color: var(--text-muted);
+    cursor: pointer;
+}
+
+.parrot-license-device-remove:hover {
+    color: var(--text-error);
+}
+
+.parrot-license-device-remove svg {
+    width: 14px;
+    height: 14px;
+}
+
 /* ===== 工作台视图 ===== */
 .workbench-view {
     display: flex;

@@ -164,6 +164,9 @@ export class BaseRepo {
     /** 是否启用剧本模式（随主数据一起持久化，默认关闭） */
     scriptModeEnabled = false;
 
+    /** 是否开启实验性功能（随主数据一起持久化，默认关闭） */
+    experimentalEnabled = false;
+
     /** 任务库根目录（vault 相对路径，空表示未绑定，随主数据一起持久化） */
     taskLibraryRoot = '';
 
@@ -207,6 +210,7 @@ export class BaseRepo {
             runningTask: d.runningTask,
             helpDismissed: this.helpDismissed,
             scriptModeEnabled: this.scriptModeEnabled,
+            experimentalEnabled: this.experimentalEnabled,
             taskLibraryRoot: this.taskLibraryRoot,
             planWeekNotesExpanded: this.planWeekNotesExpanded,
             storyLocalDirMode: this.storyLocalDirMode,
@@ -224,6 +228,13 @@ export class BaseRepo {
     /** 保存是否启用剧本模式 */
     async saveScriptModeEnabled(enabled: boolean): Promise<void> {
         this.scriptModeEnabled = enabled;
+        await this.saveAll();
+    }
+
+    /** 保存是否开启实验性功能（关闭时同时关闭剧本模式） */
+    async saveExperimentalEnabled(enabled: boolean): Promise<void> {
+        this.experimentalEnabled = enabled;
+        if (!enabled) this.scriptModeEnabled = false;
         await this.saveAll();
     }
 
@@ -291,6 +302,11 @@ export class BaseRepo {
         // 读取是否启用剧本模式（兼容旧数据：默认关闭）
         this.scriptModeEnabled = typeof savedData.scriptModeEnabled === 'boolean'
             ? savedData.scriptModeEnabled
+            : false;
+
+        // 读取是否开启实验性功能（兼容旧数据：默认关闭）
+        this.experimentalEnabled = typeof savedData.experimentalEnabled === 'boolean'
+            ? savedData.experimentalEnabled
             : false;
 
         // 读取任务库根目录（兼容旧数据：默认未绑定）

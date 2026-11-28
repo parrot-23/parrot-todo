@@ -85,6 +85,11 @@ export default class ParrotPlanPlugin extends Plugin {
         return this.repo.scriptModeEnabled;
     }
 
+    /** 是否开启实验性功能（随主数据一起持久化，默认关闭） */
+    get experimentalEnabled(): boolean {
+        return this.repo.experimentalEnabled;
+    }
+
     /** 任务库根目录（随主数据一起持久化，空表示未绑定） */
     get taskLibraryRoot(): string {
         return this.repo.taskLibraryRoot;
@@ -116,6 +121,11 @@ export default class ParrotPlanPlugin extends Plugin {
     /** 保存是否启用剧本模式 */
     async saveScriptModeEnabled(enabled: boolean): Promise<void> {
         await this.repo.saveScriptModeEnabled(enabled);
+    }
+
+    /** 保存是否开启实验性功能（关闭时同时关闭剧本模式） */
+    async saveExperimentalEnabled(enabled: boolean): Promise<void> {
+        await this.repo.saveExperimentalEnabled(enabled);
     }
 
     /** 保存任务库根目录 */

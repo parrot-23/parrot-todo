@@ -1,15 +1,16 @@
 // 授权（obauth 云函数）客户端：clientId 生成、授权码激活、授权状态校验与续期。
 // 存储约定：
-// - clientId 与授权码（licenseKey）写入插件目录下的 license.json；
+// - clientId 与授权码（licenseKey）写入 data.json；
 // - token、过期时间与上次校验时间写入 localStorage（键名见 TOKEN_STORAGE_KEY）。
 import type { App, Plugin } from 'obsidian';
 
 import { log } from '../shared/logger';
 import { getPluginDir } from '../shared/plugin-dir';
 import { AUTH_API_BASE_URL, post } from './client';
-import type { ObAuthActivateParams, ObAuthRequest, ObAuthResponse } from './types';
+import type { ObAuthActivateParams, ObAuthDevice, ObAuthListDevicesResponse, ObAuthRequest, ObAuthResponse } from './types';
+import { ObAuthCode } from './types';
 
-/** 授权信息文件名（与 data.json 同级） */
+/** 授权信息文件名（旧版本使用，现已迁移到 data.json，仅用于兼容迁移） */
 const LICENSE_FILE = 'license.json';
 
 /** token 在 localStorage 中的键名 */
@@ -142,24 +143,54 @@ async function loadLicenseFile(app: App, plugin: Plugin): Promise<LicenseFile> {
         parsed = null;
     }
 
+    // 兼容旧版本：clientId 曾存放在 license.json，迁移到 data.json 后删除该文件
     if (parsed && parsed.clientId) {
         licenseFile = parsed;
+        await migrateLegacyLicenseFile(app, plugin);
         return licenseFile;
     }
 
-    // 首次运行（或文件损坏）：生成 clientId 并写入文件
+    // 首次运行（或文件损坏）：生成 clientId 并写入 data.json
     licenseFile = { clientId: generateUuid(), licenseKey: parsed?.licenseKey ?? '' };
     await saveLicenseFile(app, plugin);
     return licenseFile;
 }
 
-/** 写回授权信息文件 */
+/** 写回授权信息（clientId 与授权码写入 data.json） */
 async function saveLicenseFile(app: App, plugin: Plugin): Promise<void> {
     if (!licenseFile) return;
     try {
-        await app.vault.adapter.write(licensePath(app, plugin), JSON.stringify(licenseFile, null, 2));
+        await plugin.saveData({ ...(await readPluginData(plugin)), ...licenseFile });
     } catch (err) {
-        log('写入授权信息文件失败', err);
+        log('写入授权信息失败', err);
+    }
+}
+
+/** 读取 data.json 现有内容（保留其他字段，避免覆盖） */
+async function readPluginData(plugin: Plugin): Promise<Record<string, unknown>> {
+    try {
+        const raw: unknown = await plugin.loadData();
+        return raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
+    } catch {
+        return {};
+    }
+}
+
+/** 旧版本迁移：把 license.json 中的 clientId / licenseKey 写入 data.json 并删除旧文件 */
+async function migrateLegacyLicenseFile(app: App, plugin: Plugin): Promise<void> {
+    if (!licenseFile) return;
+    try {
+        const data = await readPluginData(plugin);
+        if (data.clientId === licenseFile.clientId && data.licenseKey === licenseFile.licenseKey) {
+            // 已迁移过，只需清理旧文件
+            await app.vault.adapter.remove(licensePath(app, plugin));
+            return;
+        }
+        await plugin.saveData({ ...data, ...licenseFile });
+        await app.vault.adapter.remove(licensePath(app, plugin));
+        log('已将授权信息从 license.json 迁移到 data.json');
+    } catch (err) {
+        log('迁移授权信息失败', err);
     }
 }
 
@@ -188,17 +219,83 @@ function detectClientOs(): string {
 /** 激活结果 */
 export interface ActivateResult {
     success: boolean;
+    /** 业务状态码（0 表示成功，其余见 ObAuthCode） */
+    code: number;
     /** 失败原因（成功时为空字符串） */
     errMsg: string;
     /** 会话令牌（tk_ 前缀，失败时为空字符串） */
     token: string;
     /** token 过期时间戳（毫秒，失败时为 0） */
     expireTime: number;
+    /** 授权码已被其他设备占用时，当前绑定的设备列表（其他情况为空数组） */
+    devices: ObAuthDevice[];
+}
+
+/** 查询授权码当前绑定的设备（公开接口，仅凭 licenseKey） */
+export async function listDevices(licenseKey: string): Promise<ObAuthDevice[]> {
+    const body: ObAuthRequest = { type: 'listDevices', licenseKey };
+    try {
+        const res = await post<ObAuthListDevicesResponse>('', body, AUTH_API_BASE_URL);
+        if (!res || res.success !== true || !Array.isArray(res.list)) return [];
+        return res.list;
+    } catch (err) {
+        log('查询绑定设备失败', err);
+        return [];
+    }
+}
+
+/** 解绑结果 */
+export interface DeactivateResult {
+    success: boolean;
+    /** 失败原因（成功时为空字符串） */
+    errMsg: string;
+}
+
+/**
+ * 解绑设备：调用 obauth 的 deactivate 接口。
+ * 需要该设备自身的 token 与 clientId（接口按 token 定位绑定关系）。
+ * 成功后该授权码回到未激活状态，其下所有 token 被作废。
+ */
+export async function deactivateLicense(app: App, plugin: Plugin, token: string, clientId: string): Promise<DeactivateResult> {
+    const body: ObAuthRequest = { type: 'deactivate', token, clientId };
+    let res: ObAuthResponse;
+    try {
+        res = await post<ObAuthResponse>('', body, AUTH_API_BASE_URL);
+    } catch (err) {
+        log('解绑请求失败', err);
+        return { success: false, errMsg: err instanceof Error ? err.message : String(err) };
+    }
+    if (!res || res.success !== true) {
+        const errMsg = res?.errMsg || '解绑失败';
+        log('解绑失败', errMsg);
+        return { success: false, errMsg };
+    }
+    log('解绑成功', { clientId });
+    return { success: true, errMsg: '' };
+}
+
+/**
+ * 解绑指定设备（按 clientId 匹配）。
+ * 若目标设备就是本机，直接用本地 token 调 deactivate；
+ * 否则说明该授权码绑在别的设备上，本机没有它的 token，无法解绑。
+ */
+export async function deactivateDevice(app: App, plugin: Plugin, device: ObAuthDevice): Promise<DeactivateResult> {
+    const state = await getLicenseState(app, plugin);
+    if (device.clientId !== state.clientId || !state.token) {
+        return { success: false, errMsg: '只能解绑当前设备' };
+    }
+    const result = await deactivateLicense(app, plugin, state.token, state.clientId);
+    if (result.success) {
+        // 本机已解绑：清除本地 token，授权码保留在 license.json 便于重新激活
+        clearTokenStorage();
+    }
+    return result;
 }
 
 /**
  * 激活授权码：调用 obauth 的 activate 接口。
  * 成功后把授权码写入 license.json，token / 过期时间写入 localStorage。
+ * 授权码已被其他设备占用（code 1001）时，额外查询并返回当前绑定的设备列表。
  */
 export async function activateLicense(app: App, plugin: Plugin, licenseKey: string): Promise<ActivateResult> {
     const file = await loadLicenseFile(app, plugin);
@@ -214,13 +311,23 @@ export async function activateLicense(app: App, plugin: Plugin, licenseKey: stri
         res = await post<ObAuthResponse>('', body, AUTH_API_BASE_URL);
     } catch (err) {
         log('激活请求失败', err);
-        return { success: false, errMsg: err instanceof Error ? err.message : String(err), token: '', expireTime: 0 };
+        return {
+            success: false,
+            code: -1,
+            errMsg: err instanceof Error ? err.message : String(err),
+            token: '',
+            expireTime: 0,
+            devices: [],
+        };
     }
 
     if (!res || res.success !== true) {
+        const code = typeof res?.code === 'number' ? res.code : -1;
         const errMsg = res?.errMsg || '激活失败';
-        log('激活失败', errMsg);
-        return { success: false, errMsg, token: '', expireTime: 0 };
+        log('激活失败', { code, errMsg });
+        // 已被其他设备占用：查询当前绑定设备，供界面展示
+        const devices = code === ObAuthCode.BoundToOtherDevice ? await listDevices(licenseKey) : [];
+        return { success: false, code, errMsg, token: '', expireTime: 0, devices };
     }
 
     const token = res.token ?? '';
@@ -229,7 +336,7 @@ export async function activateLicense(app: App, plugin: Plugin, licenseKey: stri
     await saveLicenseFile(app, plugin);
     writeTokenStorage({ token, expireTime, lastValidateAt: Date.now(), invalidSince: 0 });
     log('激活成功', { licenseKey, token, expireTime });
-    return { success: true, errMsg: '', token, expireTime };
+    return { success: true, code: ObAuthCode.Success, errMsg: '', token, expireTime, devices: [] };
 }
 
 /** validate 接口响应 */

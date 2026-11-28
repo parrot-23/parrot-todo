@@ -1,15 +1,24 @@
 // 插件设置页
-import { Notice, PluginSettingTab, type App, type ButtonComponent, type Setting, type SettingDefinitionItem, type TextComponent } from 'obsidian';
+import { Notice, PluginSettingTab, setIcon, type App, type ButtonComponent, type Setting, type SettingDefinitionItem, type TextComponent, type ToggleComponent } from 'obsidian';
 
 import { t } from '../../core/i18n';
 import type ParrotPlanPlugin from '../../../main';
 import { ConfirmModal } from './confirm-modal';
 import { getConfig } from '../../core/api/obconfig';
 import { isApiConfigured } from '../../core/api/client';
-import { activateLicense, getLicenseState } from '../../core/api/license';
+import { activateLicense, deactivateDevice, getLicenseState, listDevices } from '../../core/api/license';
+import { ObAuthCode, type ObAuthDevice } from '../../core/api/types';
 
 /** UUID 格式校验（兼容带/不带连字符的 32 位十六进制） */
 const UUID_PATTERN = /^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$/i;
+
+/** 时间戳格式化为 YYYY-MM-DD HH:mm（无效时间戳返回空字符串） */
+function formatDateTime(timestamp: number): string {
+    if (!timestamp) return '';
+    const d = new Date(timestamp);
+    const pad = (n: number): string => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 /** 插件设置页 */
 export class ParrotPlanSettingTab extends PluginSettingTab {
@@ -24,9 +33,20 @@ export class ParrotPlanSettingTab extends PluginSettingTab {
     /** 授权码提交按钮（用于激活后禁用） */
     private licenseSubmitButton?: ButtonComponent;
 
+    /** 「启用剧本模式」设置项（用于按实验性功能开关显隐） */
+    private scriptModeSetting?: Setting;
+
+    /** 「启用剧本模式」开关（用于关闭实验性功能时同步状态） */
+    private scriptModeToggle?: ToggleComponent;
+
     constructor(app: App, plugin: ParrotPlanPlugin) {
         super(app, plugin);
         this.plugin = plugin;
+    }
+
+    /** 按「开启实验性功能」开关同步「启用剧本模式」行的显隐 */
+    private updateScriptModeVisibility(): void {
+        this.scriptModeSetting?.settingEl.toggleClass('is-hidden', !this.plugin.experimentalEnabled);
     }
 
     /** 已激活时回填授权码、显示已授权并禁用输入与提交 */
@@ -72,6 +92,10 @@ export class ParrotPlanSettingTab extends PluginSettingTab {
         const result = await activateLicense(this.app, this.plugin, licenseKey);
         if (!result.success) {
             new Notice(t('settings.licenseActivateFailed', { msg: result.errMsg }));
+            // 已被其他设备占用：在描述中列出当前绑定的设备
+            if (result.code === ObAuthCode.BoundToOtherDevice) {
+                this.renderBoundDevices(licenseKey, result.devices);
+            }
             btn.setButtonText(t('settings.licenseKeySubmit'));
             btn.setDisabled(false);
             return;
@@ -81,6 +105,53 @@ export class ParrotPlanSettingTab extends PluginSettingTab {
         this.licenseInput?.setDisabled(true);
         btn.setButtonText(t('settings.licenseActivated'));
         this.licenseSetting?.setDesc(t('settings.licenseActivatedDesc'));
+    }
+
+    /** 在设置项描述中渲染「已绑定其他设备」列表（每行末尾带解绑按钮） */
+    private renderBoundDevices(licenseKey: string, devices: ObAuthDevice[]): void {
+        const descEl = this.licenseSetting?.descEl;
+        if (!descEl) return;
+        descEl.empty();
+        descEl.createDiv({ text: t('settings.licenseBoundOther') });
+        if (devices.length === 0) return;
+
+        for (const device of devices) {
+            const row = descEl.createDiv({ cls: 'parrot-license-device-row' });
+            const os = device.clientOs || t('settings.licenseDeviceUnknownOs');
+            const time = device.bindTime ? formatDateTime(device.bindTime) : '';
+            row.createSpan({
+                text: time
+                    ? t('settings.licenseDeviceItem', { os, time })
+                    : t('settings.licenseDeviceItemNoTime', { os }),
+            });
+            const removeBtn = row.createEl('button', {
+                cls: 'parrot-license-device-remove',
+                attr: { 'aria-label': t('settings.licenseDeviceRemove') },
+            });
+            setIcon(removeBtn, 'trash-2');
+            removeBtn.onclick = () => {
+                new ConfirmModal(
+                    this.app,
+                    t('settings.licenseDeviceRemoveConfirm'),
+                    t('settings.licenseDeviceRemoveConfirmDesc'),
+                    async () => {
+                        await this.removeDevice(licenseKey, device);
+                    },
+                ).open();
+            };
+        }
+    }
+
+    /** 解绑指定设备：调用 deactivate 接口后刷新设备列表 */
+    private async removeDevice(licenseKey: string, device: ObAuthDevice): Promise<void> {
+        const result = await deactivateDevice(this.app, this.plugin, device);
+        if (!result.success) {
+            new Notice(t('settings.licenseDeviceRemoveFailed', { msg: result.errMsg }));
+            return;
+        }
+        new Notice(t('settings.licenseDeviceRemoveDone'));
+        const devices = await listDevices(licenseKey);
+        this.renderBoundDevices(licenseKey, devices);
     }
 
     getSettingDefinitions(): SettingDefinitionItem[] {
@@ -101,17 +172,10 @@ export class ParrotPlanSettingTab extends PluginSettingTab {
                 },
             },
             {
-                name: t('settings.scriptModeEnabled'),
-                desc: t('settings.scriptModeEnabledDesc'),
+                name: t('settings.advanced'),
+                searchable: false,
                 render: (setting) => {
-                    setting
-                        .setName(t('settings.scriptModeEnabled'))
-                        .setDesc(t('settings.scriptModeEnabledDesc'))
-                        .addToggle((toggle) => {
-                            toggle.setValue(this.plugin.scriptModeEnabled).onChange(async (value) => {
-                                await this.plugin.saveScriptModeEnabled(value);
-                            });
-                        });
+                    setting.setName(t('settings.advanced')).setHeading();
                 },
             },
             {
@@ -154,6 +218,48 @@ export class ParrotPlanSettingTab extends PluginSettingTab {
                         });
                     // 打开设置页时校验授权状态，并按结果回填界面
                     void this.refreshLicenseState();
+                },
+            },
+            {
+                name: t('settings.experimental'),
+                searchable: false,
+                render: (setting) => {
+                    setting.setName(t('settings.experimental')).setHeading();
+                },
+            },
+            {
+                name: t('settings.experimentalEnabled'),
+                desc: t('settings.experimentalEnabledDesc'),
+                render: (setting) => {
+                    setting
+                        .setName(t('settings.experimentalEnabled'))
+                        .setDesc(t('settings.experimentalEnabledDesc'))
+                        .addToggle((toggle) => {
+                            toggle.setValue(this.plugin.experimentalEnabled).onChange(async (value) => {
+                                await this.plugin.saveExperimentalEnabled(value);
+                                // 关闭实验性功能会同时关闭剧本模式，需同步开关显示
+                                this.scriptModeToggle?.setValue(this.plugin.scriptModeEnabled);
+                                this.updateScriptModeVisibility();
+                            });
+                        });
+                },
+            },
+            {
+                name: t('settings.scriptModeEnabled'),
+                desc: t('settings.scriptModeEnabledDesc'),
+                render: (setting) => {
+                    this.scriptModeSetting = setting;
+                    setting
+                        .setName(t('settings.scriptModeEnabled'))
+                        .setDesc(t('settings.scriptModeEnabledDesc'))
+                        .addToggle((toggle) => {
+                            this.scriptModeToggle = toggle;
+                            toggle.setValue(this.plugin.scriptModeEnabled).onChange(async (value) => {
+                                await this.plugin.saveScriptModeEnabled(value);
+                            });
+                        });
+                    // 仅在开启实验性功能后显示
+                    this.updateScriptModeVisibility();
                 },
             },
             {
