@@ -3,6 +3,7 @@ import { Notice, PluginSettingTab, setIcon, type App, type ButtonComponent, type
 
 import { t } from '../../core/i18n';
 import type ParrotPlanPlugin from '../../../main';
+import { MainView, VIEW_TYPE_MAIN } from '../../core/main-view';
 import { ConfirmModal } from './confirm-modal';
 import { getConfig } from '../../core/api/obconfig';
 import { isApiConfigured } from '../../core/api/client';
@@ -47,6 +48,13 @@ export class ParrotPlanSettingTab extends PluginSettingTab {
     /** 按「开启实验性功能」开关同步「启用剧本模式」行的显隐 */
     private updateScriptModeVisibility(): void {
         this.scriptModeSetting?.settingEl.toggleClass('is-hidden', !this.plugin.experimentalEnabled);
+    }
+
+    /** 开关变化后重新渲染已打开主视图的顶部工具栏（按最新开关决定按钮是否创建） */
+    private rerenderTopBars(): void {
+        for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_MAIN)) {
+            if (leaf.view instanceof MainView) leaf.view.rerenderTopBar();
+        }
     }
 
     /** 已激活时回填授权码、显示已授权并禁用输入与提交 */
@@ -240,6 +248,7 @@ export class ParrotPlanSettingTab extends PluginSettingTab {
                                 // 关闭实验性功能会同时关闭剧本模式，需同步开关显示
                                 this.scriptModeToggle?.setValue(this.plugin.scriptModeEnabled);
                                 this.updateScriptModeVisibility();
+                                this.rerenderTopBars();
                             });
                         });
                 },
@@ -256,6 +265,7 @@ export class ParrotPlanSettingTab extends PluginSettingTab {
                             this.scriptModeToggle = toggle;
                             toggle.setValue(this.plugin.scriptModeEnabled).onChange(async (value) => {
                                 await this.plugin.saveScriptModeEnabled(value);
+                                this.rerenderTopBars();
                             });
                         });
                     // 仅在开启实验性功能后显示

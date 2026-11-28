@@ -33,6 +33,8 @@ export interface TopBarOptions {
     onOpenStory?: () => void;
     /** 点击帮助按钮（位于设置按钮紧贴右侧） */
     onOpenHelp?: () => void;
+    /** 是否启用剧本模式：为 false 时不渲染剧本按钮与分隔线，默认启用 */
+    isStoryEnabled?: () => boolean;
 }
 
 /** 顶部工具栏渲染结果 */
@@ -85,16 +87,18 @@ export class TopBar {
         setIcon(collectBtn, 'inbox');
         collectBtn.onclick = () => this.options.onOpenCollectPanel?.();
 
-        // 剧本按钮：位于收集按钮右侧
-        const storyBtn = dateBar.createEl('button', {
-            cls: 'parrot-plan-topbar-calendar-btn',
-            attr: { 'aria-label': t('story.title') },
-        });
-        setIcon(storyBtn, 'book-open');
-        storyBtn.onclick = () => this.options.onOpenStory?.();
+        // 剧本按钮：位于收集按钮右侧（剧本模式未启用时不渲染）
+        if (this.options.isStoryEnabled?.() ?? true) {
+            const storyBtn = dateBar.createEl('button', {
+                cls: 'parrot-plan-topbar-calendar-btn',
+                attr: { 'aria-label': t('story.title') },
+            });
+            setIcon(storyBtn, 'book-open');
+            storyBtn.onclick = () => this.options.onOpenStory?.();
 
-        // 剧本与周历按钮之间的垂直分隔线
-        dateBar.createDiv({ cls: 'parrot-plan-topbar-divider' });
+            // 剧本与周历按钮之间的垂直分隔线
+            dateBar.createDiv({ cls: 'parrot-plan-topbar-divider' });
+        }
 
         // 周历按钮：位于日期切换左侧
         const calendarBtn = dateBar.createEl('button', {

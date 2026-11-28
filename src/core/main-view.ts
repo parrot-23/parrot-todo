@@ -96,6 +96,8 @@ export class MainView extends ItemView implements ThemeColorsConsumer {
             onOpenSettings: () => this.openSettingsPanel(),
             onOpenStory: () => this.openStoryPanel(),
             onOpenHelp: () => this.openHelpPanel(),
+            // 渲染时读取剧本模式开关：关闭时不渲染剧本按钮
+            isStoryEnabled: () => (this.plugin as Plugin & { scriptModeEnabled?: boolean }).scriptModeEnabled === true,
         });
         this.interfaceView = new InterfaceView(this.app, this.plugin, this.planCategoryData, {
             getSelectedDate: () => this.topBar.getSelectedDate(),
@@ -292,6 +294,19 @@ export class MainView extends ItemView implements ThemeColorsConsumer {
         registerThemeColorsConsumer(this);
 
         // 顶部工具栏：独占一行，左侧为界面功能按钮组，日期与周历居中，进行中任务靠右
+        this.renderTopBar(root);
+
+        // 内容区
+        this.contentRoot = root.createDiv({ cls: 'parrot-plan-content' });
+        await this.renderContent();
+
+        // 插件视图为活动标签时隐藏底部状态栏，切换标签时同步
+        this.registerEvent(this.app.workspace.on('active-leaf-change', () => this.syncStatusBar()));
+        this.syncStatusBar();
+    }
+
+    /** 渲染顶部工具栏（含左侧界面功能按钮组与进行中任务卡片） */
+    private renderTopBar(root: HTMLElement): void {
         const nav = root.createDiv({ cls: 'parrot-plan-nav' });
         const { left, afterCalendar } = this.topBar.render(nav);
 
@@ -301,14 +316,17 @@ export class MainView extends ItemView implements ThemeColorsConsumer {
         // 进行中任务卡片（周历按钮右侧，无进行中任务时隐藏）
         this.runningCardEl = afterCalendar.createDiv({ cls: 'parrot-plan-running-card-wrap' });
         this.renderRunningTaskCard();
+    }
 
-        // 内容区
-        this.contentRoot = root.createDiv({ cls: 'parrot-plan-content' });
-        await this.renderContent();
-
-        // 插件视图为活动标签时隐藏底部状态栏，切换标签时同步
-        this.registerEvent(this.app.workspace.on('active-leaf-change', () => this.syncStatusBar()));
-        this.syncStatusBar();
+    /**
+     * 重新渲染顶部工具栏（设置页切换剧本模式等开关后调用）。
+     * 按当前开关状态重建，保证按钮的创建与否与配置一致。
+     */
+    rerenderTopBar(): void {
+        const root = this.rootEl;
+        if (!root) return;
+        root.querySelector('.parrot-plan-nav')?.remove();
+        this.renderTopBar(root);
     }
 
     /** 主题颜色变更：令牌注入主视图根节点（顶部工具栏与内容区统一继承） */

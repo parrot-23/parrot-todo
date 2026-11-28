@@ -74,7 +74,7 @@ export class FunctionPanel extends FloatingPanel {
     private detailTask: PrototypeTask | undefined;
 
     constructor(options: FunctionPanelOptions) {
-        super({ ...options, title: options.title ?? t('interface.functionPanel'), width: 980 });
+        super({ ...options, title: options.title ?? t('interface.functionPanel'), width: 980, minWidth: 900 });
         this.panelOptions = options;
         const allGroups: FunctionGroup[] = [
             {

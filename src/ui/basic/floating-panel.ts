@@ -17,6 +17,11 @@ export interface FloatingPanelOptions {
     container?: HTMLElement;
     /** 面板宽度（px），默认 480 */
     width?: number;
+    /**
+     * 面板最小宽度（px）：窗口变窄时宽度可收缩到该值，默认 0（不收缩）。
+     * 仅在挂载到 body（fixed 定位）时生效，容器内面板跟随容器宽度。
+     */
+    minWidth?: number;
     /** 是否可拖动，默认 true */
     draggable?: boolean;
     /** 是否在失去焦点时自动关闭（点击面板外任意位置），默认 false */
@@ -128,6 +133,12 @@ export class FloatingPanel {
         }
         this.root.setCssStyles({ display: 'none' });
         if (options.width) this.root.setCssStyles({ width: `${options.width}px` });
+        // 窗口变窄时按视口收缩宽度（不低于 minWidth），避免面板超出可视区
+        if (this.hostIsBody && options.width && options.minWidth) {
+            this.root.setCssStyles({
+                maxWidth: `max(${options.minWidth}px, calc(100vw - 48px))`,
+            });
+        }
 
         this.headerEl = this.root.createDiv({ cls: 'floating-panel-header' });
         this.titleEl = this.headerEl.createDiv({ cls: 'floating-panel-title' });
