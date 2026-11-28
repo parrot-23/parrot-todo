@@ -21,6 +21,7 @@ import { initLogger, log } from './src/core/shared/logger';
 // import { migrateLegacyRecordDb, getRecordStore } from './src/core/db/record-store';
 import { getPluginDir } from './src/core/shared/plugin-dir';
 import { clearConfigCache } from './src/core/api/cache';
+import { checkLicense, VALIDATE_INTERVAL } from './src/core/api/license';
 import type { TaskFileSortMode } from './src/core/shared/task-file';
 import { ParrotPlanSettingTab } from './src/ui/ob/setting-tab';
 import { RunningTaskStatusBar } from './src/ui/ob/status-bar';
@@ -202,6 +203,13 @@ export default class ParrotPlanPlugin extends Plugin {
         // 状态栏：进行中任务（任务名称：时长）
         // 在插件加载时创建，保证主视图未打开时也能显示
         this.initStatusBar();
+
+        // 授权状态校验：每 24 小时轮询一次（内部按上次校验时间节流，短期反复启动不会重复请求）
+        this.registerInterval(
+            window.setInterval(() => {
+                void checkLicense(this.app, this);
+            }, VALIDATE_INTERVAL),
+        );
 
         // 文件/文件夹在 vault 内被移动或重命名时，同步更新任务中引用的路径
         this.registerEvent(

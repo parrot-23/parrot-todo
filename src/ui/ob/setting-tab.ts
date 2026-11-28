@@ -40,6 +40,21 @@ export class ParrotPlanSettingTab extends PluginSettingTab {
         this.licenseSetting?.setDesc(t('settings.licenseActivatedDesc'));
     }
 
+    /** 打开设置页时按本地状态回填界面（不发起校验请求） */
+    private async refreshLicenseState(): Promise<void> {
+        const state = await getLicenseState(this.app, this.plugin);
+        if (state.licenseKey && state.token) {
+            await this.applyActivatedState();
+            return;
+        }
+        // 未激活 / 授权已失效：恢复为未激活界面
+        this.licenseInput?.setValue('');
+        this.licenseInput?.setDisabled(false);
+        this.licenseSubmitButton?.setDisabled(false);
+        this.licenseSubmitButton?.setButtonText(t('settings.licenseKeySubmit'));
+        this.licenseSetting?.setDesc(t('settings.licenseKeyDesc'));
+    }
+
     /** 提交授权码：校验格式后调用 activate 接口激活 */
     private async submitLicenseKey(btn: ButtonComponent): Promise<void> {
         const licenseKey = (this.licenseInput?.getValue() ?? '').trim();
@@ -137,8 +152,8 @@ export class ParrotPlanSettingTab extends PluginSettingTab {
                                     }
                                 });
                         });
-                    // 已激活时回填授权码并禁用输入与提交
-                    void this.applyActivatedState();
+                    // 打开设置页时校验授权状态，并按结果回填界面
+                    void this.refreshLicenseState();
                 },
             },
             {
