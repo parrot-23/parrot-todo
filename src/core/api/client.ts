@@ -6,11 +6,17 @@ import { requestUrl } from 'obsidian';
 import { log } from '../shared/logger';
 
 /**
- * 后端服务域名。
- * 形如 `https://xxx.service.tcloudbase.com/obconfig`，末尾不要带 `/`。
- * 后续接入正式环境时在此填写，或改为从插件设置读取。
+ * 后端服务域名（云函数 HTTP 访问服务的公共前缀）。
+ * 形如 `https://xxx.service.tcloudbase.com`，末尾不要带 `/`。
+ * 各云函数地址由「域名 + 云函数名」拼接得到，只需在此配置一次。
  */
-export const API_BASE_URL = 'https://cloud1-d1g6azon61dd44c4e-1500284813.ap-shanghai.app.tcloudbase.com/obconfig';
+export const API_HOST = 'https://cloud1-d1g6azon61dd44c4e-1500284813.ap-shanghai.app.tcloudbase.com';
+
+/** 配置服务（obconfig 云函数）地址 */
+export const API_BASE_URL = `${API_HOST}/obconfig`;
+
+/** 授权服务（obauth 云函数）地址 */
+export const AUTH_API_BASE_URL = `${API_HOST}/obauth`;
 
 /** 请求超时时间（毫秒） */
 const REQUEST_TIMEOUT = 15000;
@@ -36,13 +42,14 @@ export function isApiConfigured(): boolean {
  * 发起一次 POST 请求（后端统一使用 POST + JSON 请求体）。
  * @param path 接口路径（相对 API_BASE_URL，可为空表示直接请求域名本身）
  * @param body 请求体
+ * @param baseUrl 服务地址，默认 API_BASE_URL（授权服务传 AUTH_API_BASE_URL）
  */
-export async function post<T>(path: string, body: unknown): Promise<T> {
+export async function post<T>(path: string, body: unknown, baseUrl: string = API_BASE_URL): Promise<T> {
     if (!isApiConfigured()) {
         throw new ApiError('后端服务地址未配置');
     }
 
-    const url = `${API_BASE_URL.replace(/\/+$/, '')}${path ? `/${path.replace(/^\/+/, '')}` : ''}`;
+    const url = `${baseUrl.replace(/\/+$/, '')}${path ? `/${path.replace(/^\/+/, '')}` : ''}`;
     log('后端请求', url, body);
 
     let res;
