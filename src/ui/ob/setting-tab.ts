@@ -68,7 +68,7 @@ export class ParrotPlanSettingTab extends PluginSettingTab {
                                         return;
                                     }
                                     try {
-                                        const config = await getConfig();
+                                        const config = await getConfig(this.app, this.plugin);
                                         if (!config.authCodeUrl) {
                                             new Notice(t('settings.authCodeUnavailable'));
                                             return;

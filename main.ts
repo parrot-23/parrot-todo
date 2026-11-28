@@ -20,6 +20,7 @@ import { initLogger, log } from './src/core/shared/logger';
 // 已关闭 .db 记录库功能：保留 import 待后续启用
 // import { migrateLegacyRecordDb, getRecordStore } from './src/core/db/record-store';
 import { getPluginDir } from './src/core/shared/plugin-dir';
+import { clearConfigCache } from './src/core/api/cache';
 import type { TaskFileSortMode } from './src/core/shared/task-file';
 import { ParrotPlanSettingTab } from './src/ui/ob/setting-tab';
 import { RunningTaskStatusBar } from './src/ui/ob/status-bar';
@@ -319,6 +320,8 @@ export default class ParrotPlanPlugin extends Plugin {
     /** 清空全部插件数据并重置为默认值 */
     async clearAllData(): Promise<void> {
         await this.repo.clearAll();
+        // 同时清理后端配置缓存
+        await clearConfigCache(this.app, this);
         // 同时删除按年度拆分的记录库文件
         // 已关闭 .db 记录库功能：暂不清理，保留代码待后续启用
         // await getRecordStore(this.app, getPluginDir(this.app, this)).clearAll();
