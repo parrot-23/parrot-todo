@@ -609,6 +609,7 @@ export const zh = {
     'settings.licenseKeyPlaceholder': '请输入授权码',
     'settings.licenseKeySubmit': '提交',
     'settings.licenseKeyGet': '获取授权码',
+    'settings.authCodeUnavailable': '暂时不可获取',
     'settings.scriptModeEnabled': '启用剧本模式',
     'settings.scriptModeEnabledDesc': '关闭后，「剧本场景」与「剧本管理」两个二级视图将被隐藏。',
     'settings.data': '数据',

@@ -672,6 +672,7 @@ export const en: I18nMessages = {
     'settings.licenseKeyPlaceholder': 'Enter license key',
     'settings.licenseKeySubmit': 'Submit',
     'settings.licenseKeyGet': 'Get license key',
+    'settings.authCodeUnavailable': 'Temporarily unavailable',
     'settings.scriptModeEnabled': 'Enable script mode',
     'settings.scriptModeEnabledDesc': 'When disabled, the "Scene" and "Script management" secondary views will be hidden.',
     'settings.data': 'Data',

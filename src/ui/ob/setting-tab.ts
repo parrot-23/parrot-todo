@@ -4,6 +4,8 @@ import { Notice, PluginSettingTab, type App, type SettingDefinitionItem } from '
 import { t } from '../../core/i18n';
 import type ParrotPlanPlugin from '../../../main';
 import { ConfirmModal } from './confirm-modal';
+import { getConfig } from '../../core/api/obconfig';
+import { isApiConfigured } from '../../core/api/client';
 
 /** 插件设置页 */
 export class ParrotPlanSettingTab extends PluginSettingTab {
@@ -59,7 +61,23 @@ export class ParrotPlanSettingTab extends PluginSettingTab {
                             btn.setButtonText(t('settings.licenseKeySubmit'));
                         })
                         .addButton((btn) => {
-                            btn.setButtonText(t('settings.licenseKeyGet'));
+                            btn.setButtonText(t('settings.licenseKeyGet'))
+                                .onClick(async () => {
+                                    if (!isApiConfigured()) {
+                                        new Notice(t('settings.authCodeUnavailable'));
+                                        return;
+                                    }
+                                    try {
+                                        const config = await getConfig();
+                                        if (!config.authCodeUrl) {
+                                            new Notice(t('settings.authCodeUnavailable'));
+                                            return;
+                                        }
+                                        window.open(config.authCodeUrl, '_blank');
+                                    } catch (err) {
+                                        new Notice(t('settings.authCodeUnavailable'));
+                                    }
+                                });
                         });
                 },
             },
